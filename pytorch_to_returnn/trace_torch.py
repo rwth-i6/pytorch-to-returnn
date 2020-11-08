@@ -27,12 +27,8 @@ def _print_getattr(full_name: str):
   _printed_getattr.add(full_name)
 
 
-
 class WrappedModule(types.ModuleType):
-  def __init__(self, mod):
-    """
-    :param types.ModuleType mod:
-    """
+  def __init__(self, mod: types.ModuleType):
     super(WrappedModule, self).__init__(name=mod.__name__, doc=mod.__doc__)
     self._mod = mod
 
@@ -69,7 +65,11 @@ class WrappedFunc:
   pass
 
 
-wrapped_types = (WrappedModule, WrappedClass, WrappedFunc)
+class WrappedTensor:
+  pass
+
+
+wrapped_types = (WrappedModule, WrappedClass, WrappedFunc, WrappedTensor)
 
 
 def wrap(obj):
