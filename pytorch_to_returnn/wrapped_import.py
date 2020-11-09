@@ -188,7 +188,7 @@ class WrappedObject:
       if isinstance(res, types.ModuleType):
         if _should_wrap_mod(res.__name__):
           res = importlib.import_module(_ModPrefix + res.__name__)
-      elif isinstance(res, types.FunctionType):
+      elif isinstance(res, (types.FunctionType, types.BuiltinFunctionType)):
         res = WrappedFunction(orig_obj=res, name="%s.%s" % (self._wrapped__name, item))
       elif isinstance(res, type):
         if res == torch.Tensor:
