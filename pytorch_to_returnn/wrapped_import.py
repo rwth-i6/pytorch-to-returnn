@@ -35,6 +35,14 @@ import linecache
 
 
 DEBUG = False
+_unique_prints = set()
+
+
+def _unique_print(txt: str):
+  if txt in _unique_prints:
+    return
+  _unique_prints.add(txt)
+  print(txt)
 
 
 def _ast_get_source_segment(src_filename: str, node: ast.AST) -> Optional[str]:
@@ -94,9 +102,6 @@ class _AstImportTransformer(ast.NodeTransformer):
         assert isinstance(sub_node, ast.Import)
         res.append(sub_node)
       return res
-    if DEBUG:
-      print("*** Import:", ast.dump(node))
-      print("  ", _ast_get_source_segment(src_filename=self.src_filename, node=node))
     assert len(node.names) == 1
     alias, = node.names
     assert isinstance(alias, ast.alias)
@@ -135,9 +140,6 @@ class _AstImportTransformer(ast.NodeTransformer):
     # https://docs.python.org/3/library/ast.html#ast.ImportFrom
     if node.level == 0 and not self._should_wrap_mod_name(node.module):
       return node
-    if DEBUG:
-      print("*** ImportFrom:", ast.dump(node))
-      print("  ", _ast_get_source_segment(src_filename=self.src_filename, node=node))
     if node.level > 0:
       return node  # relative imports should already be handled correctly
     assert node.level == 0
@@ -166,6 +168,14 @@ _ExplicitIndirectModList = {
 }
 
 
+def _should_wrap_mod(mod_name: str) -> bool:
+  if mod_name == "torch":
+    return True
+  if mod_name.startswith("torch."):
+    return True
+  return False
+
+
 class WrappedIndirectModule(WrappedModule):
   """
   This can not be transformed on source level,
@@ -173,8 +183,6 @@ class WrappedIndirectModule(WrappedModule):
   """
   def __init__(self, **kwargs):
     super(WrappedIndirectModule, self).__init__(**kwargs)
-    if DEBUG:
-      print("*** WrappedIndirectModule", self.__name__)
     if getattr(self._wrapped__orig_mod, "__all__", None) is not None:
       self.__all__ = self._wrapped__orig_mod.__all__
     else:
@@ -183,14 +191,21 @@ class WrappedIndirectModule(WrappedModule):
 
   def __getattr__(self, item):
     assert item not in {"_wrapped__orig_mod", "__name__"}
-    print("*** WrappedIndirectModule %s getattr %r" % (self.__name__, item))
-    return getattr(self._wrapped__orig_mod, item)
+    if item == "__path__":  # some special logic, to avoid loading source directly
+      if getattr(self._wrapped__orig_mod, "__path__", None) is not None:
+        return []
+      return None
+    res = getattr(self._wrapped__orig_mod, item)
+    if isinstance(res, types.ModuleType) and _should_wrap_mod(res.__name__):
+      res = importlib.import_module(_ModPrefix + res.__name__)
+    else:
+      _unique_print("*** indirect getattr '%s.%s' -> %r" % (self.__name__, item, res))
+    return res
 
   def __setattr__(self, key, value):
     if key in {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}:
       return super(WrappedIndirectModule, self).__setattr__(key, value)
-    print("*** WrappedIndirectModule %s setattr %r, %r" % (self.__name__, key, value))
-    return setattr(self._wrapped__orig_mod, key, value)
+    # Just ignore
 
 
 class WrappedTensor:
@@ -212,8 +227,10 @@ class _MetaPathLoader(importlib.abc.Loader):
   def create_module(self, spec: importlib.machinery.ModuleSpec) -> WrappedModule:
     assert spec.name.startswith(_ModPrefix)
     orig_mod_name = spec.name[len(_ModPrefix):]
+    assert not orig_mod_name.startswith(_ModPrefix)
     # Normal load. This is just to get __file__, and check whether it is correct. Maybe useful otherwise as well.
     orig_mod = importlib.import_module(orig_mod_name)
+    assert not isinstance(orig_mod, WrappedModule)
     assert orig_mod.__name__ == orig_mod_name
     orig_mod_name_parts = orig_mod_name.split(".")
     for i in range(1, len(orig_mod_name_parts) + 1):
@@ -228,12 +245,12 @@ class _MetaPathLoader(importlib.abc.Loader):
     return WrappedSourceModule(name=spec.name, orig_mod=orig_mod, source=src)
 
   def exec_module(self, module: WrappedModule):
-    if DEBUG:
-      print("*** exec mod", module)
     assert isinstance(module, WrappedModule)
     assert module.__name__.startswith(_ModPrefix)
     if isinstance(module, WrappedIndirectModule):
       return  # nothing needed to be done
+    if DEBUG:
+      print("*** exec mod", module)
     assert isinstance(module, WrappedSourceModule)
     # noinspection PyProtectedMember
     orig_mod = module._wrapped__orig_mod
