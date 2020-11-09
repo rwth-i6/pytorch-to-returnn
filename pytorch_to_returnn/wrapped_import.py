@@ -246,6 +246,7 @@ _TorchModDirectAttribs = {
   "_modules", "_parameters", "_buffers",
 }
 
+
 def make_wrapped_class(cls: type, name: str):
   is_torch_module = issubclass(cls, torch.nn.Module)
 
@@ -256,10 +257,6 @@ def make_wrapped_class(cls: type, name: str):
       obj = cls(*args, **kwargs)
       WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
 
-    # Make sure we wrap the right ones.
-    __setattr__ = WrappedObject.__setattr__
-    __getattr__ = WrappedObject.__getattr__
-
     def __getattribute__(self, item):
       if item == "__dict__":
         # Special case. Directly get it from wrapped object.
@@ -269,6 +266,22 @@ def make_wrapped_class(cls: type, name: str):
         if item in _TorchModDirectAttribs:
           return getattr(self._wrapped__orig_obj, item)
       return object.__getattribute__(self, item)
+
+    __getattr__ = WrappedObject.__getattr__
+
+    def __setattr__(self, key, value):
+      if key in {"_wrapped__orig_obj", "_wrapped__name"}:
+        return object.__setattr__(self, key, value)
+      return setattr(self._wrapped__orig_obj, key, value)
+
+    def __delattr__(self, item):
+      return delattr(self._wrapped__orig_obj, item)
+
+    if is_torch_module:
+      def __call__(self, *args, **kwargs):
+        if DEBUG:
+          _unique_print("*** module call %s(...)(...)" % (name,))
+        return self._wrapped__orig_obj(*args, **kwargs)
 
   WrappedClass.__name__ = cls.__name__
   if cls.__module__:
