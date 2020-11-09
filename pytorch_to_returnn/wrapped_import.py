@@ -21,13 +21,11 @@ See :class:`_AstImportTransformer`.
 
 """
 
-import torch
 import ast
 import types
 import typing
-from typing import Optional, Union, Set, Any
+from typing import Optional, Union, Any
 import sys
-import os
 import importlib
 import importlib.abc
 import importlib.machinery
@@ -184,6 +182,7 @@ class WrappedIndirectModule(WrappedModule):
   def __init__(self, **kwargs):
     super(WrappedIndirectModule, self).__init__(**kwargs)
     if getattr(self._wrapped__orig_mod, "__all__", None) is not None:
+      # noinspection PyUnresolvedReferences
       self.__all__ = self._wrapped__orig_mod.__all__
     else:
       names = sorted(vars(self._wrapped__orig_mod).keys())
