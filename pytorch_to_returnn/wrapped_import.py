@@ -298,6 +298,8 @@ class WrappedMethod(WrappedObject):
 
 class WrappedFunction(WrappedObject):
   def __call__(self, *args, **kwargs):
+    if DEBUG:
+      _unique_print("*** func call %s(...)" % self._wrapped__name)
     return self._wrapped__orig_obj(*args, **kwargs)
 
 
