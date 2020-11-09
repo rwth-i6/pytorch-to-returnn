@@ -21,6 +21,7 @@ See :class:`_AstImportTransformer`.
 
 """
 
+import torch
 import ast
 import types
 import typing
@@ -174,13 +175,47 @@ def _should_wrap_mod(mod_name: str) -> bool:
   return False
 
 
-class WrappedIndirectModule(WrappedModule):
+class WrappedObject:
+  def __init__(self, orig_obj: Any, name: str):
+    self._wrapped__name = name
+    self._wrapped__orig_obj = orig_obj
+
+  def __getattr__(self, item):
+    assert item not in {"_wrapped__orig_obj", "_wrapped__name"}
+    res_ = getattr(self._wrapped__orig_obj, item)
+    res = res_
+    if not isinstance(res, WrappedObject):
+      if isinstance(res, types.ModuleType):
+        if _should_wrap_mod(res.__name__):
+          res = importlib.import_module(_ModPrefix + res.__name__)
+      elif isinstance(res, types.FunctionType):
+        res = WrappedFunction(orig_obj=res, name="%s.%s" % (self._wrapped__name, item))
+      elif isinstance(res, type):
+        if res == torch.Tensor:
+          # TODO
+          pass
+        elif res in {torch.nn.Module}:  # blacklist
+          pass  # do not transform/wrap
+        elif res.__module__ and _should_wrap_mod(res.__module__):
+          res = make_wrapped_class(cls=res, name="%s.%s" % (self._wrapped__name, item))
+      if res is not res_:
+        object.__setattr__(self, item, res)
+    if DEBUG:
+      postfix = ""
+      if isinstance(res, (WrappedObject, WrappedModule)):
+        postfix = " -> %r" % res
+      _unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
+    return res
+
+
+class WrappedIndirectModule(WrappedModule, WrappedObject):
   """
   This can not be transformed on source level,
   so we wrap all attrib access on-the-fly.
   """
   def __init__(self, **kwargs):
-    super(WrappedIndirectModule, self).__init__(**kwargs)
+    WrappedModule.__init__(self, **kwargs)
+    WrappedObject.__init__(self, orig_obj=self._wrapped__orig_mod, name=self.__name__)
     if getattr(self._wrapped__orig_mod, "__all__", None) is not None:
       # noinspection PyUnresolvedReferences
       self.__all__ = self._wrapped__orig_mod.__all__
@@ -194,21 +229,63 @@ class WrappedIndirectModule(WrappedModule):
       if getattr(self._wrapped__orig_mod, "__path__", None) is not None:
         return []
       return None
-    res = getattr(self._wrapped__orig_mod, item)
-    if isinstance(res, types.ModuleType) and _should_wrap_mod(res.__name__):
-      res = importlib.import_module(_ModPrefix + res.__name__)
-    else:
-      _unique_print("*** indirect getattr '%s.%s' -> %r" % (self.__name__, item, res))
-    return res
+    return WrappedObject.__getattr__(self, item)
 
-  def __setattr__(self, key, value):
-    if key in {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}:
-      return super(WrappedIndirectModule, self).__setattr__(key, value)
-    # Just ignore
+  # setattr not needed
+  # but if so, standard keys:
+  # {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}
 
 
-class WrappedTensor:
+class WrappedTorchTensor:
   pass
+
+
+_TorchModDirectAttribs = {
+  "_forward_pre_hooks", "_forward_hooks", "_backward_hooks",
+  "_load_state_dict_pre_hooks",
+  "_modules", "_parameters", "_buffers",
+}
+
+def make_wrapped_class(cls: type, name: str):
+  is_torch_module = issubclass(cls, torch.nn.Module)
+
+  class WrappedClass(WrappedObject, cls):
+    def __init__(self, *args, **kwargs):
+      if DEBUG:
+        _unique_print("*** WrappedClass %s(...)" % (name,))
+      obj = cls(*args, **kwargs)
+      WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
+
+    # Make sure we wrap the right ones.
+    __setattr__ = WrappedObject.__setattr__
+    __getattr__ = WrappedObject.__getattr__
+
+    def __getattribute__(self, item):
+      if item == "__dict__":
+        # Special case. Directly get it from wrapped object.
+        return self._wrapped__orig_obj.__dict__
+      if is_torch_module:
+        # Some fast path, and avoid logging.
+        if item in _TorchModDirectAttribs:
+          return getattr(self._wrapped__orig_obj, item)
+      return object.__getattribute__(self, item)
+
+  WrappedClass.__name__ = cls.__name__
+  if cls.__module__:
+    if _should_wrap_mod(cls.__module__):
+      WrappedClass.__module__ = _ModPrefix + cls.__module__
+    else:
+      WrappedClass.__module__ = cls.__module__
+  return WrappedClass
+
+
+class WrappedMethod(WrappedObject):
+  pass
+
+
+class WrappedFunction(WrappedObject):
+  def __call__(self, *args, **kwargs):
+    return self._wrapped__orig_obj(*args, **kwargs)
 
 
 # https://docs.python.org/3/library/importlib.html
