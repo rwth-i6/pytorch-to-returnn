@@ -244,8 +244,8 @@ class WrappedObject:
           elif res in {torch.Tensor, torch.nn.Parameter}:
             # TODO
             pass
-          elif res in {torch.nn.Module}:  # blacklist
-            pass  # do not transform/wrap
+          elif res == torch.nn.Module:
+            res = WrappedModuleBase
           elif res.__module__ and _should_wrap_mod(res.__module__):
             # If this is an indirect module, but the type is part of a submodule which we want to transform,
             # explicitly check the import.
@@ -324,6 +324,18 @@ class WrappedTorchTensor:  # TODO
 
 
 # TODO wrapped TorchParameter?
+
+
+class WrappedModuleBase(torch.nn.Module):
+  def __init__(self):
+    super(WrappedModuleBase, self).__init__()
+    if DEBUG:
+      _unique_print("*** torch module create %s.%s(...)" % (self.__class__.__module__, self.__class__.__qualname__))
+
+  def __call__(self, *args, **kwargs):
+    if DEBUG:
+      _unique_print("*** torch module call %s.%s(...)(...)" % (self.__class__.__module__, self.__class__.__qualname__))
+    return super(WrappedModuleBase, self).__call__(*args, **kwargs)
 
 
 _TorchModDirectAttribs = {
