@@ -33,11 +33,14 @@ import importlib.machinery
 import linecache
 
 
-DEBUG = False
+LogVerbosity = 0
 _unique_prints = set()
 
 
 def _unique_print(txt: str):
+  if LogVerbosity >= 100:  # always print, ignore unique
+    print(txt)
+    return
   if txt in _unique_prints:
     return
   _unique_prints.add(txt)
@@ -264,9 +267,9 @@ class WrappedObject:
         if res is not res_:
           object.__setattr__(self, item, res)
         else:
-          if DEBUG:
+          if LogVerbosity >= 6:
             _unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
-      if DEBUG:
+      if LogVerbosity >= 6:
         postfix = ""
         if isinstance(res, (WrappedObject, WrappedModule)) or getattr(res, "__module__", "").startswith(_ModPrefix):
           postfix = " -> %r" % res
@@ -329,11 +332,11 @@ class WrappedTorchTensor:  # TODO
 class WrappedModuleBase(torch.nn.Module):
   def __init__(self):
     super(WrappedModuleBase, self).__init__()
-    if DEBUG:
+    if LogVerbosity >= 4:
       _unique_print("*** torch module create %s.%s(...)" % (self.__class__.__module__, self.__class__.__qualname__))
 
   def __call__(self, *args, **kwargs):
-    if DEBUG:
+    if LogVerbosity >= 3:
       _unique_print("*** torch module call %s.%s(...)(...)" % (self.__class__.__module__, self.__class__.__qualname__))
     return super(WrappedModuleBase, self).__call__(*args, **kwargs)
 
@@ -350,7 +353,7 @@ def make_wrapped_class(cls: type, name: str):
 
   class WrappedClass(WrappedObject):
     def __init__(self, *args, **kwargs):
-      if DEBUG:
+      if LogVerbosity >= 4:
         _unique_print("*** WrappedClass %s(...)" % (name,))
       obj = cls(*args, **kwargs)
       WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
@@ -377,7 +380,7 @@ def make_wrapped_class(cls: type, name: str):
 
     if is_torch_module:
       def __call__(self, *args, **kwargs):
-        if DEBUG:
+        if LogVerbosity >= 3:
           _unique_print("*** module call %s(...)(...)" % (name,))
         return self._wrapped__orig_obj(*args, **kwargs)
 
@@ -405,7 +408,7 @@ def make_wrapped_function(func, name: str):
   # which expects certain types.
   class WrappedFunc(WrappedObject):
     def __new__(cls, *args, **kwargs):
-      if DEBUG:
+      if LogVerbosity >= 3:
         _unique_print("*** func call %s(...)" % name)
       res = func(*args, **kwargs)
       # print("  *** res:", res)
@@ -467,7 +470,7 @@ class _MetaPathLoader(importlib.abc.Loader):
     assert module.__name__.startswith(_ModPrefix)
     if isinstance(module, WrappedIndirectModule):
       return  # nothing needed to be done
-    if DEBUG:
+    if LogVerbosity >= 5:
       print("*** exec mod", module)
     assert isinstance(module, WrappedSourceModule)
     # noinspection PyProtectedMember
