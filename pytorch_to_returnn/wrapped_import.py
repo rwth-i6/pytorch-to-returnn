@@ -162,8 +162,23 @@ class WrappedSourceModule(WrappedModule):
 
 
 _ExplicitIndirectModList = {
-  "torch",  # leave this in to not do any magic on the original Torch modules
-  "torch.tensor", "torch.distributed"
+  # Leave "torch" in to not do any magic on the original Torch modules.
+  # Note that the main torch module cannot be transformed
+  # because of some side-effects triggered by native Torch code,
+  # which we cannot catch automatically.
+  # More specifically, in torch/__init__.py, there is the call _C._initExtension,
+  # which (un-intuitively) does all sorts of initialization,
+  # including torch::utils::initializeDtypes,
+  # which itself has the side-effect of adding dtypes (e.g. `float32`)
+  # to the `torch` module (-> `torch.float32`).
+  # And the name `"torch"` is hardcoded there,
+  # i.e. it will not used our wrapped module,
+  # thus we will never have `float32` registered,
+  # and that leads to exceptions.
+  # This is likely not the only problem.
+  "torch",
+  "torch.tensor", "torch.distributed",
+  "torch._C",
 }
 
 
@@ -180,32 +195,71 @@ class WrappedObject:
     self._wrapped__name = name
     self._wrapped__orig_obj = orig_obj
 
+  def __repr__(self):
+    return "<WrappedObject %r type %s>" % (self._wrapped__name, type(self._wrapped__orig_obj))
+
   def __getattr__(self, item):
     assert item not in {"_wrapped__orig_obj", "_wrapped__name"}
     res_ = getattr(self._wrapped__orig_obj, item)
-    res = res_
-    if not isinstance(res, WrappedObject):
-      if isinstance(res, types.ModuleType):
-        if _should_wrap_mod(res.__name__):
-          res = importlib.import_module(_ModPrefix + res.__name__)
-      elif isinstance(res, (types.FunctionType, types.BuiltinFunctionType)):
-        res = WrappedFunction(orig_obj=res, name="%s.%s" % (self._wrapped__name, item))
-      elif isinstance(res, type):
-        if res == torch.Tensor:
-          # TODO
-          pass
-        elif res in {torch.nn.Module}:  # blacklist
-          pass  # do not transform/wrap
-        elif res.__module__ and _should_wrap_mod(res.__module__):
-          res = make_wrapped_class(cls=res, name="%s.%s" % (self._wrapped__name, item))
-      if res is not res_:
-        object.__setattr__(self, item, res)
-    if DEBUG:
-      postfix = ""
-      if isinstance(res, (WrappedObject, WrappedModule)):
-        postfix = " -> %r" % res
-      _unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
+    try:
+      res = res_
+      if not isinstance(res, (WrappedObject, WrappedModule)):
+        if isinstance(res, types.ModuleType):
+          if _should_wrap_mod(res.__name__):
+            if res.__name__ not in sys.modules:
+              # If this happens, this is actually a bug in how the module importing is done.
+              # This is not on our side.
+              # This might happen for native modules.
+              # This is slightly problematic for our following logic, because import_module will not find it.
+              # So we patch this here.
+              sys.modules[res.__name__] = res
+            # If this comes from an WrappedIndirectModule, this will create a new WrappedIndirectModule for the sub mod.
+            res = importlib.import_module(_ModPrefix + res.__name__)
+        elif isinstance(res, (types.FunctionType, types.BuiltinFunctionType)):
+          res = make_wrapped_function(func=res, name="%s.%s" % (self._wrapped__name, item))
+        elif isinstance(res, type):
+          if type(res) != type:  # explicitly do not check sub-types, e.g. pybind11_type
+            pass
+          elif res == torch.Tensor:
+            # TODO
+            pass
+          elif res in {torch.nn.Module}:  # blacklist
+            pass  # do not transform/wrap
+          elif res.__module__ and _should_wrap_mod(res.__module__):
+            res = make_wrapped_class(cls=res, name="%s.%s" % (self._wrapped__name, item))
+        elif not isinstance(res, type) and type(type(res)) == type:  # object instance
+          if isinstance(res, torch.Tensor):
+            pass  # TODO ...
+          else:
+            res = WrappedObject(orig_obj=res, name="%s.%s" % (self._wrapped__name, item))
+        if res is not res_:
+          object.__setattr__(self, item, res)
+        else:
+          if DEBUG:
+            _unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
+      if DEBUG:
+        postfix = ""
+        if isinstance(res, (WrappedObject, WrappedModule)):
+          postfix = " -> %r" % res
+        _unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
+    except AttributeError as exc:  # no exception expected. esp, we should **NOT** forward AttributeError
+      raise RuntimeError(exc) from exc
     return res
+
+  # setattr on this object directly, not on the wrapped one
+  __setattr__ = object.__setattr__
+
+  def __delattr__(self, item):
+    if hasattr(self._wrapped__orig_obj, item):
+      delattr(self._wrapped__orig_obj, item)
+    if hasattr(self, item):
+      super(WrappedObject, self).__delattr__(item)
+
+  def __dir__(self):
+    return dir(self._wrapped__orig_obj)
+
+  def __bool__(self):
+    return bool(self._wrapped__orig_obj)
 
 
 class WrappedIndirectModule(WrappedModule, WrappedObject):
@@ -236,8 +290,11 @@ class WrappedIndirectModule(WrappedModule, WrappedObject):
   # {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}
 
 
-class WrappedTorchTensor:
+class WrappedTorchTensor:  # TODO
   pass
+
+
+# TODO wrapped TorchParameter?
 
 
 _TorchModDirectAttribs = {
@@ -250,7 +307,7 @@ _TorchModDirectAttribs = {
 def make_wrapped_class(cls: type, name: str):
   is_torch_module = issubclass(cls, torch.nn.Module)
 
-  class WrappedClass(WrappedObject, cls):
+  class WrappedClass(WrappedObject):
     def __init__(self, *args, **kwargs):
       if DEBUG:
         _unique_print("*** WrappedClass %s(...)" % (name,))
@@ -284,23 +341,45 @@ def make_wrapped_class(cls: type, name: str):
         return self._wrapped__orig_obj(*args, **kwargs)
 
   WrappedClass.__name__ = cls.__name__
+  WrappedClass.__qualname__ = cls.__qualname__
   if cls.__module__:
     if _should_wrap_mod(cls.__module__):
       WrappedClass.__module__ = _ModPrefix + cls.__module__
     else:
       WrappedClass.__module__ = cls.__module__
+  try:
+    WrappedClass.__bases__ = (WrappedObject, cls)
+  except TypeError:  # e.g. type 'torch._C.DisableTorchFunction' is not an acceptable base type
+    pass
   return WrappedClass
 
 
-class WrappedMethod(WrappedObject):
+class WrappedMethod(WrappedObject):  # TODO
   pass
 
 
-class WrappedFunction(WrappedObject):
-  def __call__(self, *args, **kwargs):
-    if DEBUG:
-      _unique_print("*** func call %s(...)" % self._wrapped__name)
-    return self._wrapped__orig_obj(*args, **kwargs)
+def make_wrapped_function(func, name: str):
+  # This is maybe slightly unconventional / non-straightforward.
+  # We construct it such to make PyTorch _add_docstr happy,
+  # which expects certain types.
+  class WrappedFunc(WrappedObject):
+    def __new__(cls, *args, **kwargs):
+      if DEBUG:
+        _unique_print("*** func call %s(...)" % name)
+      res = func(*args, **kwargs)
+      # print("  *** res:", res)
+      # super(WrappedFunc, self).__init__(orig_obj=res, name="%s(...)" % name)
+      return res
+
+  wrapped_func = WrappedFunc
+  wrapped_func.__name__ = func.__name__
+  wrapped_func.__qualname__ = func.__qualname__
+  if func.__module__:
+    if _should_wrap_mod(func.__module__):
+      wrapped_func.__module__ = _ModPrefix + func.__module__
+    else:
+      wrapped_func.__module__ = func.__module__
+  return WrappedFunc
 
 
 # https://docs.python.org/3/library/importlib.html
@@ -317,6 +396,7 @@ class _MetaPathLoader(importlib.abc.Loader):
 
   def create_module(self, spec: importlib.machinery.ModuleSpec) -> WrappedModule:
     assert spec.name.startswith(_ModPrefix)
+    assert spec.name not in sys.modules
     orig_mod_name = spec.name[len(_ModPrefix):]
     assert not orig_mod_name.startswith(_ModPrefix)
     # Normal load. This is just to get __file__, and check whether it is correct. Maybe useful otherwise as well.
