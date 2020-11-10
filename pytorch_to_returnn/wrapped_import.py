@@ -191,7 +191,14 @@ if "torch" in _ExplicitIndirectModList:
   })
 
 _ExplicitDirectModList = {
+  # Note: When we don't wrap all of `torch` (i.e. `"torch"` is in _ExplicitIndirectModList),
+  # this will partially be WrappedIndirectModule and WrappedSourceModule.
+  # This is not a problem in principle, but there can be subtle problems.
+  # Also the import order can be important.
+  # E.g. "torch.nn.modules" should be imported before "torch.nn.functional".
+  # This might need extra explicit handling, depending what we have here in this list.
   "torch.nn.modules",
+  # "torch.nn.functional",  # -- not needed, also causes other problems
 }
 
 
