@@ -180,10 +180,15 @@ _ExplicitIndirectModList = {
   # and that leads to exceptions.
   # This is likely not the only problem.
   "torch",
-  "torch.tensor", "torch.distributed",
-  "torch._C",
 }
-
+if "torch" in _ExplicitIndirectModList:
+  _ExplicitIndirectModList.update({
+    # If we would transform `torch` directly, the following should be explicitly excluded.
+    "torch.tensor", "torch.distributed",
+    "torch._C",
+    # Avoid to have the `Module` class twice.
+    "torch.nn.modules.module",
+  })
 
 _ExplicitDirectModList = {
   "torch.nn.modules",
@@ -256,7 +261,7 @@ class WrappedObject:
             _unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
       if DEBUG:
         postfix = ""
-        if isinstance(res, (WrappedObject, WrappedModule)):
+        if isinstance(res, (WrappedObject, WrappedModule)) or getattr(res, "__module__", "").startswith(_ModPrefix):
           postfix = " -> %r" % res
         _unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
     except AttributeError as exc:  # no exception expected. esp, we should **NOT** forward AttributeError
@@ -422,14 +427,12 @@ class _MetaPathLoader(importlib.abc.Loader):
     assert orig_mod.__name__ == orig_mod_name
     orig_mod_name_parts = orig_mod_name.split(".")
     explicit_direct_use = False
-    for i in range(1, len(orig_mod_name_parts) + 1):
+    for i in reversed(range(1, len(orig_mod_name_parts) + 1)):
       if ".".join(orig_mod_name_parts[:i]) in _ExplicitDirectModList:
         explicit_direct_use = True
         break
-    if not explicit_direct_use:
-      for i in range(1, len(orig_mod_name_parts) + 1):
-        if ".".join(orig_mod_name_parts[:i]) in _ExplicitIndirectModList:
-          return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
+      if ".".join(orig_mod_name_parts[:i]) in _ExplicitIndirectModList:
+        return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
     orig_mod_loader = orig_mod.__loader__
     if not isinstance(orig_mod_loader, importlib.abc.ExecutionLoader):
       assert not explicit_direct_use
