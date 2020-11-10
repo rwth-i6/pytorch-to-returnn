@@ -154,6 +154,9 @@ class WrappedModule(types.ModuleType):
     self._wrapped__orig_mod = orig_mod
     assert not isinstance(orig_mod, WrappedModule)
 
+  def __repr__(self):
+    return "<%s %s>" % (self.__class__.__name__, self.__name__)
+
 
 class WrappedSourceModule(WrappedModule):
   def __init__(self, *, source: str, **kwargs):
@@ -179,6 +182,11 @@ _ExplicitIndirectModList = {
   "torch",
   "torch.tensor", "torch.distributed",
   "torch._C",
+}
+
+
+_ExplicitDirectModList = {
+  "torch.nn.modules",
 }
 
 
@@ -209,26 +217,35 @@ class WrappedObject:
             if res.__name__ not in sys.modules:
               # If this happens, this is actually a bug in how the module importing is done.
               # This is not on our side.
-              # This might happen for native modules.
+              # This might happen for native Torch modules.
               # This is slightly problematic for our following logic, because import_module will not find it.
               # So we patch this here.
               sys.modules[res.__name__] = res
             # If this comes from an WrappedIndirectModule, this will create a new WrappedIndirectModule for the sub mod.
+            # See logic in _MetaPathLoader.
             res = importlib.import_module(_ModPrefix + res.__name__)
         elif isinstance(res, (types.FunctionType, types.BuiltinFunctionType)):
           res = make_wrapped_function(func=res, name="%s.%s" % (self._wrapped__name, item))
         elif isinstance(res, type):
           if type(res) != type:  # explicitly do not check sub-types, e.g. pybind11_type
             pass
-          elif res == torch.Tensor:
+          elif res in {torch.Tensor, torch.nn.Parameter}:
             # TODO
             pass
           elif res in {torch.nn.Module}:  # blacklist
             pass  # do not transform/wrap
           elif res.__module__ and _should_wrap_mod(res.__module__):
-            res = make_wrapped_class(cls=res, name="%s.%s" % (self._wrapped__name, item))
+            # If this is an indirect module, but the type is part of a submodule which we want to transform,
+            # explicitly check the import.
+            mod_ = importlib.import_module(_ModPrefix + res.__module__)
+            if isinstance(mod_, WrappedSourceModule):
+              res = getattr(mod_, res.__qualname__)
+            else:
+              res = make_wrapped_class(cls=res, name="%s.%s" % (self._wrapped__name, item))
         elif not isinstance(res, type) and type(type(res)) == type:  # object instance
-          if isinstance(res, torch.Tensor):
+          if not getattr(res, "__module__", None) or not _should_wrap_mod(res.__module__):
+            pass  # Don't wrap this object.
+          elif isinstance(res, torch.Tensor):
             pass  # TODO ...
           else:
             res = WrappedObject(orig_obj=res, name="%s.%s" % (self._wrapped__name, item))
@@ -404,14 +421,22 @@ class _MetaPathLoader(importlib.abc.Loader):
     assert not isinstance(orig_mod, WrappedModule)
     assert orig_mod.__name__ == orig_mod_name
     orig_mod_name_parts = orig_mod_name.split(".")
+    explicit_direct_use = False
     for i in range(1, len(orig_mod_name_parts) + 1):
-      if ".".join(orig_mod_name_parts[:i]) in _ExplicitIndirectModList:
-        return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
+      if ".".join(orig_mod_name_parts[:i]) in _ExplicitDirectModList:
+        explicit_direct_use = True
+        break
+    if not explicit_direct_use:
+      for i in range(1, len(orig_mod_name_parts) + 1):
+        if ".".join(orig_mod_name_parts[:i]) in _ExplicitIndirectModList:
+          return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
     orig_mod_loader = orig_mod.__loader__
     if not isinstance(orig_mod_loader, importlib.abc.ExecutionLoader):
+      assert not explicit_direct_use
       return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
     src = orig_mod_loader.get_source(orig_mod.__name__)
     if src is None:  # e.g. binary module
+      assert not explicit_direct_use
       return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
     return WrappedSourceModule(name=spec.name, orig_mod=orig_mod, source=src)
 
@@ -438,10 +463,10 @@ class _MetaPathLoader(importlib.abc.Loader):
     module.__file__ = orig_mod.__file__
     module.__loader__ = self
     if is_pkg:
-        module.__path__ = []
-        module.__package__ = module.__name__
+      module.__path__ = []
+      module.__package__ = module.__name__
     else:
-        module.__package__ = module.__name__.rpartition('.')[0]
+      module.__package__ = module.__name__.rpartition('.')[0]
     exec(code, module.__dict__)
 
 
