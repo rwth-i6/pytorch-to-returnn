@@ -207,6 +207,8 @@ _ExplicitDirectModList = {
 
 _KeepAsIsTypes = (
   torch.device,
+  torch.Size,
+  torch.dtype,
 )
 
 
@@ -224,10 +226,19 @@ class WrappedObject:
     self._wrapped__orig_obj = orig_obj
 
   def __repr__(self):
+    if self._wrapped__orig_obj is self:
+      return super(WrappedObject, self).__repr__()
     return "<WrappedObject %r type %s>" % (self._wrapped__name, type(self._wrapped__orig_obj))
 
   def __getattr__(self, item):
-    assert item not in {"_wrapped__orig_obj", "_wrapped__name"}
+    if item == "_wrapped__orig_obj":
+      # Special case. torch.Tensor functions would create new copies,
+      # which would use our custom class, but then this is not initialized.
+      return self
+    if item == "_wrapped__name":
+      return "<unknown>"
+    if self._wrapped__orig_obj is self:  # special case
+      raise AttributeError("No attrib %r" % item)
     res_ = getattr(self._wrapped__orig_obj, item)
     try:
       res = _wrap(res_, name="%s.%s" % (self._wrapped__name, item))
@@ -255,23 +266,32 @@ class WrappedObject:
       super(WrappedObject, self).__delattr__(item)
 
   def __dir__(self):
+    if self._wrapped__orig_obj is self:
+      return []
     return dir(self._wrapped__orig_obj)
 
   def __bool__(self):
+    if self._wrapped__orig_obj is self:
+      return super(WrappedObject, self).__bool__(self)
     return bool(self._wrapped__orig_obj)
 
 
 def make_wrapped_object(obj, name: str):
-  print("*** wrap obj", obj)
   # First check if we should also wrap the type.
   if _should_wrap_mod(getattr(obj.__class__, "__module__", "")):
     assert getattr(sys.modules[obj.__class__.__module__], obj.__class__.__qualname__) is obj.__class__
     wrapped_mod = importlib.import_module(_ModPrefix + obj.__class__.__module__)
     cls = getattr(wrapped_mod, obj.__class__.__qualname__)
-    print("*** wrap obj of type %r with wrapped type %r" % (type(obj), cls))
-    assert issubclass(cls, WrappedObject)
-    obj = WrappedObject(obj, name=name)
-    obj.__class__ = cls
+    if cls == WrappedTorchTensor:
+      assert isinstance(obj, torch.Tensor)
+      obj = obj.as_subclass(cls)
+      return obj
+    # print("*** wrap obj of type %r with wrapped type %r" % (type(obj), cls))
+    assert issubclass(cls, _WrappedClassBase)
+    # obj.__class__ = cls  # TODO HACK
+    # WrappedObject.__init__(obj, orig_obj=obj, name=name)  # TODO HACK
+    # assert obj._wrapped__orig_obj is obj  # ugh...
+    obj = cls(orig_obj=obj, name=name)
     return obj
   return WrappedObject(obj, name=name)
 
@@ -306,7 +326,7 @@ class WrappedIndirectModule(WrappedModule, WrappedObject):
 
 class WrappedTorchTensor(torch.Tensor):  # TODO
   def __getattribute__(self, item):
-    # print("**** torch tensor __getattribute__", item)
+    _unique_print("**** torch tensor __getattribute__ %r" % item)
     return super(WrappedTorchTensor, self).__getattribute__(item)
 
 
@@ -324,6 +344,10 @@ class WrappedModuleBase(torch.nn.Module):
     if LogVerbosity >= 3:
       _unique_print("*** torch module call %s.%s(...)(...)" % (self.__class__.__module__, self.__class__.__qualname__))
     return super(WrappedModuleBase, self).__call__(*args, **kwargs)
+
+  def __setattr__(self, key, value):
+    value = _unwrap(value)
+    return super(WrappedModuleBase, self).__setattr__(key, value)
 
 
 _TorchModDirectAttribs = {
@@ -357,6 +381,8 @@ def _nested_transform(obj, transform):
 def _wrap(obj, name: str):
   if isinstance(obj, (WrappedObject, WrappedModule)):
     return obj
+  if isinstance(obj, _KeepAsIsTypes):
+    return obj
   obj = _nested_transform(obj, lambda _x: _wrap(_x, name="%s..." % name))
 
   if isinstance(obj, types.ModuleType):
@@ -372,7 +398,8 @@ def _wrap(obj, name: str):
       # See logic in _MetaPathLoader.
       obj = importlib.import_module(_ModPrefix + obj.__name__)
   elif isinstance(obj, (types.FunctionType, types.BuiltinFunctionType)):
-    obj = make_wrapped_function(func=obj, name=name)
+    if not obj.__module__ or _should_wrap_mod(obj.__module__):
+      obj = make_wrapped_function(func=obj, name=name)
   elif isinstance(obj, type):
     if type(obj) != type:  # explicitly do not check sub-types, e.g. pybind11_type
       pass
@@ -395,8 +422,8 @@ def _wrap(obj, name: str):
   elif not isinstance(obj, type) and type(type(obj)) == type:  # object instance
     if not getattr(obj.__class__, "__module__", None) or not _should_wrap_mod(obj.__class__.__module__):
       pass  # Don't wrap this object.
-    elif isinstance(obj, torch.Tensor):
-      pass  # TODO ...
+    #elif isinstance(obj, torch.Tensor):
+    #  pass  # TODO ...
     elif isinstance(obj, _KeepAsIsTypes):  # blacklist
       pass  # keep as-is
     else:
@@ -408,33 +435,52 @@ def _wrap(obj, name: str):
 def _unwrap(obj):
   obj = _nested_transform(obj, _unwrap)
   if isinstance(obj, WrappedObject):
+    #if obj._wrapped__orig_obj is obj:
+    #  assert False  # TODO
     # noinspection PyProtectedMember
     return obj._wrapped__orig_obj
   return obj  # leave as-is
 
 
+class _WrappedClassBase:
+  pass
+
+
 def make_wrapped_class(cls: type, name: str):
   is_torch_module = issubclass(cls, torch.nn.Module)
 
-  class WrappedClass(WrappedObject):
+  # TODO use cls as base?
+  class WrappedClass(WrappedObject, _WrappedClassBase):
     def __init__(self, *args, **kwargs):
       if LogVerbosity >= 4:
         _unique_print("*** WrappedClass %s(...)" % (name,))
-      obj = cls(*_unwrap(args), **_unwrap(kwargs))
-      WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
+      if isinstance(kwargs.get("orig_obj"), cls):
+        assert not args
+        WrappedObject.__init__(self, **kwargs)
+      else:
+        obj = cls(*_unwrap(args), **_unwrap(kwargs))
+        WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
 
     def __getattribute__(self, item):
-      if item == "__dict__":
+      #if item == "__dict__":
         # Special case. Directly get it from wrapped object.
-        return self._wrapped__orig_obj.__dict__
-      if is_torch_module:
+      #  return self._wrapped__orig_obj.__dict__
+      if item in {"_wrapped__orig_obj", "_wrapped__name", "__class__"}:  # extra checks, and fast path
+        return object.__getattribute__(self, item)
+      if is_torch_module and False:
         # Some fast path, and avoid logging.
         if item in _TorchModDirectAttribs:
           return getattr(self._wrapped__orig_obj, item)
+      if self._wrapped__orig_obj is self:  # special case
+        res = object.__getattribute__(self, item)
+        res = _wrap(res, name="%s.%s" % (self._wrapped__name, item))
+        return res
       return object.__getattribute__(self, item)
 
     def __setattr__(self, key, value):
       if key in {"_wrapped__orig_obj", "_wrapped__name"}:
+        return object.__setattr__(self, key, value)
+      if self is self._wrapped__orig_obj:  # special case
         return object.__setattr__(self, key, value)
       return setattr(self._wrapped__orig_obj, key, value)
 
@@ -452,9 +498,9 @@ def make_wrapped_class(cls: type, name: str):
     else:
       WrappedClass.__module__ = cls.__module__
   try:
-    WrappedClass.__bases__ = (WrappedObject, cls)
-  except TypeError:  # e.g. type 'torch._C.DisableTorchFunction' is not an acceptable base type
-    pass
+    WrappedClass.__bases__ += (cls,)
+  except TypeError:  # e.g. object layout differs or so
+    pass  # just ignore
   return WrappedClass
 
 
@@ -463,6 +509,24 @@ class WrappedMethod(WrappedObject):  # TODO
 
 
 def make_wrapped_function(func, name: str):
+  def _call(*args, **kwargs):
+    if LogVerbosity >= 3:
+      _unique_print("*** func call %s(...)" % name)
+    res = func(*_unwrap(args), **_unwrap(kwargs))
+    res = _wrap(res, name="%s(...)" % name)
+    return res
+
+  _call.__name__ = func.__name__
+  _call.__qualname__ = func.__qualname__
+  if func.__module__:
+    if _should_wrap_mod(func.__module__):
+      _call.__module__ = _ModPrefix + func.__module__
+    else:
+      _call.__module__ = func.__module__
+
+  if isinstance(func, types.FunctionType):
+    return _call
+
   # This is maybe slightly unconventional / non-straightforward.
   # We construct it such to make PyTorch _add_docstr happy,
   # which expects certain types.
@@ -470,20 +534,15 @@ def make_wrapped_function(func, name: str):
     def __new__(cls, *args, **kwargs):
       if LogVerbosity >= 3:
         _unique_print("*** func call %s(...)" % name)
-      res = func(*_unwrap(args), **_unwrap(kwargs))
-      # print("  *** res:", res)
-      # super(WrappedFunc, self).__init__(orig_obj=res, name="%s(...)" % name)
-      # res = _wrap(res, name="%s(...)" % name)
-      return res
+      return _call(*args, **kwargs)
 
-  wrapped_func = WrappedFunc
-  wrapped_func.__name__ = func.__name__
-  wrapped_func.__qualname__ = func.__qualname__
+  WrappedFunc.__name__ = func.__name__
+  WrappedFunc.__qualname__ = func.__qualname__
   if func.__module__:
     if _should_wrap_mod(func.__module__):
-      wrapped_func.__module__ = _ModPrefix + func.__module__
+      WrappedFunc.__module__ = _ModPrefix + func.__module__
     else:
-      wrapped_func.__module__ = func.__module__
+      WrappedFunc.__module__ = func.__module__
   return WrappedFunc
 
 
