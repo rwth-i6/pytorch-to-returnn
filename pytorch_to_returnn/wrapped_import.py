@@ -27,7 +27,7 @@ import types
 import typing
 from typing import Optional, Union, Any
 import sys
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import importlib
 import importlib.abc
 import importlib.machinery
@@ -262,7 +262,17 @@ class WrappedObject:
 
 
 def make_wrapped_object(obj, name: str):
-  cls = _wrap(obj.__class__, name="%s.__class__")
+  print("*** wrap obj", obj)
+  # First check if we should also wrap the type.
+  if _should_wrap_mod(getattr(obj.__class__, "__module__", "")):
+    assert getattr(sys.modules[obj.__class__.__module__], obj.__class__.__qualname__) is obj.__class__
+    wrapped_mod = importlib.import_module(_ModPrefix + obj.__class__.__module__)
+    cls = getattr(wrapped_mod, obj.__class__.__qualname__)
+    print("*** wrap obj of type %r with wrapped type %r" % (type(obj), cls))
+    assert issubclass(cls, WrappedObject)
+    obj = WrappedObject(obj, name=name)
+    obj.__class__ = cls
+    return obj
   return WrappedObject(obj, name=name)
 
 
@@ -338,6 +348,8 @@ def _nested_transform(obj, transform):
     return {key: transform(value) for (key, value) in obj.items()}
   if type(obj) == OrderedDict:
     return OrderedDict([(key, transform(value)) for (key, value) in obj.items()])
+  if type(obj) == Counter:
+    return obj  # as-is
   assert not isinstance(obj, dict)
   return obj
 
@@ -381,7 +393,7 @@ def _wrap(obj, name: str):
       else:
         obj = make_wrapped_class(cls=obj, name=name)
   elif not isinstance(obj, type) and type(type(obj)) == type:  # object instance
-    if not getattr(obj, "__module__", None) or not _should_wrap_mod(obj.__module__):
+    if not getattr(obj.__class__, "__module__", None) or not _should_wrap_mod(obj.__class__.__module__):
       pass  # Don't wrap this object.
     elif isinstance(obj, torch.Tensor):
       pass  # TODO ...
@@ -461,6 +473,7 @@ def make_wrapped_function(func, name: str):
       res = func(*_unwrap(args), **_unwrap(kwargs))
       # print("  *** res:", res)
       # super(WrappedFunc, self).__init__(orig_obj=res, name="%s(...)" % name)
+      # res = _wrap(res, name="%s(...)" % name)
       return res
 
   wrapped_func = WrappedFunc
