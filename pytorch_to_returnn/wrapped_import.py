@@ -262,7 +262,7 @@ class WrappedObject:
 
 
 def make_wrapped_object(obj, name: str):
-  # orig_obj: Any, name: str
+  cls = _wrap(obj.__class__, name="%s.__class__")
   return WrappedObject(obj, name=name)
 
 
@@ -421,15 +421,10 @@ def make_wrapped_class(cls: type, name: str):
           return getattr(self._wrapped__orig_obj, item)
       return object.__getattribute__(self, item)
 
-    __getattr__ = WrappedObject.__getattr__
-
     def __setattr__(self, key, value):
       if key in {"_wrapped__orig_obj", "_wrapped__name"}:
         return object.__setattr__(self, key, value)
       return setattr(self._wrapped__orig_obj, key, value)
-
-    def __delattr__(self, item):
-      return delattr(self._wrapped__orig_obj, item)
 
     if is_torch_module:
       def __call__(self, *args, **kwargs):
