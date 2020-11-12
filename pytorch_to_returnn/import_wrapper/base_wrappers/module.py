@@ -1,6 +1,6 @@
 
 import types
-from pytorch_to_returnn.import_wrapper.base_wrappers.wrapped_object import WrappedObject
+from pytorch_to_returnn.import_wrapper.base_wrappers.object import WrappedObject
 
 
 class WrappedModule(types.ModuleType):
