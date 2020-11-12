@@ -15,3 +15,5 @@ from pytorch_to_returnn import torch
 class Model(torch.nn.Module):
  ...
 ```
+
+Somewhat related is also the `torch.fx` module.
