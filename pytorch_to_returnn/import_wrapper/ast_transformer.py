@@ -2,20 +2,27 @@
 import ast
 import linecache
 from .. import log
-from typing import Optional
+from typing import Optional, Set
 
 
-class _AstImportTransformer(ast.NodeTransformer):
-  def __init__(self, base_mod_name: str, src_filename: str):
+class AstImportTransformer(ast.NodeTransformer):
+  def __init__(self, base_mod_names: Set[str], new_import_prefix: str, src_filename: str):
+    """
+    :param base_mod_names: e.g. {"parallel_wavegan", "torch"}
+    :param new_import_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
+    :param src_filename: just for logging
+    """
+    self.base_mod_names = base_mod_names
+    self.new_import_prefix = new_import_prefix
+    assert self.new_import_prefix.endswith(".")
     self.src_filename = src_filename
-    self.base_mod_name = base_mod_name  # e.g. "parallel_wavegan"
-    pass
 
   def _should_wrap_mod_name(self, mod_name: str) -> bool:
-    if mod_name == "torch" or mod_name.startswith("torch."):
+    if mod_name in self.base_mod_names:
       return True
-    if mod_name == self.base_mod_name or mod_name.startswith(self.base_mod_name + "."):
-      return True
+    for base_mod_name in self.base_mod_names:
+      if mod_name.startswith(base_mod_name + "."):
+        return True
     return False
 
   def visit_Import(self, node: ast.Import):
@@ -38,6 +45,8 @@ class _AstImportTransformer(ast.NodeTransformer):
     assert isinstance(alias, ast.alias)
     if not self._should_wrap_mod_name(alias.name):
       return node
+    if log.Verbosity >= 10:
+      log.unique_print("*** AST transform %r (%s)" % (_ast_get_source_segment(self.src_filename, node), ast.dump(node)))
     # E.g. `import parallel_wavegan.layers`
     # ->
     # `import pytorch_to_returnn._wrapped_mods.parallel_wavegan.layers`
@@ -47,23 +56,23 @@ class _AstImportTransformer(ast.NodeTransformer):
     if alias.asname:  # import torch as x -> import pytorch_to_returnn._wrapped_mods.torch as x
       new_node = ast.Import(
         names=[ast.alias(
-          name=_ModPrefix + alias.name, asname=alias.asname)])
+          name=self.new_import_prefix + alias.name, asname=alias.asname)])
       ast.copy_location(new_node, node)
       return new_node
     # If "." in mod name, simpler:
     if "." not in alias.name:  # import torch -> import pytorch_to_returnn._wrapped_mods.torch as torch
       new_node = ast.Import(
         names=[ast.alias(
-          name=_ModPrefix + alias.name, asname=alias.name)])
+          name=self.new_import_prefix + alias.name, asname=alias.name)])
       ast.copy_location(new_node, node)
       return new_node
     assert not alias.asname
-    new_import_node = ast.Import(names=[ast.alias(name=_ModPrefix + alias.name)])
+    new_import_node = ast.Import(names=[ast.alias(name=self.new_import_prefix + alias.name)])
     ast.copy_location(new_import_node, node)
     assert "." in alias.name
     base_mod_name = alias.name.partition(".")[0]
     new_alias_node = ast.ImportFrom(  # from pytorch_to_returnn._wrapped_mods import torch
-      module=_ModPrefix[:-1], names=[ast.alias(name=base_mod_name)])
+      module=self.new_import_prefix[:-1], names=[ast.alias(name=base_mod_name)])
     ast.copy_location(new_alias_node, node)
     return [new_import_node, new_alias_node]
 
@@ -74,8 +83,10 @@ class _AstImportTransformer(ast.NodeTransformer):
     if node.level > 0:
       return node  # relative imports should already be handled correctly
     assert node.level == 0
+    if log.Verbosity >= 10:
+      log.unique_print("*** AST transform %r (%s)" % (_ast_get_source_segment(self.src_filename, node), ast.dump(node)))
     new_node = ast.ImportFrom(
-      module=_ModPrefix + node.module, names=node.names, level=0)
+      module=self.new_import_prefix + node.module, names=node.names, level=0)
     ast.copy_location(new_node, node)
     return new_node
 
@@ -90,9 +101,9 @@ def _ast_get_source_segment(src_filename: str, node: ast.AST) -> Optional[str]:
     """
     try:
         lineno = node.lineno - 1
-        end_lineno = node.end_lineno - 1
-        col_offset = node.col_offset
-        end_col_offset = node.end_col_offset
+        end_lineno = getattr(node, "end_lineno", node.lineno) - 1
+        col_offset = getattr(node, "col_offset", 0)
+        end_col_offset = getattr(node, "end_col_offset", -1)
     except AttributeError:
         return None
 

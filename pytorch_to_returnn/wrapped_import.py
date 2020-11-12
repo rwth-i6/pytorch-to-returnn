@@ -32,6 +32,7 @@ import importlib
 import importlib.abc
 import importlib.machinery
 from . import log
+from .import_wrapper.ast_transformer import AstImportTransformer
 
 
 class WrappedModule(types.ModuleType):
@@ -478,8 +479,9 @@ class _MetaPathLoader(importlib.abc.Loader):
     # noinspection PyProtectedMember
     src = module._wrapped__source
     tree = ast.parse(source=src, filename=orig_mod.__file__)
-    ast_transformer = _AstImportTransformer(
-      base_mod_name=orig_mod.__name__.partition(".")[0],
+    ast_transformer = AstImportTransformer(
+      base_mod_names={orig_mod.__name__.partition(".")[0], "torch"},
+      new_import_prefix=_ModPrefix,
       src_filename=orig_mod.__file__)
     tree = ast_transformer.visit(tree)
     tree = ast.fix_missing_locations(tree)
