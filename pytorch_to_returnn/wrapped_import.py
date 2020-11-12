@@ -35,22 +35,6 @@ from . import log
 from .import_wrapper.ast_transformer import AstImportTransformer
 
 
-class WrappedModule(types.ModuleType):
-  def __init__(self, *, name: str, orig_mod: types.ModuleType):
-    super(WrappedModule, self).__init__(name=name)
-    self._wrapped__orig_mod = orig_mod
-    assert not isinstance(orig_mod, WrappedModule)
-
-  def __repr__(self):
-    return "<%s %s>" % (self.__class__.__name__, self.__name__)
-
-
-class WrappedSourceModule(WrappedModule):
-  def __init__(self, *, source: str, **kwargs):
-    super(WrappedSourceModule, self).__init__(**kwargs)
-    self._wrapped__source = source
-
-
 _ExplicitIndirectModList = {
   # Leave "torch" in to not do any magic on the original Torch modules.
   # Note that the main torch module cannot be transformed
@@ -103,62 +87,6 @@ def _should_wrap_mod(mod_name: str) -> bool:
   return False
 
 
-class WrappedObject:
-  def __init__(self, orig_obj: Any, name: str):
-    self._wrapped__name = name
-    self._wrapped__orig_obj = orig_obj
-
-  def __repr__(self):
-    if self._wrapped__orig_obj is self:
-      return super(WrappedObject, self).__repr__()
-    return "<WrappedObject %r type %s>" % (self._wrapped__name, type(self._wrapped__orig_obj))
-
-  def __getattr__(self, item):
-    if item == "_wrapped__orig_obj":
-      # Special case. torch.Tensor functions would create new copies,
-      # which would use our custom class, but then this is not initialized.
-      return self
-    if item == "_wrapped__name":
-      return "<unknown>"
-    if self._wrapped__orig_obj is self:  # special case
-      raise AttributeError("No attrib %r" % item)
-    res_ = getattr(self._wrapped__orig_obj, item)
-    try:
-      res = _wrap(res_, name="%s.%s" % (self._wrapped__name, item))
-      if res is not res_:
-        object.__setattr__(self, item, res)
-      else:
-        if log.Verbosity >= 10:
-          log.unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
-      if log.Verbosity >= 6:
-        postfix = ""
-        if isinstance(res, (WrappedObject, WrappedModule)) or getattr(res, "__module__", "").startswith(_ModPrefix):
-          postfix = " -> %r" % res
-        log.unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
-    except AttributeError as exc:  # no exception expected. esp, we should **NOT** forward AttributeError
-      raise RuntimeError(exc) from exc
-    return res
-
-  # setattr on this object directly, not on the wrapped one
-  __setattr__ = object.__setattr__
-
-  def __delattr__(self, item):
-    if hasattr(self._wrapped__orig_obj, item):
-      delattr(self._wrapped__orig_obj, item)
-    if hasattr(self, item):
-      super(WrappedObject, self).__delattr__(item)
-
-  def __dir__(self):
-    if self._wrapped__orig_obj is self:
-      return []
-    return dir(self._wrapped__orig_obj)
-
-  def __bool__(self):
-    if self._wrapped__orig_obj is self:
-      return super(WrappedObject, self).__bool__(self)
-    return bool(self._wrapped__orig_obj)
-
-
 def make_wrapped_object(obj, name: str):
   # First check if we should also wrap the type.
   if _should_wrap_mod(getattr(obj.__class__, "__module__", "")):
@@ -177,34 +105,6 @@ def make_wrapped_object(obj, name: str):
     obj = cls(orig_obj=obj, name=name)
     return obj
   return WrappedObject(obj, name=name)
-
-
-class WrappedIndirectModule(WrappedModule, WrappedObject):
-  """
-  This can not be transformed on source level,
-  so we wrap all attrib access on-the-fly.
-  """
-  def __init__(self, **kwargs):
-    WrappedModule.__init__(self, **kwargs)
-    WrappedObject.__init__(self, orig_obj=self._wrapped__orig_mod, name=self.__name__)
-    if getattr(self._wrapped__orig_mod, "__all__", None) is not None:
-      # noinspection PyUnresolvedReferences
-      self.__all__ = self._wrapped__orig_mod.__all__
-    else:
-      names = sorted(vars(self._wrapped__orig_mod).keys())
-      self.__all__ = [name for name in names if name[:1] != "_"]
-
-  def __getattr__(self, item):
-    assert item not in {"_wrapped__orig_mod", "__name__"}
-    if item == "__path__":  # some special logic, to avoid loading source directly
-      if getattr(self._wrapped__orig_mod, "__path__", None) is not None:
-        return []
-      return None
-    return WrappedObject.__getattr__(self, item)
-
-  # setattr not needed
-  # but if so, standard keys:
-  # {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}
 
 
 class WrappedTorchTensor(torch.Tensor):  # TODO
