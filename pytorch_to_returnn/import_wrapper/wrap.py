@@ -2,27 +2,7 @@
 from collections import OrderedDict, Counter
 import types
 import importlib
-
-
-def _nested_transform(obj, transform):
-  if type(obj) == tuple:
-    return tuple([transform(item) for item in obj])
-  assert not isinstance(obj, tuple)  # namedtuple or so not implemented yet...
-  if type(obj) == list:
-    return [transform(item) for item in obj]
-  assert not isinstance(obj, list)  # custom subclasses of list not implemented yet...
-  if type(obj) == dict:
-    # Assume keys are not wrapped.
-    return {key: transform(value) for (key, value) in obj.items()}
-  if type(obj) == dict:
-    # Assume keys are not wrapped.
-    return {key: transform(value) for (key, value) in obj.items()}
-  if type(obj) == OrderedDict:
-    return OrderedDict([(key, transform(value)) for (key, value) in obj.items()])
-  if type(obj) == Counter:
-    return obj  # as-is
-  assert not isinstance(obj, dict)
-  return obj
+import sys
 
 
 def wrap(obj, name: str):
@@ -85,3 +65,24 @@ def unwrap(obj):
     # noinspection PyProtectedMember
     return obj._wrapped__orig_obj
   return obj  # leave as-is
+
+
+def _nested_transform(obj, transform):
+  if type(obj) == tuple:
+    return tuple([transform(item) for item in obj])
+  assert not isinstance(obj, tuple)  # namedtuple or so not implemented yet...
+  if type(obj) == list:
+    return [transform(item) for item in obj]
+  assert not isinstance(obj, list)  # custom subclasses of list not implemented yet...
+  if type(obj) == dict:
+    # Assume keys are not wrapped.
+    return {key: transform(value) for (key, value) in obj.items()}
+  if type(obj) == dict:
+    # Assume keys are not wrapped.
+    return {key: transform(value) for (key, value) in obj.items()}
+  if type(obj) == OrderedDict:
+    return OrderedDict([(key, transform(value)) for (key, value) in obj.items()])
+  if type(obj) == Counter:
+    return obj  # as-is
+  assert not isinstance(obj, dict)
+  return obj
