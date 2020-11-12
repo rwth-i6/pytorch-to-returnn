@@ -210,11 +210,6 @@ class WrappedMethod(WrappedObject):  # TODO
   pass
 
 
-# https://docs.python.org/3/library/importlib.html
-# https://www.python.org/dev/peps/pep-0302/
-# https://dev.to/dangerontheranger/dependency-injection-with-import-hooks-in-python-3-5hap
-
-
 _ModPrefix = "%s._wrapped_mods." % __package__
 
 

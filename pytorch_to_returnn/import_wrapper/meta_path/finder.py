@@ -7,6 +7,11 @@ from typing import Optional
 from .loader import MetaPathLoader
 
 
+# https://docs.python.org/3/library/importlib.html
+# https://www.python.org/dev/peps/pep-0302/
+# https://dev.to/dangerontheranger/dependency-injection-with-import-hooks-in-python-3-5hap
+
+
 class MetaPathFinder(importlib.abc.MetaPathFinder):
   def __init__(self, loader: MetaPathLoader):
     self._loader = loader

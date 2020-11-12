@@ -8,6 +8,11 @@ from ... import log
 from ..ast_transformer import AstImportTransformer
 
 
+# https://docs.python.org/3/library/importlib.html
+# https://www.python.org/dev/peps/pep-0302/
+# https://dev.to/dangerontheranger/dependency-injection-with-import-hooks-in-python-3-5hap
+
+
 class MetaPathLoader(importlib.abc.Loader):
   def __init__(self, mod_prefix: str):
     """
