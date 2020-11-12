@@ -6,6 +6,8 @@ import sys
 import ast
 from ... import log
 from ..ast_transformer import AstImportTransformer
+from ..base_wrappers.module import WrappedModule, WrappedSourceModule, WrappedIndirectModule
+from ..context import WrapCtx
 
 
 # https://docs.python.org/3/library/importlib.html
@@ -14,12 +16,10 @@ from ..ast_transformer import AstImportTransformer
 
 
 class MetaPathLoader(importlib.abc.Loader):
-  def __init__(self, mod_prefix: str):
-    """
-    :param mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
-    """
-    assert mod_prefix.endswith(".")
-    self.mod_prefix = mod_prefix
+  def __init__(self, ctx: WrapCtx):
+    self.ctx = ctx
+    self.mod_prefix = ctx.wrapped_mod_prefix  # e.g. "pytorch_to_returnn._wrapped_mods."
+    assert self.mod_prefix.endswith(".")
 
   def __repr__(self):
     return "<wrapped mod loader>"
@@ -36,10 +36,10 @@ class MetaPathLoader(importlib.abc.Loader):
     orig_mod_name_parts = orig_mod_name.split(".")
     explicit_direct_use = False
     for i in reversed(range(1, len(orig_mod_name_parts) + 1)):
-      if ".".join(orig_mod_name_parts[:i]) in _ExplicitDirectModList:
+      if ".".join(orig_mod_name_parts[:i]) in self.ctx.wrap_mods_direct:
         explicit_direct_use = True
         break
-      if ".".join(orig_mod_name_parts[:i]) in _ExplicitIndirectModList:
+      if ".".join(orig_mod_name_parts[:i]) in self.ctx.wrap_mods_indirect:
         return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
     orig_mod_loader = orig_mod.__loader__
     if not isinstance(orig_mod_loader, importlib.abc.ExecutionLoader):

@@ -1,9 +1,10 @@
 
 import types
 from .object import WrappedObject
+from ..context import WrapCtx
 
 
-__all__ = ["WrappedModule", "WrappedSourceModule", "WrappedIndirectModule"]
+__all__ = ["WrappedModule", "WrappedSourceModule", "WrappedIndirectModule", "get_ctx_from_module"]
 
 
 class WrappedModule(types.ModuleType):
@@ -14,6 +15,14 @@ class WrappedModule(types.ModuleType):
 
   def __repr__(self):
     return "<%s %s>" % (self.__class__.__name__, self.__name__)
+
+
+def get_ctx_from_module(mod: WrappedModule) -> WrapCtx:
+  from ..meta_path.loader import MetaPathLoader
+  assert isinstance(mod, WrappedModule)
+  loader = mod.__loader__
+  assert isinstance(loader, MetaPathLoader)
+  return loader.ctx
 
 
 class WrappedSourceModule(WrappedModule):

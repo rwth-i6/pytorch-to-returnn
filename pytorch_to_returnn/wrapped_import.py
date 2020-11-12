@@ -33,13 +33,7 @@ from pytorch_to_returnn.import_wrapper.base_wrappers.object import WrappedObject
 from pytorch_to_returnn.import_wrapper.base_wrappers.module import WrappedModule
 from .import_wrapper.meta_path.loader import MetaPathLoader
 from .import_wrapper.meta_path.finder import MetaPathFinder
-
-
-_KeepAsIsTypes = (
-  torch.device,
-  torch.Size,
-  torch.dtype,
-)
+from .import_wrapper.context import WrapCtx, make_torch_default_ctx
 
 
 def _should_wrap_mod(mod_name: str) -> bool:
@@ -51,9 +45,8 @@ def _should_wrap_mod(mod_name: str) -> bool:
 
 
 _ModPrefix = "%s._wrapped_mods." % __package__
-
-
-_loader = MetaPathLoader(mod_prefix=_ModPrefix)
+_wrap_torch_ctx = make_torch_default_ctx(wrapped_mod_prefix=_ModPrefix)
+_loader = MetaPathLoader(ctx=_wrap_torch_ctx)
 _finder = MetaPathFinder(loader=_loader)
 
 

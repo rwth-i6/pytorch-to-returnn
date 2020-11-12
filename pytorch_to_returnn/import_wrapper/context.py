@@ -1,9 +1,12 @@
 
-from typing import Set
+from typing import Set, Iterable, Dict
 
 
 class WrapCtx:
-  def __init__(self, wrapped_mod_prefix: str, wrap_mods_direct: Set[str], wrap_mods_indirect: Set[str]):
+  def __init__(self, wrapped_mod_prefix: str,
+               wrap_mods_direct: Set[str], wrap_mods_indirect: Set[str] = None,
+               keep_as_is_types: Iterable[type] = (),
+               explicit_wrapped_types: Dict[type, type] = None):
     """
     :param wrapped_mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
     :param wrap_mods_direct: e.g. {"torch.nn.modules"}
@@ -14,22 +17,55 @@ class WrapCtx:
       which wraps the originally unmodified imported module.
       There can be overlaps between wrap_mods_direct and wrap_mods_indirect.
       The topmost entry will decide whether it is direct or indirect.
+    :param keep_as_is_types: e.g. {torch.device, torch.dtype, torch.Size}
+    :param explicit_wrapped_types: e.g. {}
     """
     assert wrapped_mod_prefix.endswith(".")
     self.wrapped_mod_prefix = wrapped_mod_prefix
     self.wrap_mods_direct = wrap_mods_direct
+    if wrap_mods_indirect is None:
+      wrap_mods_indirect = set()  # type: Set[str]
     self.wrap_mods_indirect = wrap_mods_indirect
+    self.keep_as_is_types = tuple(keep_as_is_types)
+    if explicit_wrapped_types is None:
+      explicit_wrapped_types = {}  # type: Dict[type, type]
+    self.explicit_wrapped_types = explicit_wrapped_types
 
-    #_KeepAsIsTypes
+  def should_wrap_mod(self, mod_name: str) -> bool:
+    """
+    :param mod_name: e.g. "torch"
+    """
+    mod_name = mod_name.split(".")
+    for i in range(1, len(mod_name) + 1):
+      if ".".join(mod_name[:i]) in self.wrap_mods_direct:
+        return True
+      if ".".join(mod_name[:i]) in self.wrap_mods_indirect:
+        return True
+    return False
 
 
 def make_torch_default_ctx(wrapped_mod_prefix: str) -> WrapCtx:
+  import torch
+  _KeepAsIsTypes = (
+    torch.device,
+    torch.Size,
+    torch.dtype,
+  )
+  from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase
+  _TypeMap = {
+    torch.Tensor: WrappedTorchTensor,
+    torch.nn.Parameter: WrappedTorchParameter,
+    torch.nn.Module: WrappedModuleBase,
+  }
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
-  )
+    wrap_mods_direct=_TorchExplicitDirectModList,
+    wrap_mods_indirect=_TorchExplicitIndirectModList,
+    keep_as_is_types=_KeepAsIsTypes,
+    explicit_wrapped_types=_TypeMap)
 
 
-_ExplicitIndirectModList = {
+_TorchExplicitIndirectModList = {
   # Leave "torch" in to not do any magic on the original Torch modules.
   # Note that the main torch module cannot be transformed
   # because of some side-effects triggered by native Torch code,
@@ -46,8 +82,8 @@ _ExplicitIndirectModList = {
   # This is likely not the only problem.
   "torch",
 }
-if "torch" in _ExplicitIndirectModList:
-  _ExplicitIndirectModList.update({
+if "torch" in _TorchExplicitIndirectModList:
+  _TorchExplicitIndirectModList.update({
     # If we would transform `torch` directly, the following should be explicitly excluded.
     "torch.tensor", "torch.distributed",
     "torch._C",
@@ -55,7 +91,7 @@ if "torch" in _ExplicitIndirectModList:
     "torch.nn.modules.module",
   })
 
-_ExplicitDirectModList = {
+_TorchExplicitDirectModList = {
   # Note: When we don't wrap all of `torch` (i.e. `"torch"` is in _ExplicitIndirectModList),
   # this will partially be WrappedIndirectModule and WrappedSourceModule.
   # This is not a problem in principle, but there can be subtle problems.
