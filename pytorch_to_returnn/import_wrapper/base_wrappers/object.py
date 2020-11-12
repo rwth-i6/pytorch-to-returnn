@@ -1,7 +1,7 @@
 
 from typing import Any
-from pytorch_to_returnn import log
-from pytorch_to_returnn import __package__ as _base_package
+from ... import log
+from ... import __package__ as _base_package
 
 
 class WrappedObject:

@@ -1,6 +1,9 @@
 
 import types
-from pytorch_to_returnn.import_wrapper.base_wrappers.object import WrappedObject
+from .object import WrappedObject
+
+
+__all__ = ["WrappedModule", "WrappedSourceModule", "WrappedIndirectModule"]
 
 
 class WrappedModule(types.ModuleType):

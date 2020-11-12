@@ -1,6 +1,6 @@
 
-from pytorch_to_returnn import log
-from pytorch_to_returnn.import_wrapper.base_wrappers.object import WrappedObject
+from ... import log
+from .object import WrappedObject
 
 
 class WrappedClassBase:
