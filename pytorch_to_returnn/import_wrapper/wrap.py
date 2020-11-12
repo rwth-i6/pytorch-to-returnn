@@ -16,7 +16,7 @@ def wrap(obj, name: str, ctx: WrapCtx):
   obj = _nested_transform(obj, lambda _x: wrap(_x, name="%s..." % name, ctx=ctx))
 
   if isinstance(obj, types.ModuleType):
-    if _should_wrap_mod(obj.__name__):
+    if ctx.should_wrap_mod(obj.__name__):
       if obj.__name__ not in sys.modules:
         # If this happens, this is actually a bug in how the module importing is done.
         # This is not on our side.
@@ -28,7 +28,7 @@ def wrap(obj, name: str, ctx: WrapCtx):
       # See logic in _MetaPathLoader.
       obj = importlib.import_module(ctx.wrapped_mod_prefix + obj.__name__)
   elif isinstance(obj, (types.FunctionType, types.BuiltinFunctionType)):
-    if not obj.__module__ or _should_wrap_mod(obj.__module__):
+    if not obj.__module__ or ctx.should_wrap_mod(obj.__module__):
       obj = make_wrapped_function(func=obj, name=name)
   elif isinstance(obj, type):
     if type(obj) != type:  # explicitly do not check sub-types, e.g. pybind11_type
@@ -37,18 +37,18 @@ def wrap(obj, name: str, ctx: WrapCtx):
       obj = ctx.explicit_wrapped_types[obj]
     elif obj in ctx.keep_as_is_types:
       pass  # keep as-is
-    elif obj.__module__ and _should_wrap_mod(obj.__module__):
+    elif obj.__module__ and ctx.should_wrap_mod(obj.__module__):
       # If this is an indirect module, but the type is part of a submodule which we want to transform,
       # explicitly check the import.
-      mod_ = importlib.import_module(_ModPrefix + obj.__module__)
+      mod_ = importlib.import_module(ctx.wrapped_mod_prefix + obj.__module__)
       if isinstance(mod_, WrappedSourceModule):
         obj = getattr(mod_, obj.__qualname__)
       else:
         obj = make_wrapped_class(cls=obj, name=name)
   elif not isinstance(obj, type) and type(type(obj)) == type:  # object instance
-    if not getattr(obj.__class__, "__module__", None) or not _should_wrap_mod(obj.__class__.__module__):
+    if not getattr(obj.__class__, "__module__", None) or not ctx.should_wrap_mod(obj.__class__.__module__):
       pass  # Don't wrap this object.
-    elif isinstance(obj, _KeepAsIsTypes):  # blacklist
+    elif isinstance(obj, ctx.keep_as_is_types):  # blacklist
       pass  # keep as-is
     else:
       obj = make_wrapped_object(obj, name=name)
@@ -57,10 +57,15 @@ def wrap(obj, name: str, ctx: WrapCtx):
 
 
 def unwrap(obj):
+  """
+  :param obj: potentially wrapped object. could be nested.
+  :return: unwrapped object.
+    Note that this is not exactly the inverse of :func:`wrap`.
+    Namely, not all wrapped objects are unwrapped,
+    as this is also not possible in all cases.
+  """
   obj = _nested_transform(obj, unwrap)
   if isinstance(obj, WrappedObject):
-    #if obj._wrapped__orig_obj is obj:
-    #  assert False  # TODO
     # noinspection PyProtectedMember
     return obj._wrapped__orig_obj
   return obj  # leave as-is

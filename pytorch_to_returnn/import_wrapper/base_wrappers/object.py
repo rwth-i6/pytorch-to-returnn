@@ -1,14 +1,17 @@
 
+import sys
 from typing import Any
 import importlib
 from ... import log
 from ... import __package__ as _base_package
+from ..context import WrapCtx
 
 
 class WrappedObject:
-  def __init__(self, orig_obj: Any, name: str):
+  def __init__(self, orig_obj: Any, name: str, ctx: WrapCtx):
     self._wrapped__name = name
     self._wrapped__orig_obj = orig_obj
+    self._wrapped__ctx = ctx
 
   def __repr__(self):
     if self._wrapped__orig_obj is self:
@@ -22,12 +25,20 @@ class WrappedObject:
       return self
     if item == "_wrapped__name":
       return "<unknown>"
+    if item == "_wrapped__ctx":
+      return None
     if self._wrapped__orig_obj is self:  # special case
       raise AttributeError("No attrib %r" % item)
+    from ..wrap import wrap
     res_ = getattr(self._wrapped__orig_obj, item)
     try:
-      res = _wrap(res_, name="%s.%s" % (self._wrapped__name, item))
+      res = wrap(res_, name="%s.%s" % (self._wrapped__name, item), ctx=self._wrapped__ctx)
       if res is not res_:
+        # Speedup, and avoid recreations.
+        # Note that this can potentially be dangerous and lead to inconsistencies,
+        # esp if the underlying object changes the value,
+        # then this would not reflect that.
+        # TODO maybe remove this?
         object.__setattr__(self, item, res)
       else:
         if log.Verbosity >= 10:
@@ -42,13 +53,14 @@ class WrappedObject:
     return res
 
   # setattr on this object directly, not on the wrapped one
+  # Note again that this can potentially lead to inconsistencies. See note above.
   __setattr__ = object.__setattr__
 
   def __delattr__(self, item):
     if hasattr(self._wrapped__orig_obj, item):
       delattr(self._wrapped__orig_obj, item)
-    if hasattr(self, item):
-      super(WrappedObject, self).__delattr__(item)
+    if item in self.__dict__:
+      del self.__dict__[item]
 
   def __dir__(self):
     if self._wrapped__orig_obj is self:
@@ -62,11 +74,11 @@ class WrappedObject:
     return bool(self._wrapped__orig_obj)
 
 
-def make_wrapped_object(obj, name: str):
+def make_wrapped_object(obj, name: str, ctx: WrapCtx):
   # First check if we should also wrap the type.
-  if _should_wrap_mod(getattr(obj.__class__, "__module__", "")):
+  if ctx.should_wrap_mod(getattr(obj.__class__, "__module__", "")):
     assert getattr(sys.modules[obj.__class__.__module__], obj.__class__.__qualname__) is obj.__class__
-    wrapped_mod = importlib.import_module(_ModPrefix + obj.__class__.__module__)
+    wrapped_mod = importlib.import_module(ctx.wrapped_mod_prefix + obj.__class__.__module__)
     cls = getattr(wrapped_mod, obj.__class__.__qualname__)
     if cls == WrappedTorchTensor:
       assert isinstance(obj, torch.Tensor)

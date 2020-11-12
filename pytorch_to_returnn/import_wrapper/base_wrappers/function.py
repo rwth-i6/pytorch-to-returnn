@@ -2,24 +2,21 @@
 import types
 from ... import log
 from .object import WrappedObject
+from ._helpers import copy_attribs_qualname_and_co
+from ..context import WrapCtx
 
 
-def make_wrapped_function(func, name: str):
+def make_wrapped_function(func, name: str, ctx: WrapCtx):
+  from ..wrap import wrap, unwrap
+
   def _call(*args, **kwargs):
     if log.Verbosity >= 3:
       log.unique_print("*** func call %s(...)" % name)
     res = func(*unwrap(args), **unwrap(kwargs))
-    res = wrap(res, name="%s(...)" % name)
+    res = wrap(res, name="%s(...)" % name, ctx=ctx)
     return res
 
-  _call.__name__ = func.__name__
-  _call.__qualname__ = func.__qualname__
-  if func.__module__:
-    if _should_wrap_mod(func.__module__):
-      _call.__module__ = _ModPrefix + func.__module__
-    else:
-      _call.__module__ = func.__module__
-
+  copy_attribs_qualname_and_co(_call, func, ctx=ctx)
   if isinstance(func, types.FunctionType):
     return _call
 
@@ -32,11 +29,5 @@ def make_wrapped_function(func, name: str):
         log.unique_print("*** func call %s(...)" % name)
       return _call(*args, **kwargs)
 
-  WrappedFunc.__name__ = func.__name__
-  WrappedFunc.__qualname__ = func.__qualname__
-  if func.__module__:
-    if _should_wrap_mod(func.__module__):
-      WrappedFunc.__module__ = _ModPrefix + func.__module__
-    else:
-      WrappedFunc.__module__ = func.__module__
+  copy_attribs_qualname_and_co(WrappedFunc, func, ctx=ctx)
   return WrappedFunc
