@@ -74,21 +74,20 @@ class WrappedObject:
     return bool(self._wrapped__orig_obj)
 
 
-def make_wrapped_object(obj, name: str, ctx: WrapCtx):
+def make_wrapped_object(obj, *, name: str, ctx: WrapCtx):
   # First check if we should also wrap the type.
-  if ctx.should_wrap_mod(getattr(obj.__class__, "__module__", "")):
+  if type(obj) in ctx.explicit_wrapped_types:
+    wrap_type = ctx.explicit_wrapped_types[type(obj)]
+    return wrap_type.wrap(obj, name=name, ctx=ctx)
+
+  if ctx.should_wrap_mod(getattr(type(obj), "__module__", "")) and type(obj) not in ctx.keep_as_is_types:
+    from .class_ import WrappedClassBase
     assert getattr(sys.modules[obj.__class__.__module__], obj.__class__.__qualname__) is obj.__class__
     wrapped_mod = importlib.import_module(ctx.wrapped_mod_prefix + obj.__class__.__module__)
     cls = getattr(wrapped_mod, obj.__class__.__qualname__)
-    if cls == WrappedTorchTensor:
-      assert isinstance(obj, torch.Tensor)
-      obj = obj.as_subclass(cls)
-      return obj
-    # print("*** wrap obj of type %r with wrapped type %r" % (type(obj), cls))
-    assert issubclass(cls, _WrappedClassBase)
-    # obj.__class__ = cls  # TODO HACK
-    # WrappedObject.__init__(obj, orig_obj=obj, name=name)  # TODO HACK
-    # assert obj._wrapped__orig_obj is obj  # ugh...
-    obj = cls(orig_obj=obj, name=name)
+    assert issubclass(cls, WrappedClassBase)
+    obj = cls(orig_obj=obj, name=name, ctx=ctx)
     return obj
-  return WrappedObject(obj, name=name)
+
+  # Fallback, or standard case.
+  return WrappedObject(obj, name=name, ctx=ctx)

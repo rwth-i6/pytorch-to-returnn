@@ -29,7 +29,7 @@ def make_wrapped_class(cls: type, name: str, ctx: WrapCtx):
       # if item == "__dict__":
         # Special case. Directly get it from wrapped object.  # TODO use this?
         #  return self._wrapped__orig_obj.__dict__
-      if item in {"_wrapped__orig_obj", "_wrapped__name", "__class__"}:  # extra checks, and fast path
+      if item in {"_wrapped__orig_obj", "_wrapped__name", "_wrapped__ctx", "__class__"}:  # extra checks, and fast path
         return object.__getattribute__(self, item)
       if self._wrapped__orig_obj is self:  # special case
         res = object.__getattribute__(self, item)
@@ -38,7 +38,7 @@ def make_wrapped_class(cls: type, name: str, ctx: WrapCtx):
       return object.__getattribute__(self, item)
 
     def __setattr__(self, key, value):
-      if key in {"_wrapped__orig_obj", "_wrapped__name"}:
+      if key in {"_wrapped__orig_obj", "_wrapped__name", "_wrapped__ctx"}:
         return object.__setattr__(self, key, value)
       if self is self._wrapped__orig_obj:  # special case
         return object.__setattr__(self, key, value)

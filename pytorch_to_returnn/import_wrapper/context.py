@@ -1,12 +1,13 @@
 
-from typing import Set, Iterable, Dict
+from typing import Set, Iterable, Dict, Optional, Callable, TypeVar, Type
 
 
 class WrapCtx:
-  def __init__(self, wrapped_mod_prefix: str,
+  def __init__(self,
+               wrapped_mod_prefix: str,
                wrap_mods_direct: Set[str], wrap_mods_indirect: Set[str] = None,
                keep_as_is_types: Iterable[type] = (),
-               explicit_wrapped_types: Dict[type, type] = None):
+               explicit_wrapped_types: Dict[type, "ExplicitWrappedType"] = None):
     """
     :param wrapped_mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
     :param wrap_mods_direct: e.g. {"torch.nn.modules"}
@@ -18,7 +19,7 @@ class WrapCtx:
       There can be overlaps between wrap_mods_direct and wrap_mods_indirect.
       The topmost entry will decide whether it is direct or indirect.
     :param keep_as_is_types: e.g. {torch.device, torch.dtype, torch.Size}
-    :param explicit_wrapped_types: e.g. {}
+    :param explicit_wrapped_types: e.g. {torch.Tensor: ExplicitWrappedType(WrappedTorchTensor...)}
     """
     assert wrapped_mod_prefix.endswith(".")
     self.wrapped_mod_prefix = wrapped_mod_prefix
@@ -28,8 +29,11 @@ class WrapCtx:
     self.wrap_mods_indirect = wrap_mods_indirect
     self.keep_as_is_types = tuple(keep_as_is_types)
     if explicit_wrapped_types is None:
-      explicit_wrapped_types = {}  # type: Dict[type, type]
+      explicit_wrapped_types = {}  # type: Dict[type, "ExplicitWrappedType"]
     self.explicit_wrapped_types = explicit_wrapped_types
+
+  def __repr__(self):
+    return "<%s %r>" % (self.__class__.__name__, self.wrapped_mod_prefix[:-1])
 
   def should_wrap_mod(self, mod_name: str) -> bool:
     """
@@ -44,19 +48,47 @@ class WrapCtx:
     return False
 
 
+class ExplicitWrappedType:
+  _OrigType = TypeVar("_OrigType")
+  _NewType = TypeVar("_NewType")
+  _WrapFuncType = Callable[[_OrigType], _NewType]
+
+  def __init__(self, orig_type: Type[_OrigType], new_type: Type[_NewType], wrap: Optional[_WrapFuncType]):
+    self.orig_type = orig_type
+    self.new_type = new_type
+    self._wrap = wrap
+
+  def wrap(self, obj: _OrigType, *, name: str, ctx: WrapCtx) -> _NewType:
+    if self._wrap:
+      return self._wrap(obj)
+    return self.new_type(orig_obj=obj, name=name, ctx=ctx)
+
+
 def make_torch_default_ctx(wrapped_mod_prefix: str) -> WrapCtx:
   import torch
+  from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase
+
   _KeepAsIsTypes = (
     torch.device,
     torch.Size,
     torch.dtype,
   )
-  from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase
+
+  def _wrap_tensor(obj):
+    assert isinstance(obj, torch.Tensor)
+    obj = obj.as_subclass(WrappedTorchTensor)
+    return obj
+
+  # noinspection PyUnusedLocal
+  def _raise_not_implemented(*args):
+    raise NotImplementedError
+
   _TypeMap = {
-    torch.Tensor: WrappedTorchTensor,
-    torch.nn.Parameter: WrappedTorchParameter,
-    torch.nn.Module: WrappedModuleBase,
+    torch.Tensor: ExplicitWrappedType(torch.Tensor, WrappedTorchTensor, wrap=_wrap_tensor),
+    torch.nn.Parameter: ExplicitWrappedType(torch.nn.Parameter, WrappedTorchParameter, wrap=_raise_not_implemented),
+    torch.nn.Module: ExplicitWrappedType(torch.nn.Module, WrappedModuleBase, wrap=_raise_not_implemented),
   }
+
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
     wrap_mods_direct=_TorchExplicitDirectModList,

@@ -17,7 +17,7 @@ def make_wrapped_function(func, name: str, ctx: WrapCtx):
     return res
 
   copy_attribs_qualname_and_co(_call, func, ctx=ctx)
-  if isinstance(func, types.FunctionType):
+  if isinstance(func, _FuncType):
     return _call
 
   # This is maybe slightly unconventional / non-straightforward.
@@ -31,3 +31,8 @@ def make_wrapped_function(func, name: str, ctx: WrapCtx):
 
   copy_attribs_qualname_and_co(WrappedFunc, func, ctx=ctx)
   return WrappedFunc
+
+
+# https://youtrack.jetbrains.com/issue/PY-45382
+# noinspection PyTypeChecker
+_FuncType = types.FunctionType  # type: type

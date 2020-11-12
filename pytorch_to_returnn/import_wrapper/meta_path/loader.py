@@ -40,16 +40,16 @@ class MetaPathLoader(importlib.abc.Loader):
         explicit_direct_use = True
         break
       if ".".join(orig_mod_name_parts[:i]) in self.ctx.wrap_mods_indirect:
-        return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
+        return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod, ctx=self.ctx)
     orig_mod_loader = orig_mod.__loader__
     if not isinstance(orig_mod_loader, importlib.abc.ExecutionLoader):
       assert not explicit_direct_use
-      return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
+      return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod, ctx=self.ctx)
     src = orig_mod_loader.get_source(orig_mod.__name__)
     if src is None:  # e.g. binary module
       assert not explicit_direct_use
-      return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod)
-    return WrappedSourceModule(name=spec.name, orig_mod=orig_mod, source=src)
+      return WrappedIndirectModule(name=spec.name, orig_mod=orig_mod, ctx=self.ctx)
+    return WrappedSourceModule(name=spec.name, orig_mod=orig_mod, source=src, ctx=self.ctx)
 
   def exec_module(self, module: WrappedModule):
     assert isinstance(module, WrappedModule)

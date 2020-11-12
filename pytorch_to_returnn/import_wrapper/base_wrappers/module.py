@@ -4,28 +4,27 @@ from .object import WrappedObject
 from ..context import WrapCtx
 
 
-__all__ = ["WrappedModule", "WrappedSourceModule", "WrappedIndirectModule", "get_ctx_from_module"]
+__all__ = ["WrappedModule", "WrappedSourceModule", "WrappedIndirectModule"]
 
 
 class WrappedModule(types.ModuleType):
-  def __init__(self, *, name: str, orig_mod: types.ModuleType):
+  """
+  Base class for :class:`WrappedSourceModule` or :class:`WrappedIndirectModule`.
+  """
+  def __init__(self, *, name: str, orig_mod: types.ModuleType, ctx: WrapCtx):
     super(WrappedModule, self).__init__(name=name)
     self._wrapped__orig_mod = orig_mod
+    self._wrapped__ctx = ctx
     assert not isinstance(orig_mod, WrappedModule)
 
   def __repr__(self):
     return "<%s %s>" % (self.__class__.__name__, self.__name__)
 
 
-def get_ctx_from_module(mod: WrappedModule) -> WrapCtx:
-  from ..meta_path.loader import MetaPathLoader
-  assert isinstance(mod, WrappedModule)
-  loader = mod.__loader__
-  assert isinstance(loader, MetaPathLoader)
-  return loader.ctx
-
-
 class WrappedSourceModule(WrappedModule):
+  """
+  Represents a module where the AST was transformed via :class:`AstImportTransformer`.
+  """
   def __init__(self, *, source: str, **kwargs):
     super(WrappedSourceModule, self).__init__(**kwargs)
     self._wrapped__source = source
@@ -38,7 +37,7 @@ class WrappedIndirectModule(WrappedModule, WrappedObject):
   """
   def __init__(self, **kwargs):
     WrappedModule.__init__(self, **kwargs)
-    WrappedObject.__init__(self, orig_obj=self._wrapped__orig_mod, name=self.__name__)
+    WrappedObject.__init__(self, orig_obj=self._wrapped__orig_mod, name=self.__name__, ctx=self._wrapped__ctx)
     if getattr(self._wrapped__orig_mod, "__all__", None) is not None:
       # noinspection PyUnresolvedReferences
       self.__all__ = self._wrapped__orig_mod.__all__
