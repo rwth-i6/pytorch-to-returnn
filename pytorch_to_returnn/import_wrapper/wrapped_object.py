@@ -1,6 +1,7 @@
 
 from typing import Any
 from .. import log
+from ..__init__ import __package__ as _base_package
 
 
 class WrappedObject:
@@ -32,7 +33,7 @@ class WrappedObject:
           log.unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
       if log.Verbosity >= 6:
         postfix = ""
-        if isinstance(res, (WrappedObject, WrappedModule)) or getattr(res, "__module__", "").startswith(_ModPrefix):
+        if type(res).__name__.startswith("Wrapped") or getattr(res, "__module__", "").startswith(_base_package):
           postfix = " -> %r" % res
         log.unique_print("*** indirect getattr '%s.%s'%s" % (self._wrapped__name, item, postfix))
     except AttributeError as exc:  # no exception expected. esp, we should **NOT** forward AttributeError
@@ -55,5 +56,6 @@ class WrappedObject:
 
   def __bool__(self):
     if self._wrapped__orig_obj is self:
+      # noinspection PyUnresolvedReferences
       return super(WrappedObject, self).__bool__(self)
     return bool(self._wrapped__orig_obj)

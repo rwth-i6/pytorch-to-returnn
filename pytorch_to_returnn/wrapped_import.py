@@ -33,6 +33,10 @@ import importlib.abc
 import importlib.machinery
 from . import log
 from .import_wrapper.ast_transformer import AstImportTransformer
+from .import_wrapper.wrapped_object import WrappedObject
+from .import_wrapper.wrapped_module import WrappedModule, WrappedSourceModule, WrappedIndirectModule
+from .import_wrapper.meta_path.loader import MetaPathLoader
+from .import_wrapper.meta_path.finder import MetaPathFinder
 
 
 _ExplicitIndirectModList = {
@@ -161,12 +165,12 @@ def _nested_transform(obj, transform):
   return obj
 
 
-def _wrap(obj, name: str):
+def wrap(obj, name: str):
   if isinstance(obj, (WrappedObject, WrappedModule)):
     return obj
   if isinstance(obj, _KeepAsIsTypes):
     return obj
-  obj = _nested_transform(obj, lambda _x: _wrap(_x, name="%s..." % name))
+  obj = _nested_transform(obj, lambda _x: wrap(_x, name="%s..." % name))
 
   if isinstance(obj, types.ModuleType):
     if _should_wrap_mod(obj.__name__):
@@ -213,8 +217,8 @@ def _wrap(obj, name: str):
   return obj
 
 
-def _unwrap(obj):
-  obj = _nested_transform(obj, _unwrap)
+def unwrap(obj):
+  obj = _nested_transform(obj, unwrap)
   if isinstance(obj, WrappedObject):
     #if obj._wrapped__orig_obj is obj:
     #  assert False  # TODO
@@ -239,7 +243,7 @@ def make_wrapped_class(cls: type, name: str):
         assert not args
         WrappedObject.__init__(self, **kwargs)
       else:
-        obj = cls(*_unwrap(args), **_unwrap(kwargs))
+        obj = cls(*unwrap(args), **unwrap(kwargs))
         WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name)
 
     def __getattribute__(self, item):
@@ -254,7 +258,7 @@ def make_wrapped_class(cls: type, name: str):
           return getattr(self._wrapped__orig_obj, item)
       if self._wrapped__orig_obj is self:  # special case
         res = object.__getattribute__(self, item)
-        res = _wrap(res, name="%s.%s" % (self._wrapped__name, item))
+        res = wrap(res, name="%s.%s" % (self._wrapped__name, item))
         return res
       return object.__getattribute__(self, item)
 
@@ -293,8 +297,8 @@ def make_wrapped_function(func, name: str):
   def _call(*args, **kwargs):
     if log.Verbosity >= 3:
       log.unique_print("*** func call %s(...)" % name)
-    res = func(*_unwrap(args), **_unwrap(kwargs))
-    res = _wrap(res, name="%s(...)" % name)
+    res = func(*unwrap(args), **unwrap(kwargs))
+    res = wrap(res, name="%s(...)" % name)
     return res
 
   _call.__name__ = func.__name__
