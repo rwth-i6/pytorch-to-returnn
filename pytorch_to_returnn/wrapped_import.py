@@ -31,7 +31,6 @@ from collections import OrderedDict, Counter
 import importlib
 import importlib.abc
 import importlib.machinery
-import abc
 import linecache
 
 
@@ -325,15 +324,7 @@ class WrappedIndirectModule(WrappedModule, WrappedObject):
   # {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}
 
 
-class _WrappedTorchTensorMeta(abc.ABCMeta):
-  def __getattribute__(self, item):
-    _unique_print("**** torch meta tensor __getattribute__ %r" % item)
-    return super(_WrappedTorchTensorMeta, self).__getattribute__()
-
-
 class WrappedTorchTensor(torch.Tensor):  # TODO
-  __metaclass__ = _WrappedTorchTensorMeta
-
   def __getattribute__(self, item):
     _unique_print("**** torch tensor __getattribute__ %r" % item)
     return super(WrappedTorchTensor, self).__getattribute__(item)
@@ -431,8 +422,6 @@ def _wrap(obj, name: str):
   elif not isinstance(obj, type) and type(type(obj)) == type:  # object instance
     if not getattr(obj.__class__, "__module__", None) or not _should_wrap_mod(obj.__class__.__module__):
       pass  # Don't wrap this object.
-    #elif isinstance(obj, torch.Tensor):
-    #  pass  # TODO ...
     elif isinstance(obj, _KeepAsIsTypes):  # blacklist
       pass  # keep as-is
     else:
@@ -458,19 +447,8 @@ class _WrappedClassBase:
 def make_wrapped_class(cls: type, name: str):
   is_torch_module = issubclass(cls, torch.nn.Module)
 
-  class Meta(type):
-    @classmethod
-    def __instancecheck__(cls, instance):
-      if isinstance(instance, WrappedClass):
-        return True
-      if isinstance(instance, cls):
-        return True
-      return False
-
   # TODO use cls as base?
   class WrappedClass(WrappedObject, _WrappedClassBase):
-    __metaclass__ = Meta
-
     def __init__(self, *args, **kwargs):
       if LogVerbosity >= 4:
         _unique_print("*** WrappedClass %s(...)" % (name,))
