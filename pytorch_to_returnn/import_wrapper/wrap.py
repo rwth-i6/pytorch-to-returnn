@@ -5,11 +5,6 @@ import importlib
 import sys
 
 
-class WrapCtx:
-  def __init__(self):
-    pass
-
-
 def wrap(obj, name: str):
   if isinstance(obj, (WrappedObject, WrappedModule)):
     return obj

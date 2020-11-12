@@ -1,5 +1,6 @@
 
 from typing import Any
+import importlib
 from ... import log
 from ... import __package__ as _base_package
 
@@ -59,3 +60,23 @@ class WrappedObject:
       # noinspection PyUnresolvedReferences
       return super(WrappedObject, self).__bool__(self)
     return bool(self._wrapped__orig_obj)
+
+
+def make_wrapped_object(obj, name: str):
+  # First check if we should also wrap the type.
+  if _should_wrap_mod(getattr(obj.__class__, "__module__", "")):
+    assert getattr(sys.modules[obj.__class__.__module__], obj.__class__.__qualname__) is obj.__class__
+    wrapped_mod = importlib.import_module(_ModPrefix + obj.__class__.__module__)
+    cls = getattr(wrapped_mod, obj.__class__.__qualname__)
+    if cls == WrappedTorchTensor:
+      assert isinstance(obj, torch.Tensor)
+      obj = obj.as_subclass(cls)
+      return obj
+    # print("*** wrap obj of type %r with wrapped type %r" % (type(obj), cls))
+    assert issubclass(cls, _WrappedClassBase)
+    # obj.__class__ = cls  # TODO HACK
+    # WrappedObject.__init__(obj, orig_obj=obj, name=name)  # TODO HACK
+    # assert obj._wrapped__orig_obj is obj  # ugh...
+    obj = cls(orig_obj=obj, name=name)
+    return obj
+  return WrappedObject(obj, name=name)
