@@ -5,7 +5,7 @@ Utility to import a module with automatic Torch import wrapping, which replaces 
 
 To::
 
-  from pytorch_to_returnn.wrapped_torch as torch
+  from pytorch_to_returnn import torch
 
 In your user code, you would replace::
 
@@ -31,6 +31,7 @@ from collections import OrderedDict, Counter
 import importlib
 import importlib.abc
 import importlib.machinery
+import abc
 import linecache
 
 
@@ -245,7 +246,7 @@ class WrappedObject:
       if res is not res_:
         object.__setattr__(self, item, res)
       else:
-        if LogVerbosity >= 6:
+        if LogVerbosity >= 10:
           _unique_print("*** not wrapped: '%s.%s', type %r" % (self._wrapped__name, item, type(res)))
       if LogVerbosity >= 6:
         postfix = ""
@@ -324,7 +325,15 @@ class WrappedIndirectModule(WrappedModule, WrappedObject):
   # {"_wrapped__orig_mod", "__all__", "__loader__", "__package__", "__spec__", "__name__", "__path__"}
 
 
+class _WrappedTorchTensorMeta(abc.ABCMeta):
+  def __getattribute__(self, item):
+    _unique_print("**** torch meta tensor __getattribute__ %r" % item)
+    return super(_WrappedTorchTensorMeta, self).__getattribute__()
+
+
 class WrappedTorchTensor(torch.Tensor):  # TODO
+  __metaclass__ = _WrappedTorchTensorMeta
+
   def __getattribute__(self, item):
     _unique_print("**** torch tensor __getattribute__ %r" % item)
     return super(WrappedTorchTensor, self).__getattribute__(item)
@@ -346,7 +355,7 @@ class WrappedModuleBase(torch.nn.Module):
     return super(WrappedModuleBase, self).__call__(*args, **kwargs)
 
   def __setattr__(self, key, value):
-    value = _unwrap(value)
+    # value = _unwrap(value)
     return super(WrappedModuleBase, self).__setattr__(key, value)
 
 
@@ -449,8 +458,19 @@ class _WrappedClassBase:
 def make_wrapped_class(cls: type, name: str):
   is_torch_module = issubclass(cls, torch.nn.Module)
 
+  class Meta(type):
+    @classmethod
+    def __instancecheck__(cls, instance):
+      if isinstance(instance, WrappedClass):
+        return True
+      if isinstance(instance, cls):
+        return True
+      return False
+
   # TODO use cls as base?
   class WrappedClass(WrappedObject, _WrappedClassBase):
+    __metaclass__ = Meta
+
     def __init__(self, *args, **kwargs):
       if LogVerbosity >= 4:
         _unique_print("*** WrappedClass %s(...)" % (name,))
