@@ -10,7 +10,7 @@ class Model(torch.nn.Module):
 ```
 Would become:
 ```
-import pytorch_to_returnn as torch
+from pytorch_to_returnn import torch
 
 class Model(torch.nn.Module):
  ...
