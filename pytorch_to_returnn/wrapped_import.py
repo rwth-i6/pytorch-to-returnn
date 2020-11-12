@@ -22,19 +22,15 @@ See :class:`_AstImportTransformer`.
 """
 
 import torch
-import ast
-import types
 import typing
-from typing import Optional, Union, Any
+from typing import Union, Any
 import sys
-from collections import OrderedDict, Counter
 import importlib
 import importlib.abc
 import importlib.machinery
 from . import log
-from .import_wrapper.ast_transformer import AstImportTransformer
-from .import_wrapper.wrapped_object import WrappedObject
-from .import_wrapper.wrapped_module import WrappedModule, WrappedSourceModule, WrappedIndirectModule
+from pytorch_to_returnn.import_wrapper.base_wrappers.wrapped_object import WrappedObject
+from pytorch_to_returnn.import_wrapper.base_wrappers.wrapped_module import WrappedModule
 from .import_wrapper.meta_path.loader import MetaPathLoader
 from .import_wrapper.meta_path.finder import MetaPathFinder
 
