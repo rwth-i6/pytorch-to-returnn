@@ -435,15 +435,22 @@ def make_wrapped_function(func, name: str):
 _ModPrefix = "%s._wrapped_mods." % __package__
 
 
-class _MetaPathLoader(importlib.abc.Loader):
+class MetaPathLoader(importlib.abc.Loader):
+  def __init__(self, mod_prefix: str):
+    """
+    :param mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
+    """
+    assert mod_prefix.endswith(".")
+    self.mod_prefix = mod_prefix
+
   def __repr__(self):
     return "<wrapped mod loader>"
 
   def create_module(self, spec: importlib.machinery.ModuleSpec) -> WrappedModule:
-    assert spec.name.startswith(_ModPrefix)
+    assert spec.name.startswith(self.mod_prefix)
     assert spec.name not in sys.modules
-    orig_mod_name = spec.name[len(_ModPrefix):]
-    assert not orig_mod_name.startswith(_ModPrefix)
+    orig_mod_name = spec.name[len(self.mod_prefix):]
+    assert not orig_mod_name.startswith(self.mod_prefix)
     # Normal load. This is just to get __file__, and check whether it is correct. Maybe useful otherwise as well.
     orig_mod = importlib.import_module(orig_mod_name)
     assert not isinstance(orig_mod, WrappedModule)
@@ -468,7 +475,7 @@ class _MetaPathLoader(importlib.abc.Loader):
 
   def exec_module(self, module: WrappedModule):
     assert isinstance(module, WrappedModule)
-    assert module.__name__.startswith(_ModPrefix)
+    assert module.__name__.startswith(self.mod_prefix)
     if isinstance(module, WrappedIndirectModule):
       return  # nothing needed to be done
     if log.Verbosity >= 5:
@@ -481,7 +488,7 @@ class _MetaPathLoader(importlib.abc.Loader):
     tree = ast.parse(source=src, filename=orig_mod.__file__)
     ast_transformer = AstImportTransformer(
       base_mod_names={orig_mod.__name__.partition(".")[0], "torch"},
-      new_import_prefix=_ModPrefix,
+      new_import_prefix=self.mod_prefix,
       src_filename=orig_mod.__file__)
     tree = ast_transformer.visit(tree)
     tree = ast.fix_missing_locations(tree)
@@ -497,8 +504,8 @@ class _MetaPathLoader(importlib.abc.Loader):
     exec(code, module.__dict__)
 
 
-class _MetaPathFinder(importlib.abc.MetaPathFinder):
-  def __init__(self, loader: _MetaPathLoader):
+class MetaPathFinder(importlib.abc.MetaPathFinder):
+  def __init__(self, loader: MetaPathLoader):
     self._loader = loader
 
   def find_spec(self, fullname: str, path: Optional[str], target: Optional[types.ModuleType] = None):
@@ -507,8 +514,8 @@ class _MetaPathFinder(importlib.abc.MetaPathFinder):
     return None
 
 
-_loader = _MetaPathLoader()
-_finder = _MetaPathFinder(loader=_loader)
+_loader = MetaPathLoader(mod_prefix=_ModPrefix)
+_finder = MetaPathFinder(loader=_loader)
 
 
 def wrapped_import(mod_name: str) -> Union[WrappedModule, Any]:  # rtype Any to make type checkers happy
