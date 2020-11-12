@@ -14,9 +14,10 @@ from .loader import MetaPathLoader
 
 class MetaPathFinder(importlib.abc.MetaPathFinder):
   def __init__(self, loader: MetaPathLoader):
-    self._loader = loader
+    self.loader = loader
+    self.ctx = loader.ctx
 
   def find_spec(self, fullname: str, path: Optional[str], target: Optional[types.ModuleType] = None):
-    if fullname.startswith(self._loader.mod_prefix):
-      return importlib.machinery.ModuleSpec(fullname, self._loader)
+    if fullname.startswith(self.loader.mod_prefix):
+      return importlib.machinery.ModuleSpec(fullname, self.loader)
     return None

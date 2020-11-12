@@ -61,12 +61,17 @@ class MetaPathLoader(importlib.abc.Loader):
     assert isinstance(module, WrappedSourceModule)
     # noinspection PyProtectedMember
     orig_mod = module._wrapped__orig_mod
+    orig_mod_name = module.__name__[len(self.mod_prefix):]  # e.g. "parallel_wavegan.layers"
+    assert orig_mod.__name__ == orig_mod_name
+    if not self.ctx.should_wrap_mod(orig_mod_name):
+      if log.Verbosity >= 4:
+        print(f"*** {self.ctx} extend by mod {orig_mod_name!r}")
+      self.ctx.extend_wrap_mod_(orig_mod_name)
     # noinspection PyProtectedMember
     src = module._wrapped__source
     tree = ast.parse(source=src, filename=orig_mod.__file__)
     ast_transformer = AstImportTransformer(
-      base_mod_names={orig_mod.__name__.partition(".")[0], "torch"},
-      new_import_prefix=self.mod_prefix,
+      mod_map=self.ctx.mod_map,
       src_filename=orig_mod.__file__)
     tree = ast_transformer.visit(tree)
     tree = ast.fix_missing_locations(tree)

@@ -1,11 +1,13 @@
 
 from typing import Set, Iterable, Dict, Optional, Callable, TypeVar, Type
+from .mod_map import ModMap
 
 
 class WrapCtx:
-  def __init__(self,
+  def __init__(self, *,
                wrapped_mod_prefix: str,
-               wrap_mods_direct: Set[str], wrap_mods_indirect: Set[str] = None,
+               wrap_mods_direct: Set[str] = None, wrap_mods_indirect: Set[str] = None,
+               wrap_mods_alternatives: Dict[str, str] = None,
                keep_as_is_types: Iterable[type] = (),
                explicit_wrapped_types: Dict[type, "ExplicitWrappedType"] = None):
     """
@@ -18,34 +20,56 @@ class WrapCtx:
       which wraps the originally unmodified imported module.
       There can be overlaps between wrap_mods_direct and wrap_mods_indirect.
       The topmost entry will decide whether it is direct or indirect.
+    :param wrap_mods_alternatives: e.g. {"torch": "pytorch_to_returnn.torch"}
+      These will not be wrapped using :class:`WrappedModule` but can map to some other namespace.
     :param keep_as_is_types: e.g. {torch.device, torch.dtype, torch.Size}
     :param explicit_wrapped_types: e.g. {torch.Tensor: ExplicitWrappedType(WrappedTorchTensor...)}
     """
     assert wrapped_mod_prefix.endswith(".")
     self.wrapped_mod_prefix = wrapped_mod_prefix
+    if wrap_mods_direct is None:
+      wrap_mods_direct = set()  # type: Set[str]
     self.wrap_mods_direct = wrap_mods_direct
     if wrap_mods_indirect is None:
       wrap_mods_indirect = set()  # type: Set[str]
     self.wrap_mods_indirect = wrap_mods_indirect
+    if wrap_mods_alternatives is None:
+      wrap_mods_alternatives = {}  # type: Dict[str, str]
+    self.wrap_mods_alternatives = wrap_mods_alternatives
     self.keep_as_is_types = tuple(keep_as_is_types)
     if explicit_wrapped_types is None:
       explicit_wrapped_types = {}  # type: Dict[type, "ExplicitWrappedType"]
     self.explicit_wrapped_types = explicit_wrapped_types
+    self.mod_map = self._make_mod_map()
 
   def __repr__(self):
     return "<%s %r>" % (self.__class__.__name__, self.wrapped_mod_prefix[:-1])
+
+  def _make_mod_map(self) -> ModMap:
+    d = {
+      mod_name: self.wrapped_mod_prefix + mod_name for mod_name in self.wrap_mods_direct | self.wrap_mods_indirect}
+    d.update(self.wrap_mods_alternatives)
+    mod_map = ModMap(d)
+    mod_map.simplify_()
+    return mod_map
 
   def should_wrap_mod(self, mod_name: str) -> bool:
     """
     :param mod_name: e.g. "torch"
     """
-    mod_name = mod_name.split(".")
-    for i in range(1, len(mod_name) + 1):
-      if ".".join(mod_name[:i]) in self.wrap_mods_direct:
-        return True
-      if ".".join(mod_name[:i]) in self.wrap_mods_indirect:
-        return True
-    return False
+    return self.mod_map.should_wrap_mod_name(mod_name)
+
+  def extend_wrap_mod_(self, mod_name: str):
+    """
+    :param mod_name: e.g. "parallel_wavegan.layers"
+
+    Adds this to wrap_mods_direct if not there already.
+    This is an inplace modification.
+    """
+    if self.should_wrap_mod(mod_name):
+      return
+    self.wrap_mods_direct.add(mod_name)
+    self.mod_map = self._make_mod_map()
 
 
 class ExplicitWrappedType:
@@ -133,3 +157,10 @@ _TorchExplicitDirectModList = {
   "torch.nn.modules",
   # "torch.nn.functional",  # -- not needed, also causes other problems
 }
+
+
+def make_torch_demo_ctx(wrapped_mod_prefix: str) -> WrapCtx:
+  from .. import torch
+  return WrapCtx(
+    wrapped_mod_prefix=wrapped_mod_prefix,
+    wrap_mods_alternatives={"torch": torch.__package__})
