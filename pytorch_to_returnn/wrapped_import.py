@@ -137,13 +137,6 @@ class WrappedModuleBase(torch.nn.Module):
     return super(WrappedModuleBase, self).__setattr__(key, value)
 
 
-_TorchModDirectAttribs = {
-  "_forward_pre_hooks", "_forward_hooks", "_backward_hooks",
-  "_load_state_dict_pre_hooks",
-  "_modules", "_parameters", "_buffers",
-}
-
-
 _ModPrefix = "%s._wrapped_mods." % __package__
 
 

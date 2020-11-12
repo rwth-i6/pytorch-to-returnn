@@ -1,6 +1,7 @@
 
 import types
 from .. import log
+from .wrapped_object import WrappedObject
 
 
 def make_wrapped_function(func, name: str):

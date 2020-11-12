@@ -1,15 +1,14 @@
 
+from .. import log
+from .wrapped_object import WrappedObject
 
 
-class _WrappedClassBase:
+class WrappedClassBase:
   pass
 
 
 def make_wrapped_class(cls: type, name: str):
-  is_torch_module = issubclass(cls, torch.nn.Module)
-
-  # TODO use cls as base?
-  class WrappedClass(WrappedObject, _WrappedClassBase):
+  class WrappedClass(WrappedObject, WrappedClassBase):
     def __init__(self, *args, **kwargs):
       if log.Verbosity >= 4:
         log.unique_print("*** WrappedClass %s(...)" % (name,))
@@ -26,10 +25,6 @@ def make_wrapped_class(cls: type, name: str):
       #  return self._wrapped__orig_obj.__dict__
       if item in {"_wrapped__orig_obj", "_wrapped__name", "__class__"}:  # extra checks, and fast path
         return object.__getattribute__(self, item)
-      if is_torch_module and False:
-        # Some fast path, and avoid logging.
-        if item in _TorchModDirectAttribs:
-          return getattr(self._wrapped__orig_obj, item)
       if self._wrapped__orig_obj is self:  # special case
         res = object.__getattribute__(self, item)
         res = wrap(res, name="%s.%s" % (self._wrapped__name, item))
@@ -42,12 +37,6 @@ def make_wrapped_class(cls: type, name: str):
       if self is self._wrapped__orig_obj:  # special case
         return object.__setattr__(self, key, value)
       return setattr(self._wrapped__orig_obj, key, value)
-
-    if is_torch_module:
-      def __call__(self, *args, **kwargs):
-        if log.Verbosity >= 3:
-          log.unique_print("*** module call %s(...)(...)" % (name,))
-        return self._wrapped__orig_obj(*args, **kwargs)
 
   WrappedClass.__name__ = cls.__name__
   WrappedClass.__qualname__ = cls.__qualname__
