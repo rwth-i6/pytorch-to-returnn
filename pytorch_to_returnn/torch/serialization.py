@@ -1,9 +1,7 @@
 
 
-class _DummyLoad:
-  def __getitem__(self, item):
-    return self
-
-
 def load(*args, **kwargs):
-  return _DummyLoad()
+  # This is just unpickling. It's okay if we get some torch.Tensor or torch.nn.Parameter in the dict.
+  # Our code in Module.load_state_dict takes care of that.
+  import torch
+  return torch.load(*args, **kwargs)

@@ -64,12 +64,15 @@ class Tensor:
       assert dim >= 0
     return self.view(*(self._shape[:dim] + (-1,) + self._shape[dim:]))
 
+  def copy_(self, source: "Tensor"):
+    pass  # TODO ...
+
   def normal_(self, mean=0, std=1):
     from .nn.init import normal_
     normal_(self, mean=mean, std=std)
 
   def float(self):
-    return self  # TODO
+    return Tensor(self)  # TODO
 
   def __getitem__(self, item):
     assert isinstance(item, int)  # not implemented otherwise
@@ -80,10 +83,10 @@ class Tensor:
     self._numpy_buffer[key] = value
 
   def __add__(self, other):
-    return self  # TODO
+    return Tensor(self)  # TODO
 
   def __mul__(self, other):
-    return self  # TODO
+    return Tensor(self)  # TODO
 
   def __truediv__(self, other):
-    return self  # TODO
+    return Tensor(self)  # TODO

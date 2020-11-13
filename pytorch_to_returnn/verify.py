@@ -15,6 +15,7 @@ def verify_torch(
       inputs: _InputsType):
   """
   :param model_func: gets one argument wrapped_import(str) -> module, or None. If None, should import as is.
+  :param inputs:
 
   Example code for model func::
 

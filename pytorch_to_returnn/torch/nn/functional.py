@@ -36,4 +36,5 @@ def tanh(input: Tensor) -> Tensor:
 
 
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
-  return v
+  # TODO ...
+  return Tensor(*[v.shape[i] if i == dim else 1 for i in range(v.dim())])
