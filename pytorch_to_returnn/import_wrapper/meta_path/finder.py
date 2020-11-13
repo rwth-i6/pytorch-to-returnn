@@ -18,6 +18,6 @@ class MetaPathFinder(importlib.abc.MetaPathFinder):
     self.ctx = loader.ctx
 
   def find_spec(self, fullname: str, path: Optional[str], target: Optional[types.ModuleType] = None):
-    if fullname.startswith(self.loader.mod_prefix):
+    if fullname.startswith(self.loader.mod_prefix) or fullname == self.loader.mod_prefix[:-1]:
       return importlib.machinery.ModuleSpec(fullname, self.loader)
     return None

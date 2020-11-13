@@ -25,6 +25,8 @@ class MetaPathLoader(importlib.abc.Loader):
     return "<wrapped mod loader>"
 
   def create_module(self, spec: importlib.machinery.ModuleSpec) -> WrappedModule:
+    if spec.name == self.mod_prefix[:-1]:
+      return None  # fall back to default
     assert spec.name.startswith(self.mod_prefix)
     assert spec.name not in sys.modules
     orig_mod_name = spec.name[len(self.mod_prefix):]
@@ -52,6 +54,12 @@ class MetaPathLoader(importlib.abc.Loader):
     return WrappedSourceModule(name=spec.name, orig_mod=orig_mod, source=src, ctx=self.ctx)
 
   def exec_module(self, module: WrappedModule):
+    if module.__name__ == self.mod_prefix[:-1]:  # dummy top-level module
+      module.__file__ = None
+      module.__loader__ = self
+      module.__path__ = []
+      module.__package__ = module.__name__
+      return
     assert isinstance(module, WrappedModule)
     assert module.__name__.startswith(self.mod_prefix)
     if isinstance(module, WrappedIndirectModule):
