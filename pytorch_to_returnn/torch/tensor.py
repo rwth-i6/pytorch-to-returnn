@@ -58,16 +58,18 @@ class Tensor:
       shape = [dim if dim >= 0 else num for dim in shape]
     return Tensor(*shape)
 
+  def unsqueeze(self, dim: int):
+    if dim < 0:
+      dim += len(self._shape)
+      assert dim >= 0
+    return self.view(*(self._shape[:dim] + (-1,) + self._shape[dim:]))
+
   def normal_(self, mean=0, std=1):
     from .nn.init import normal_
     normal_(self, mean=mean, std=std)
 
   def float(self):
     return self  # TODO
-
-  def unsqueeze(self, dim):
-    from .nn.functional import unsqueeze
-    return unsqueeze(self, dim=dim)
 
   def __getitem__(self, item):
     assert isinstance(item, int)  # not implemented otherwise

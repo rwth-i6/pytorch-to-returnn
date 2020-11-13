@@ -7,13 +7,18 @@ from typing import Callable, Optional
 from .wrapped_import import wrapped_import, wrapped_import_demo
 
 
-def verify_torch(model_func: Callable[[Optional[Callable[[str], types.ModuleType]]], torch.Tensor]):
+_InputsType = numpy.ndarray
+
+
+def verify_torch(
+      model_func: Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor],
+      inputs: _InputsType):
   """
   :param model_func: gets one argument wrapped_import(str) -> module, or None. If None, should import as is.
 
   Example code for model func::
 
-    def model_func(wrapped_import):
+    def model_func(wrapped_import, inputs):
 
         if typing.TYPE_CHECKING or not wrapped_import:
             import torch
@@ -36,7 +41,7 @@ def verify_torch(model_func: Callable[[Optional[Callable[[str], types.ModuleType
   """
   # The reference, using the original import.
   print(">>> Running with standard reference imports...")
-  out_ref = model_func(None)
+  out_ref = model_func(None, torch.from_numpy(inputs))
   assert isinstance(out_ref, torch.Tensor)
   out_ref_np = out_ref.cpu().numpy()
   print()
@@ -48,7 +53,8 @@ def verify_torch(model_func: Callable[[Optional[Callable[[str], types.ModuleType
   # just to check that there is no subtle bug due to the wrapping logic.
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
-  out_wrapped = model_func(wrapped_import)
+  wrapped_torch = wrapped_import("torch")
+  out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
   assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
   out_wrapped_np = out_wrapped.cpu().numpy()
   assert out_ref_np.shape == out_wrapped_np.shape
@@ -56,4 +62,8 @@ def verify_torch(model_func: Callable[[Optional[Callable[[str], types.ModuleType
   print()
 
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
-  model_func(wrapped_import_demo)
+  from . import torch as torch_returnn
+  out_returnn = model_func(wrapped_import_demo, torch_returnn.from_numpy(inputs))
+  # TODO now build RETURNN model
+  # TODO now forward through RETURNN model
+  # TODO check output

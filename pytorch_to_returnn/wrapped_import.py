@@ -21,31 +21,16 @@ See :class:`_AstImportTransformer`.
 
 """
 
-import typing
 from typing import Union, Any
-import sys
-import importlib
-import importlib.abc
-import importlib.machinery
-from pytorch_to_returnn.import_wrapper.base_wrappers.module import WrappedModule
-from .import_wrapper.meta_path.loader import MetaPathLoader
-from .import_wrapper.meta_path.finder import MetaPathFinder
+from .import_wrapper.base_wrappers.module import WrappedModule
 from .import_wrapper.context import make_torch_default_ctx, make_torch_demo_ctx
 from .import_wrapper.import_ import import_module
 
 
-def _should_wrap_mod(mod_name: str) -> bool:
-  if mod_name == "torch":
-    return True
-  if mod_name.startswith("torch."):
-    return True
-  return False
-
-
-_ModPrefix = "%s._wrapped_mods." % __package__
+_ModPrefix = "%s._traced_torch." % __package__
 _wrap_torch_ctx = make_torch_default_ctx(wrapped_mod_prefix=_ModPrefix)
 
-_DemoModPrefix = "%s._demo_mods." % __package__
+_DemoModPrefix = "%s._torch_stub." % __package__
 _wrap_torch_demo_ctx = make_torch_demo_ctx(wrapped_mod_prefix=_DemoModPrefix)
 
 

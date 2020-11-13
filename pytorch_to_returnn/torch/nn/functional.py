@@ -37,7 +37,3 @@ def tanh(input: Tensor) -> Tensor:
 
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
   return v
-
-
-def unsqueeze(input, dim):
-  return input  # TODO
