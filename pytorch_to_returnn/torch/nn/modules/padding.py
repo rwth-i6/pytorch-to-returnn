@@ -7,6 +7,15 @@ from .. import functional as F
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 
 
+class _PadReturnn(Module):
+  padding = None  # set by subclasses
+  mode = None  # set by subclasses
+  value = None  # set by subclasses
+
+  def forward(self, input: Tensor) -> Tensor:
+    pass  # TODO
+
+
 class _ConstantPadNd(Module):
   padding = None  # set by subclasses
   value = None  # set by subclasses

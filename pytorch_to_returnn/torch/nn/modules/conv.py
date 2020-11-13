@@ -1,6 +1,6 @@
 
 import math
-from typing import Optional
+from typing import Optional, Dict, Any
 from .module import Module
 from .utils import _single, _pair, _triple, _reverse_repeat_tuple
 from ..common_types import _size_1_t, _size_2_t, _size_3_t
@@ -67,6 +67,23 @@ class _ConvNd(Module):
 
   def forward(self, input: Tensor):
     return input  # TODO
+
+  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
+    assert self.groups == 1  # not implemented otherwise
+    assert self.padding == 0  # not implemented otherwise
+    assert self.padding_mode == "zeros"  # not implemented otherwise
+    return {
+      "class": "conv", "from": input_layer_name,
+      "n_out": self.out_channels,
+      "filter_size": self.kernel_size,
+      "padding": "valid",
+      "strides": self.stride,
+      "dilation_rate": self.dilation}
+
+  def param_import_torch_to_returnn(self, layer):
+    # TODO {"weight": "W", "bias": "bias"}
+    # TODO transpose ...
+    pass
 
 
 class Conv1d(_ConvNd):

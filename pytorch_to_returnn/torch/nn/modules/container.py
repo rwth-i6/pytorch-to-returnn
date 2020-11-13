@@ -1,9 +1,10 @@
 
-from typing import Any, Iterable, Iterator, Mapping, Optional, overload, Tuple, TypeVar, Union
+from typing import Any, Iterable, Iterator, Mapping, Optional, overload, Tuple, TypeVar, Union, Dict
 from collections import OrderedDict
 import operator
 from itertools import islice
 from .module import Module
+from ...tensor import Tensor
 
 
 class Sequential(Module):
@@ -59,5 +60,16 @@ class Sequential(Module):
 
   def forward(self, input):
     for module in self:
-      input = module(input)
+      res = module(input)
+      assert isinstance(res, Tensor)
+      input = res
     return input
+
+  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
+    sub_layers = {}
+    sub_input = "data"
+    for i, module in enumerate(self):
+      sub_layers["layer%i" % i] = module.create_returnn_layer_dict(sub_input)
+      sub_input = "layer%i" % i
+    sub_layers["output"] = {"class": "copy", "from": sub_input}
+    return {"class": "subnetwork", "subnetwork": sub_layers, "from": input_layer_name}

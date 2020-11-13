@@ -1,7 +1,7 @@
 
 
 from collections import OrderedDict
-from typing import Optional, Callable, TypeVar, Iterator, Tuple, Union, Dict
+from typing import Optional, Callable, TypeVar, Iterator, Tuple, Union, Dict, Any
 import itertools
 from ..parameter import Parameter
 from ...tensor import Tensor
@@ -274,4 +274,9 @@ class Module:
         if not isinstance(result, tuple):
           result = (result,)
         input = result
-    return self.forward(*input, **kwargs)
+    res = self.forward(*input, **kwargs)
+    assert isinstance(res, Tensor)
+    return res
+
+  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
+    raise NotImplementedError

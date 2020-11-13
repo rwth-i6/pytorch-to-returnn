@@ -1,10 +1,20 @@
 
+from typing import Dict, Any
 from .module import Module
 from .. import functional as F
 from ...tensor import Tensor
 
 
-class Tanh(Module):
+class _ActivationReturnn(Module):
+  func_name: str
+
+  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
+    return {"class": "activation", "activation": self.func_name, "from": input_layer_name}
+
+
+class Tanh(_ActivationReturnn):
+  func_name = "tanh"
+
   def forward(self, input: Tensor) -> Tensor:
     return F.tanh(input)
 
