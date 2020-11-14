@@ -7,6 +7,7 @@ from ..parameter import Parameter
 from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
+from ....naming import Naming
 
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
@@ -19,6 +20,14 @@ class Module:
   """
   Base class.
   """
+  def __new__(cls, *args, **kwargs):
+    res = super(Module, cls).__new__(cls)
+    assert isinstance(res, Module)
+    Naming.get_instance().push_module_creation(res)
+    res.__init__(*args, **kwargs)
+    Naming.get_instance().pop_module_creation(res)
+    return res
+
   def __init__(self):
     self._parameters = OrderedDict()  # type: OrderedDict[str, Parameter]
     self._modules = OrderedDict()  # type: OrderedDict[str, Optional[Module]]
@@ -65,7 +74,7 @@ class Module:
       if modules is None:
         raise AttributeError("cannot assign module before Module.__init__() call")
       remove_from(self.__dict__, self._parameters, self._buffers, self._non_persistent_buffers_set)
-      modules[name] = value
+      self.add_module(name, value)
       return
 
     if modules is not None and name in modules:
@@ -79,9 +88,13 @@ class Module:
       if value is not None and not isinstance(value, Tensor):
         raise TypeError(f"cannot assign {type(value)} as buffer {name!r} (torch.Tensor or None expected)")
       buffers[name] = value
+      if value is not None:
+        Naming.get_instance().register_module_child_attr(self, name, value)
       return
 
     object.__setattr__(self, name, value)
+    if isinstance(value, Tensor):
+      Naming.get_instance().register_module_child_attr(self, name, value)
 
   def __delattr__(self, item):
     if item in self._parameters:
@@ -128,6 +141,8 @@ class Module:
     elif name == '':
       raise KeyError("module name can't be empty string \"\"")
     self._modules[name] = module
+    if module:
+      Naming.get_instance().register_module_child_attr(self, name, module)
 
   def register_parameter(self, name: str, param: Optional[Parameter]) -> None:
     if '_parameters' not in self.__dict__:
@@ -141,6 +156,8 @@ class Module:
     elif hasattr(self, name) and name not in self._parameters:
       raise KeyError("attribute '{}' already exists".format(name))
     self._parameters[name] = param
+    if param is not None:
+      Naming.get_instance().register_module_child_attr(self, name, param)
 
   def register_buffer(self, name: str, tensor: Optional[Tensor], persistent: bool = True) -> None:
     if '_buffers' not in self.__dict__:
@@ -161,6 +178,8 @@ class Module:
         self._non_persistent_buffers_set.discard(name)
       else:
         self._non_persistent_buffers_set.add(name)
+      if tensor is not None:
+        Naming.get_instance().register_module_child_attr(self, name, tensor)
 
   def apply(self: T, fn: Callable[['Module'], None]) -> T:
     for module in self.children():

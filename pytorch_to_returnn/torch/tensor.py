@@ -5,6 +5,7 @@ from functools import reduce
 import operator
 import numpy
 from ._C import Size
+from ..naming import Naming
 
 
 class Tensor:
@@ -18,6 +19,7 @@ class Tensor:
     assert isinstance(shape, tuple) and all([isinstance(dim, int) for dim in shape])
     self._shape = shape
     self._numpy_buffer = numpy.zeros(shape)
+    Naming.get_instance().register_tensor(self)
 
   def __repr__(self):
     return f"<Symbolic PyTorch {self.__class__.__name__} {self._shape}>"

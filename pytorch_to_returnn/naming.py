@@ -1,13 +1,17 @@
 
+from __future__ import annotations
+
+import typing
 from typing import Optional, Any, List, TypeVar, Dict, Callable, Iterable, Union
 import weakref
 from weakref import WeakKeyDictionary, ref
 from collections import OrderedDict
 import itertools
 
-# Just for typing. Although we also cover traced/wrapped Torch.
-from .torch import Tensor
-from .torch.nn import Module
+if typing.TYPE_CHECKING:
+  # Just for typing. Although we also cover traced/wrapped Torch.
+  from .torch import Tensor
+  from .torch.nn import Module
 
 
 class TensorEntry:
@@ -159,6 +163,13 @@ class Naming:
   module_creation_call_stack: List[ModuleEntry]
   func_call_stack: List[CallEntry]
   root_func_calls: List[CallEntry]
+  _instance: Optional["Naming"] = None
+
+  @classmethod
+  def get_instance(cls) -> "Naming":
+    if not cls._instance:
+      cls._instance = Naming()
+    return cls._instance
 
   def __init__(self):
     self.tensors = WeakKeyDictionary()
