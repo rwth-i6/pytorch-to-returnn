@@ -5,6 +5,7 @@ import numpy
 import types
 from typing import Callable, Optional
 from .wrapped_import import wrapped_import, wrapped_import_demo
+from .naming import Naming
 
 
 _InputsType = numpy.ndarray
@@ -64,7 +65,13 @@ def verify_torch(
 
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
   from . import torch as torch_returnn
-  out_returnn = model_func(wrapped_import_demo, torch_returnn.from_numpy(inputs))
+  naming = Naming.get_instance()
+  in_returnn = torch_returnn.from_numpy(inputs)
+  assert isinstance(in_returnn, torch_returnn.Tensor)
+  naming.register_input(in_returnn)
+  out_returnn = model_func(wrapped_import_demo, in_returnn)
+  assert isinstance(out_returnn, torch_returnn.Tensor)
+  naming.register_output(out_returnn)
   # TODO now build RETURNN model
   # TODO now forward through RETURNN model
   # TODO check output

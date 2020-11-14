@@ -198,7 +198,7 @@ class Naming:
     assert self.module_creation_call_stack[-1].module is module
     self.module_creation_call_stack.pop(-1)
 
-  def push_func_call(self, *, module: Optional[Module] = None, func: Optional[Any] = None, inputs: List[Tensor]):
+  def push_func_call(self, *, module: Optional[Module] = None, func: Callable, inputs: List[Tensor]):
     module_entry = self.modules[module] if module else None
     entry = CallEntry(func=func, module=module_entry)
     entry.inputs = [self.tensors[x] for x in inputs]
@@ -212,7 +212,7 @@ class Naming:
     self.func_call_stack.append(entry)
     return entry
 
-  def pop_func_call(self, *, func: Optional[Any] = None, outputs: List[Tensor]):
+  def pop_func_call(self, *, func: Callable, outputs: List[Tensor]):
     assert self.func_call_stack[-1].func is func
     entry = self.func_call_stack.pop(-1)
     entry.outputs = []

@@ -310,6 +310,7 @@ class Module:
     raise NotImplementedError
 
   def __call__(self, *input, **kwargs):
+    Naming.get_instance().push_func_call(module=self, func=self, inputs=list(input))
     for hook in self._forward_pre_hooks.values():
       result = hook(self, input)
       if result is not None:
@@ -318,6 +319,7 @@ class Module:
         input = result
     res = self.forward(*input, **kwargs)
     assert isinstance(res, Tensor)
+    Naming.get_instance().pop_func_call(func=self, outputs=[res])
     return res
 
   def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
