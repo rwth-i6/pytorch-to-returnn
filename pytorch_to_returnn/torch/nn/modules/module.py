@@ -1,7 +1,7 @@
 
 
 from collections import OrderedDict
-from typing import Optional, Callable, TypeVar, Iterator, Tuple, Union, Dict, Any
+from typing import Optional, Callable, TypeVar, Iterator, Tuple, Union, Dict, Any, overload
 import itertools
 from ..parameter import Parameter
 from ...tensor import Tensor
@@ -325,5 +325,4 @@ class Module:
     Naming.get_instance().pop_func_call(func=self, outputs=[res])
     return res
 
-  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
-    raise NotImplementedError
+  create_returnn_layer_dict: Optional[Callable[[str], Dict[str, Any]]] = None

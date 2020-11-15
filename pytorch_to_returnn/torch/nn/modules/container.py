@@ -64,12 +64,3 @@ class Sequential(Module):
       assert isinstance(res, Tensor)
       input = res
     return input
-
-  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
-    sub_layers = {}
-    sub_input = "data"
-    for i, module in enumerate(self):
-      sub_layers["layer%i" % i] = module.create_returnn_layer_dict(sub_input)
-      sub_input = "layer%i" % i
-    sub_layers["output"] = {"class": "copy", "from": sub_input}
-    return {"class": "subnetwork", "subnetwork": sub_layers, "from": input_layer_name}

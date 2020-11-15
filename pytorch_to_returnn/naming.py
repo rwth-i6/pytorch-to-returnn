@@ -116,6 +116,8 @@ class ModuleEntry:
       for mod in self.parent_owning_modules:
         for name, child_mod in mod.module.named_children():
           if child_mod is self.module:
+            if name[:1].isnumeric():
+              return f"layer{name}"
             return name
     return self.module.__class__.__name__
 
