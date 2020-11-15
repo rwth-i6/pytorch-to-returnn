@@ -35,6 +35,9 @@ class Module:
     self._non_persistent_buffers_set = set()
     self._forward_pre_hooks = OrderedDict()
 
+  def __repr__(self):
+    return f"<{self.__class__.__name__}>"
+
   def __getattr__(self, item):
     if item in {"_parameters", "_modules", "_buffers"}:
       raise AttributeError(f"Module.__init__ not yet called, attrib {item!r} not present")

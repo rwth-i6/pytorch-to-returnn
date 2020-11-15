@@ -49,6 +49,9 @@ class CallEntry:
     self.module = module
     self.child_calls = []
 
+  def __repr__(self):
+    return f"<{self.__class__.__name__} #{self.level} {self.func!r}>"
+
   def get_root_call(self) -> "CallEntry":
     entry = self
     while entry.parent_call:
@@ -82,6 +85,9 @@ class ModuleEntry:
     self.child_created_modules = []
     self.parent_owning_modules = []
 
+  def __repr__(self):
+    return f"<ModuleEntry {self.module!r}>"
+
   def get_parent_calling_modules(self) -> List["ModuleEntry"]:
     res = []
     for call in self.calls:
@@ -106,15 +112,23 @@ _SearchFilterFuncT = Callable[[_SearchType], bool]
 
 
 def _breadth_first_search(
-      root: _SearchType, childs: _SearchChildsFuncT):
+      root: _SearchType = None, *,
+      seed: List[_SearchType] = None,
+      childs: _SearchChildsFuncT, filter_elem: Optional[_SearchFilterFuncT] = None):
   visited = set()
-  queue = [root]
+  if seed:
+    assert root is None
+    queue = seed
+  else:
+    queue = [root]
   while queue:
     next_queue = []
     for elem in queue:
       if elem in visited:
         continue
       visited.add(elem)
+      if filter_elem and not filter_elem(elem):
+        continue
       yield elem
       next_queue.extend(childs(elem))
     queue = next_queue
@@ -122,9 +136,7 @@ def _breadth_first_search(
 
 def _breadth_first_search_first(
       root: _SearchType, childs: _SearchChildsFuncT, filter_elem: Optional[_SearchFilterFuncT] = None):
-  for elem in _breadth_first_search(root=root, childs=childs):
-    if filter_elem and not filter_elem(elem):
-      continue
+  for elem in _breadth_first_search(root=root, childs=childs, filter_elem=filter_elem):
     return elem
   return None
 
@@ -256,7 +268,7 @@ class Naming:
     assert not entry.is_param and not entry.is_const and not entry.is_input
     self.outputs.append(tensor)
 
-    def _get_childs(entry_: TensorEntry):
+    def _get_calls(entry_: TensorEntry):
       assert entry_.output_from_calls
       res = []
       for call_ in entry_.output_from_calls:
@@ -264,29 +276,23 @@ class Naming:
         assert entry_ in call_.outputs
         if call_.level > 0:  # only consider top-level calls
           continue
-        if call_.module:  # not recurse, consider this below
-          continue
-        res.extend(call_.inputs)
+        res.append(call_)
       return res
 
-    def _get_tensor_output_module(entry_: TensorEntry) -> Optional[ModuleEntry]:
-      for call_ in entry_.output_from_calls:
-        assert isinstance(call_, CallEntry)
-        assert entry_ in call_.outputs
-        if call_.level > 0:  # only consider top-level calls
-          continue
-        if call_.module:
-          return call_.module
-      return None
+    def _get_childs(call_: CallEntry):
+      res = []
+      for entry_ in call_.inputs:
+        res.extend(_get_calls(entry_))
+      return res
 
-    def _is_tensor_output_from_module(entry_: TensorEntry) -> bool:
-      return bool(_get_tensor_output_module(entry_))
+    calls = list(_breadth_first_search(seed=_get_calls(entry), childs=_get_childs))
+    calls.reverse()
+    assert calls
+    mods = []
+    for call in calls:
+      if call.module and call.module not in mods:
+        mods.append(call.module)
+    assert mods  # not implemented currently
 
-    mod_t_entry = _breadth_first_search_first(entry, childs=_get_childs, filter_elem=_is_tensor_output_from_module)
-    if not mod_t_entry:
-      # No modules found. What should we do?
-      return  # TODO
-    assert isinstance(mod_t_entry, TensorEntry)
-    module = _get_tensor_output_module(mod_t_entry)
-    assert module
-    module = module.get_root_owning_module()
+    # TODO get level 1 call
+    # TODO now get path module -> tensor
