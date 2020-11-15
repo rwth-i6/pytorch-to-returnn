@@ -43,6 +43,7 @@ class CallEntry:
   parent_call: Optional["CallEntry"] = None  # parent in the call stack
   child_calls: List["CallEntry"]
   level: Optional[int] = None
+  namespace: Optional["RegisteredName"] = None
 
   def __init__(self, func: Callable, module: Optional["ModuleEntry"]):
     self.func = func
@@ -57,6 +58,11 @@ class CallEntry:
     while entry.parent_call:
       entry = entry.parent_call
     return entry
+
+  def get_canonical_name(self) -> str:
+    if self.module:
+      return self.module.get_canonical_name()
+    return self.func.__name__
 
 
 class _ObjAttr:
@@ -105,6 +111,14 @@ class ModuleEntry:
       mod = mod.parent_owning_modules[0]
     return mod
 
+  def get_canonical_name(self) -> str:
+    if self.parent_owning_modules:
+      for mod in self.parent_owning_modules:
+        for name, child_mod in mod.module.named_children():
+          if child_mod is self.module:
+            return name
+    return self.module.__class__.__name__
+
 
 _SearchType = TypeVar("_SearchType")
 _SearchChildsFuncT = Callable[[_SearchType], Iterable[_SearchType]]
@@ -145,14 +159,19 @@ class RegisteredName:
   childs_by_name: OrderedDict[str, "RegisteredName"]
   parent: Optional["RegisteredName"]
   level: int = 0
-  item: Optional[CallEntry]
+  items: List[CallEntry]  # can be multiple merged together
 
-  def __init__(self, *, parent: Optional["RegisteredName"], item: Optional[CallEntry]):
+  def __init__(self, *, parent: Optional["RegisteredName"]):
     self.childs_by_name = OrderedDict()
     self.parent = parent
-    self.item = item
+    self.items = []
     if parent:
       self.level = parent.level + 1
+
+  def assign(self, call: CallEntry):
+    assert not call.namespace
+    call.namespace = self
+    self.items.append(call)
 
   def _get_unique_name(self, suggested_name: str) -> str:
     if suggested_name not in self.childs_by_name:
@@ -162,9 +181,18 @@ class RegisteredName:
       if suggested_name_ not in self.childs_by_name:
         return suggested_name_
 
-  def register(self, suggested_name: str, child: CallEntry):
+  def register(self, suggested_name: str, child: CallEntry) -> RegisteredName:
+    assert not child.namespace
     name = self._get_unique_name(suggested_name)
-    self.childs_by_name[name] = RegisteredName(parent=self, item=child)
+    name_ = RegisteredName(parent=self)
+    name_.assign(child)
+    self.childs_by_name[name] = name_
+    return name_
+
+  def dump(self, prefix=""):
+    for name, child in self.childs_by_name.items():
+      print(f"{prefix}{name}: {child.items}")
+      child.dump(prefix=f"{prefix}  ")
 
 
 class Naming:
@@ -191,7 +219,7 @@ class Naming:
     self.module_creation_call_stack = []
     self.func_call_stack = []
     self.root_func_calls = []
-    self.root_namespace = RegisteredName(parent=None, item=None)
+    self.root_namespace = RegisteredName(parent=None)
 
   def push_module_creation(self, module: Module):
     if module not in self.modules:
@@ -261,6 +289,12 @@ class Naming:
     entry.is_input = True
     self.inputs.append(tensor)
 
+  @staticmethod
+  def _register_call_names(root: RegisteredName, calls: List[CallEntry]):
+    for call in calls:
+      child = root.register(suggested_name=call.get_canonical_name(), child=call)
+      Naming._register_call_names(child, call.child_calls)
+
   def register_output(self, tensor: Tensor):
     assert tensor in self.tensors
     entry = self.tensors[tensor]
@@ -288,11 +322,15 @@ class Naming:
     calls = list(_breadth_first_search(seed=_get_calls(entry), childs=_get_childs))
     calls.reverse()
     assert calls
-    mods = []
     for call in calls:
-      if call.module and call.module not in mods:
-        mods.append(call.module)
-    assert mods  # not implemented currently
+      if not call.module.parent_owning_modules:  # special case, flatten this away
+        self.root_namespace.assign(call)
+        Naming._register_call_names(self.root_namespace, call.child_calls)
+      else:
+        child = self.root_namespace.register(suggested_name=call.get_canonical_name(), child=call)
+        Naming._register_call_names(child, call.child_calls)
+
+    self.root_namespace.dump()
 
     # TODO get level 1 call
     # TODO now get path module -> tensor
