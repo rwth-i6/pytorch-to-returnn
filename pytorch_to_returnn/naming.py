@@ -242,7 +242,7 @@ class Naming:
     assert self.module_creation_call_stack[-1].module is module
     self.module_creation_call_stack.pop(-1)
 
-  def push_func_call(self, *, module: Optional[Module] = None, func: Callable, inputs: List[Tensor]):
+  def push_func_call(self, *, module: Optional[Module] = None, func: Callable, inputs: List[Tensor]) -> CallEntry:
     module_entry = self.modules[module] if module else None
     entry = CallEntry(func=func, module=module_entry)
     entry.inputs = [self.tensors[x] for x in inputs]
@@ -251,11 +251,14 @@ class Naming:
       recent_entry = self.func_call_stack[-1]
       recent_entry.child_calls.append(entry)
       entry.parent_call = recent_entry
+      if recent_entry.module and recent_entry.module.module.create_returnn_layer_dict:
+        raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
     self.func_call_stack.append(entry)
     if entry.level == 0:
       if module_entry and not module_entry.parent_owning_modules:
+        # Special case, somewhat nicer to flatten the namespace for this case.
         self.root_namespace.assign(entry)
       else:
         self.root_namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
@@ -267,14 +270,16 @@ class Naming:
 
   def pop_func_call(self, *, func: Callable, outputs: List[Tensor]):
     assert self.func_call_stack[-1].func is func
+    entry_outputs = [self.register_tensor(x) for x in outputs]
     entry = self.func_call_stack.pop(-1)
-    entry.outputs = []
-    for x in outputs:
-      x = self.register_tensor(x)
+    entry.outputs = entry_outputs
+    for x in entry_outputs:
       x.output_from_calls.append(entry)
       if entry.module:
         x.output_from_modules.append(entry.module)
-      entry.outputs.append(x)
+    if not entry.child_calls:
+      assert entry.module
+      assert entry.module.module.create_returnn_layer_dict
 
   def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
     assert getattr(parent, attr) is child
