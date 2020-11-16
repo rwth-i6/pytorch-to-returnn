@@ -267,28 +267,6 @@ class Naming:
         x.output_from_modules.append(entry.module)
       entry.outputs.append(x)
 
-  def _filter_tensor_inputs(self, inputs):
-    # TODO other tensor types? generic enough?
-    from .torch import Tensor
-    return [x for x in inputs if isinstance(x, Tensor)]
-
-  @staticmethod
-  def wrap_func(func: Callable) -> Callable:
-    def wrapped_func(*inputs):
-      self = Naming.get_instance()
-      self.push_func_call(func=func, inputs=self._filter_tensor_inputs(inputs))
-      output = func(*inputs)
-      if isinstance(output, (list, tuple)):
-        outputs = list(output)
-      else:
-        outputs = [output]
-      self.pop_func_call(func=func, outputs=outputs)
-      return output
-    wrapped_func.__name__ = func.__name__
-    wrapped_func.__qualname__ = func.__qualname__
-    wrapped_func.__module__ = func.__module__
-    return wrapped_func
-
   def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
     assert getattr(parent, attr) is child
     parent_entry = self.modules[parent]
