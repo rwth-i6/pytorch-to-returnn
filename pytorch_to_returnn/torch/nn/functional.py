@@ -1,5 +1,6 @@
 
 from typing import Optional, Union, List, Tuple
+from . import modules
 from ..tensor import Tensor
 from .._C import Size
 
@@ -28,11 +29,11 @@ def conv_transpose1d(
 
 
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:
-  return input  # TODO
+  return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace)(input)
 
 
 def tanh(input: Tensor) -> Tensor:
-  return input  # TODO
+  return modules.Tanh()(input)
 
 
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:

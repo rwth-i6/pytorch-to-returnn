@@ -309,10 +309,8 @@ class Module:
   def to(self, *args):
     return self  # ignore
 
-  def forward(self, input: Tensor):
-    raise NotImplementedError
-
   def __call__(self, *input, **kwargs):
+    assert not kwargs  # not implemented yet
     Naming.get_instance().push_func_call(module=self, func=self, inputs=list(input))
     for hook in self._forward_pre_hooks.values():
       result = hook(self, input)
@@ -320,9 +318,17 @@ class Module:
         if not isinstance(result, tuple):
           result = (result,)
         input = result
-    res = self.forward(*input, **kwargs)
+    if self.forward:
+      assert not self.create_returnn_layer_dict
+      res = self.forward(*input, **kwargs)
+    else:
+      assert self.create_returnn_layer_dict
+      assert len(input) == 1  # TODO...
+      res = Tensor(input[0])  # TODO...
     assert isinstance(res, Tensor)
     Naming.get_instance().pop_func_call(func=self, outputs=[res])
     return res
 
+  # Define either or, but not both.
+  forward: Optional[Callable] = None
   create_returnn_layer_dict: Optional[Callable[[str], Dict[str, Any]]] = None

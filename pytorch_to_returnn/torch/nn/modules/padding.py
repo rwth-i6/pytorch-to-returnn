@@ -7,57 +7,65 @@ from .. import functional as F
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 
 
-class _PadReturnn(Module):
-  padding = None  # set by subclasses
-  mode = None  # set by subclasses
-  value = None  # set by subclasses
+class GenericPadNd(Module):
+  padding: Tuple[int, ...] = None  # set by instance
+  mode: str = None  # set by subclass
+  value: float = None  # set by subclass instance
+  nd: int = None  # set by subclass
 
-  def forward(self, input: Tensor) -> Tensor:
-    pass  # TODO
+  def __init__(self, *, padding: Tuple[int, ...]):
+    super(GenericPadNd, self).__init__()
+    self.padding = padding
+
+  def create_returnn_layer_dict(self, input: str):
+    assert self.mode != "replicate"  # not implemented
+    # PyTorch assumes the input to be in batch-feature-major.
+    # E.g. for 1D, it assumes input (N, C, W_in),
+    # and produces output (N, C, W_out) with W_out = W_in + padding_left + padding_right.
+    # For 2D, it assumes input (N, C, H_in, W_in).
+    # For 3D, it assumes input (N, C, D_in, H_in, W_in).
+    # I.e. does padding in the spatial axes.
+    d = {"class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding}
+    if self.mode == "constant":
+      d["value"] = self.value
+    return d
 
 
-class _ConstantPadNd(Module):
-  padding = None  # set by subclasses
-  value = None  # set by subclasses
+class _ConstantPadNd(GenericPadNd):
+  mode = "constant"
 
-  def __init__(self, value: float) -> None:
-    super(_ConstantPadNd, self).__init__()
+  def __init__(self, *, padding: Tuple[int, ...], value: float) -> None:
+    super(_ConstantPadNd, self).__init__(padding=padding)
     self.value = value
-
-  def forward(self, input: Tensor) -> Tensor:
-    return F.pad(input, self.padding, 'constant', self.value)
 
 
 class ConstantPad1d(_ConstantPadNd):
+  nd = 1
+
   def __init__(self, padding: _size_2_t, value: float):
-    super(ConstantPad1d, self).__init__(value)
-    self.padding = _pair(padding)
+    super(ConstantPad1d, self).__init__(padding=_pair(padding), value=value)
 
 
-class _ReflectionPadNd(Module):
-  padding = None  # set by subclasses
-
-  def forward(self, input: Tensor) -> Tensor:
-    return F.pad(input, self.padding, 'reflect')
+class _ReflectionPadNd(GenericPadNd):
+  mode = "reflect"
 
 
 class ReflectionPad1d(_ReflectionPadNd):
+  nd = 1
+
   def __init__(self, padding: _size_2_t):
-    super(ReflectionPad1d, self).__init__()
-    self.padding = _pair(padding)
+    super(ReflectionPad1d, self).__init__(padding=_pair(padding))
 
 
-class _ReplicationPadNd(Module):
-  padding = None  # set by subclasses
-
-  def forward(self, input: Tensor) -> Tensor:
-    return F.pad(input, self.padding, 'replicate')
+class _ReplicationPadNd(GenericPadNd):
+  mode = "replicate"
 
 
 class ReplicationPad1d(_ReplicationPadNd):
+  nd = 1
+
   def __init__(self, padding: _size_2_t) -> None:
-    super(ReplicationPad1d, self).__init__()
-    self.padding = _pair(padding)
+    super(ReplicationPad1d, self).__init__(padding=_pair(padding))
 
 
 __all__ = [

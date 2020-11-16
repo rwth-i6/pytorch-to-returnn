@@ -23,9 +23,11 @@ class TensorEntry:
   output_from_modules: List["ModuleEntry"]
   output_from_calls: List["CallEntry"]
   parent_owning_modules: List["ModuleEntry"]  # e.g. param or buffer
+  creation_stack_call: Optional[CallEntry]
 
-  def __init__(self, tensor: ref[Tensor]):
+  def __init__(self, tensor: ref[Tensor], creation_stack_call: Optional[CallEntry]):
     self.tensor = tensor
+    self.creation_stack_call = creation_stack_call
     self.output_from_modules = []
     self.output_from_calls = []
     self.parent_owning_modules = []
@@ -265,6 +267,28 @@ class Naming:
         x.output_from_modules.append(entry.module)
       entry.outputs.append(x)
 
+  def _filter_tensor_inputs(self, inputs):
+    # TODO other tensor types? generic enough?
+    from .torch import Tensor
+    return [x for x in inputs if isinstance(x, Tensor)]
+
+  @staticmethod
+  def wrap_func(func: Callable) -> Callable:
+    def wrapped_func(*inputs):
+      self = Naming.get_instance()
+      self.push_func_call(func=func, inputs=self._filter_tensor_inputs(inputs))
+      output = func(*inputs)
+      if isinstance(output, (list, tuple)):
+        outputs = list(output)
+      else:
+        outputs = [output]
+      self.pop_func_call(func=func, outputs=outputs)
+      return output
+    wrapped_func.__name__ = func.__name__
+    wrapped_func.__qualname__ = func.__qualname__
+    wrapped_func.__module__ = func.__module__
+    return wrapped_func
+
   def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
     assert getattr(parent, attr) is child
     parent_entry = self.modules[parent]
@@ -283,7 +307,8 @@ class Naming:
 
   def register_tensor(self, tensor: Tensor) -> TensorEntry:
     if tensor not in self.tensors:
-      self.tensors[tensor] = TensorEntry(tensor=ref(tensor))
+      self.tensors[tensor] = TensorEntry(
+        tensor=ref(tensor), creation_stack_call=self.func_call_stack[-1] if self.func_call_stack else None)
     return self.tensors[tensor]
 
   def register_input(self, tensor: Tensor):
@@ -318,6 +343,8 @@ class Naming:
     def _get_childs(call_: CallEntry):
       res = []
       for entry_ in call_.inputs:
+        if entry_.is_input:
+          continue
         res.extend(_get_calls(entry_))
       return res
 
@@ -325,7 +352,7 @@ class Naming:
     calls.reverse()
     assert calls
     for call in calls:
-      if not call.module.parent_owning_modules:  # special case, flatten this away
+      if call.module and not call.module.parent_owning_modules:  # special case, flatten this away
         self.root_namespace.assign(call)
         Naming._register_call_names(self.root_namespace, call.child_calls)
       else:

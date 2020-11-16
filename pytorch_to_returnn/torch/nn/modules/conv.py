@@ -65,15 +65,12 @@ class _ConvNd(Module):
       bound = 1 / math.sqrt(fan_in)
       init.uniform_(self.bias, -bound, bound)
 
-  def forward(self, input: Tensor):
-    return input  # TODO
-
-  def create_returnn_layer_dict(self, input_layer_name: str) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
     assert self.padding == 0  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     return {
-      "class": "conv", "from": input_layer_name,
+      "class": "conv", "from": input,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
       "padding": "valid",
