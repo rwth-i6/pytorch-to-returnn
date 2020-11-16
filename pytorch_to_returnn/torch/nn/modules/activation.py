@@ -22,7 +22,7 @@ class LeakyReLU(Module):
     assert not inplace  # not supported/implemented -- see :doc:`Unsupported`
 
   def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
-    return {"class": "eval", "eval": f"leaky_relu(source(0), alpha={self.negative_slope})", "from": input}
+    return {"class": "eval", "eval": f"tf.nn.leaky_relu(source(0), alpha={self.negative_slope})", "from": input}
 
 
 __all__ = [

@@ -68,9 +68,12 @@ class _ConvNd(Module):
   def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
     assert all(p == 0 for p in self.padding)  # not implemented otherwise
+    assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     return {
       "class": "conv", "from": input,
+      "activation": None,
+      "with_bias": self.bias,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
       "padding": "valid",
@@ -120,6 +123,20 @@ class _ConvTransposeNd(_ConvNd):
       in_channels, out_channels, kernel_size, stride,
       padding, dilation, transposed, output_padding,
       groups, bias, padding_mode)
+
+  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
+    assert self.groups == 1  # not implemented otherwise
+    assert all(p == 0 for p in self.padding)  # not implemented otherwise
+    assert self.padding_mode == "zeros"  # not implemented otherwise
+    return {
+      "class": "transposed_conv", "from": input,
+      "activation": None,
+      "with_bias": self.bias,
+      "n_out": self.out_channels,
+      "filter_size": self.kernel_size,
+      "padding": "valid",
+      "strides": self.stride,
+      "dilation_rate": self.dilation}
 
 
 class ConvTranspose1d(_ConvTransposeNd):
