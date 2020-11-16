@@ -7,6 +7,9 @@ import weakref
 from weakref import WeakKeyDictionary, ref
 from collections import OrderedDict
 import itertools
+from returnn.config import Config
+from returnn.tf.network import ExternData, TFNetwork
+from returnn.tf.util.data import Data
 
 if typing.TYPE_CHECKING:
   # Just for typing. Although we also cover traced/wrapped Torch.
@@ -19,11 +22,11 @@ class TensorEntry:
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
-  name: Optional[str] = None
   output_from_modules: List["ModuleEntry"]
   output_from_calls: List["CallEntry"]
   parent_owning_modules: List["ModuleEntry"]  # e.g. param or buffer
   creation_stack_call: Optional[CallEntry]
+  names: List["RegisteredName"]
 
   def __init__(self, tensor: ref[Tensor], creation_stack_call: Optional[CallEntry]):
     self.tensor = tensor
@@ -31,6 +34,7 @@ class TensorEntry:
     self.output_from_modules = []
     self.output_from_calls = []
     self.parent_owning_modules = []
+    self.names = []
 
 
 class CallEntry:
@@ -40,8 +44,8 @@ class CallEntry:
   """
   func: Callable
   module: Optional["ModuleEntry"]
-  inputs: Optional[List["TensorEntry"]]
-  outputs: Optional[List["TensorEntry"]]
+  inputs: Optional[List["TensorEntry"]] = None
+  outputs: Optional[List["TensorEntry"]] = None
   parent_call: Optional["CallEntry"] = None  # parent in the call stack
   child_calls: List["CallEntry"]
   level: Optional[int] = None
@@ -162,15 +166,33 @@ def _breadth_first_search_first(
 class RegisteredName:
   childs_by_name: OrderedDict[str, "RegisteredName"]
   parent: Optional["RegisteredName"]
+  name: Optional[str]  # if parent
   level: int = 0
-  items: List[CallEntry]  # can be multiple merged together
+  items: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
+  tensor: Optional[TensorEntry] = None
 
-  def __init__(self, *, parent: Optional["RegisteredName"]):
+  def __init__(self, *, parent: Optional["RegisteredName"] = None, name: str = None):
     self.childs_by_name = OrderedDict()
     self.parent = parent
+    if parent:
+      assert name
+    else:
+      assert not name
+    self.name = name
     self.items = []
     if parent:
       self.level = parent.level + 1
+
+  def __repr__(self):
+    return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
+
+  def get_absolute_name(self):
+    names = []
+    name_ = self
+    while name_.parent:
+      names.insert(0, name_.name)
+      name_ = name_.parent
+    return "/".join(names) if names else ""
 
   def assign(self, call: CallEntry):
     assert not call.namespace
@@ -188,15 +210,42 @@ class RegisteredName:
   def register(self, suggested_name: str, child: CallEntry) -> RegisteredName:
     assert not child.namespace
     name = self._get_unique_name(suggested_name)
-    name_ = RegisteredName(parent=self)
+    name_ = RegisteredName(parent=self, name=name)
     name_.assign(child)
     self.childs_by_name[name] = name_
     return name_
+
+  def register_input(self, name: str, tensor: TensorEntry) -> RegisteredName:
+    if name in self.childs_by_name:
+      assert self.childs_by_name[name].tensor is tensor
+      return self.childs_by_name[name]
+    assert name not in self.childs_by_name
+    name_ = RegisteredName(parent=self, name=name)
+    name_.tensor = tensor
+    tensor.names.append(name_)
+    self.childs_by_name[name] = name_
+    return name_
+
+  def name_for_tensor(self, tensor: TensorEntry) -> str:
+    for name_ in tensor.names:
+      if name_.parent is self:
+        assert self.childs_by_name[name_.name] is name_
+        return name_.name
+    raise Exception(f"namespace {self!r}: tensor {tensor!r} not found")
 
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
       print(f"{prefix}{name}: {child.items}")
       child.dump(prefix=f"{prefix}  ")
+
+
+class ReturnnContext:
+  def __init__(self):
+    self.config = Config({
+      "debug_print_layer_output_template": True,
+    })
+    self.extern_data = ExternData()
+    self.network = TFNetwork(extern_data=self.extern_data, config=self.config)
 
 
 class Naming:
@@ -216,6 +265,7 @@ class Naming:
     return cls._instance
 
   def __init__(self):
+    self.returnn_ctx = ReturnnContext()
     self.tensors = WeakKeyDictionary()
     self.modules = OrderedDict()
     self.inputs = []
@@ -266,6 +316,12 @@ class Naming:
       assert entry.parent_call.namespace
       namespace = entry.parent_call.namespace
       namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
+    assert entry.namespace
+    if module.create_returnn_layer_dict:
+      assert entry.namespace.parent
+      for x in entry.inputs:
+        name = entry.namespace.parent.name_for_tensor(x)
+        assert name
     return entry
 
   def pop_func_call(self, *, func: Callable, outputs: List[Tensor]):
@@ -277,6 +333,8 @@ class Naming:
       x.output_from_calls.append(entry)
       if entry.module:
         x.output_from_modules.append(entry.module)
+    if entry_outputs:
+      entry_outputs[0].names.append(entry.namespace)
     if not entry.child_calls:
       assert entry.module
       assert entry.module.module.create_returnn_layer_dict
@@ -307,6 +365,14 @@ class Naming:
     entry = self.register_tensor(tensor)
     entry.is_input = True
     self.inputs.append(tensor)
+    # TODO hardcoded defaults
+    data_key = "data"
+    assert data_key not in self.returnn_ctx.extern_data.data
+    assert tensor.dim() == 3  # assume dense (B,T,D), TODO
+    data = Data(name=data_key, auto_create_placeholders=True, dim=tensor.shape[-1], available_for_inference=True)
+    self.returnn_ctx.extern_data.data[data_key] = data
+    # "data" is a special layer name in RETURNN, representing input data
+    self.root_namespace.register_input(name="data", tensor=entry)
 
   @staticmethod
   def _register_call_names(root: RegisteredName, calls: List[CallEntry]):

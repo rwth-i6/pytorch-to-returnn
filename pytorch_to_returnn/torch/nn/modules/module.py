@@ -311,7 +311,7 @@ class Module:
 
   def __call__(self, *input, **kwargs):
     assert not kwargs  # not implemented yet
-    Naming.get_instance().push_func_call(module=self, func=self, inputs=list(input))
+    call_entry = Naming.get_instance().push_func_call(module=self, func=self, inputs=list(input))
     for hook in self._forward_pre_hooks.values():
       result = hook(self, input)
       if result is not None:
@@ -320,6 +320,8 @@ class Module:
         input = result
     if self.forward:
       assert not self.create_returnn_layer_dict
+      assert len(input) == 1  # TODO ...
+      call_entry.namespace.register_input(name="data", tensor=Naming.get_instance().tensors[input[0]])
       res = self.forward(*input, **kwargs)
     else:
       assert self.create_returnn_layer_dict
