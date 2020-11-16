@@ -254,6 +254,15 @@ class Naming:
     else:
       self.root_func_calls.append(entry)
     self.func_call_stack.append(entry)
+    if entry.level == 0:
+      if module_entry and not module_entry.parent_owning_modules:
+        self.root_namespace.assign(entry)
+      else:
+        self.root_namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
+    else:
+      assert entry.parent_call.namespace
+      namespace = entry.parent_call.namespace
+      namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
     return entry
 
   def pop_func_call(self, *, func: Callable, outputs: List[Tensor]):
@@ -304,40 +313,7 @@ class Naming:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, TensorEntry)
-    assert not entry.is_param and not entry.is_const and not entry.is_input
+    assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
 
-    def _get_calls(entry_: TensorEntry):
-      assert entry_.output_from_calls
-      res = []
-      for call_ in entry_.output_from_calls:
-        assert isinstance(call_, CallEntry)
-        assert entry_ in call_.outputs
-        if call_.level > 0:  # only consider top-level calls
-          continue
-        res.append(call_)
-      return res
-
-    def _get_childs(call_: CallEntry):
-      res = []
-      for entry_ in call_.inputs:
-        if entry_.is_input:
-          continue
-        res.extend(_get_calls(entry_))
-      return res
-
-    calls = list(_breadth_first_search(seed=_get_calls(entry), childs=_get_childs))
-    calls.reverse()
-    assert calls
-    for call in calls:
-      if call.module and not call.module.parent_owning_modules:  # special case, flatten this away
-        self.root_namespace.assign(call)
-        Naming._register_call_names(self.root_namespace, call.child_calls)
-      else:
-        child = self.root_namespace.register(suggested_name=call.get_canonical_name(), child=call)
-        Naming._register_call_names(child, call.child_calls)
-
     self.root_namespace.dump()
-
-    # TODO get level 1 call
-    # TODO now get path module -> tensor
