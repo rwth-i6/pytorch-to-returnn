@@ -73,12 +73,15 @@ class _ConvNd(Module):
     return {
       "class": "conv", "from": input,
       "activation": None,
-      "with_bias": self.bias,
+      "with_bias": self.bias is not None,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
       "padding": "valid",
       "strides": self.stride,
       "dilation_rate": self.dilation}
+
+  def check_returnn_layer(self, layer):
+    assert layer.input_data.dim == self.in_channels
 
   def param_import_torch_to_returnn(self, layer):
     # TODO {"weight": "W", "bias": "bias"}
@@ -126,17 +129,20 @@ class _ConvTransposeNd(_ConvNd):
 
   def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
-    assert all(p == 0 for p in self.padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
-    return {
+    assert all(d == 1 for d in self.dilation)
+    d = {
       "class": "transposed_conv", "from": input,
       "activation": None,
-      "with_bias": self.bias,
+      "with_bias": self.bias is not None,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
-      "padding": "valid",
-      "strides": self.stride,
-      "dilation_rate": self.dilation}
+      "strides": self.stride}
+    if self.padding:
+      d["remove_padding"] = self.padding
+    if self.output_padding:
+      d["output_padding"] = self.output_padding
+    return d
 
 
 class ConvTranspose1d(_ConvTransposeNd):

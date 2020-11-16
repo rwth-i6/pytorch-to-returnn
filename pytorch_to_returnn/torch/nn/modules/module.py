@@ -341,3 +341,6 @@ class Module:
   # Define either or, but not both.
   forward: Optional[Callable] = None
   create_returnn_layer_dict: Optional[Callable[[str], Dict[str, Any]]] = None
+
+  def check_returnn_layer(self, layer):
+    pass

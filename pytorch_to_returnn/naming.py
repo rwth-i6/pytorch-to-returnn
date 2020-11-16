@@ -196,7 +196,7 @@ class RegisteredName:
         name=data_key, auto_create_placeholders=True, dim=tensor.tensor().shape[-1], available_for_inference=True)
       parent.returnn_ctx.extern_data.data[data_key] = data
     else:
-      self.returnn_ctx = ReturnnContext(parent=parent.returnn_ctx if parent else None)
+      self.returnn_ctx = ReturnnContext(parent=parent.returnn_ctx if parent else None, name=name)
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
@@ -253,7 +253,7 @@ class RegisteredName:
 
 
 class ReturnnContext:
-  def __init__(self, *, parent: Optional[ReturnnContext] = None):
+  def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None):
     self.parent = parent
     if parent:
       self.config = parent.config
@@ -262,7 +262,10 @@ class ReturnnContext:
         "debug_print_layer_output_template": True,
       })
     self.extern_data = ExternData()
-    self.network = TFNetwork(extern_data=self.extern_data, config=self.config)
+    self.network = TFNetwork(
+      extern_data=self.extern_data, config=self.config,
+      parent_net=parent.network if parent else None,
+      name="root" if not parent else "%s/%s" % (parent.network.name, name))
 
 
 class Naming:
