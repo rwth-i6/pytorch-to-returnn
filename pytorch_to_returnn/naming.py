@@ -170,8 +170,10 @@ class RegisteredName:
   level: int = 0
   items: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
   tensor: Optional[TensorEntry] = None
+  returnn_ctx: Optional[ReturnnContext] = None
 
-  def __init__(self, *, parent: Optional["RegisteredName"] = None, name: str = None):
+  def __init__(self, *,
+               parent: Optional["RegisteredName"] = None, name: str = None, tensor: Optional[TensorEntry] = None):
     self.childs_by_name = OrderedDict()
     self.parent = parent
     if parent:
@@ -182,6 +184,19 @@ class RegisteredName:
     self.items = []
     if parent:
       self.level = parent.level + 1
+    self.tensor = tensor
+    if tensor:
+      tensor.names.append(self)
+      assert parent and parent.returnn_ctx
+      # TODO hardcoded defaults
+      data_key = "data"
+      assert data_key not in parent.returnn_ctx.extern_data.data
+      assert tensor.tensor().dim() == 3  # assume dense (B,T,D), TODO
+      data = Data(
+        name=data_key, auto_create_placeholders=True, dim=tensor.tensor().shape[-1], available_for_inference=True)
+      parent.returnn_ctx.extern_data.data[data_key] = data
+    else:
+      self.returnn_ctx = ReturnnContext(parent=parent.returnn_ctx if parent else None)
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
@@ -220,9 +235,7 @@ class RegisteredName:
       assert self.childs_by_name[name].tensor is tensor
       return self.childs_by_name[name]
     assert name not in self.childs_by_name
-    name_ = RegisteredName(parent=self, name=name)
-    name_.tensor = tensor
-    tensor.names.append(name_)
+    name_ = RegisteredName(parent=self, name=name, tensor=tensor)
     self.childs_by_name[name] = name_
     return name_
 
@@ -240,10 +253,14 @@ class RegisteredName:
 
 
 class ReturnnContext:
-  def __init__(self):
-    self.config = Config({
-      "debug_print_layer_output_template": True,
-    })
+  def __init__(self, *, parent: Optional[ReturnnContext] = None):
+    self.parent = parent
+    if parent:
+      self.config = parent.config
+    else:
+      self.config = Config({
+        "debug_print_layer_output_template": True,
+      })
     self.extern_data = ExternData()
     self.network = TFNetwork(extern_data=self.extern_data, config=self.config)
 
@@ -265,7 +282,6 @@ class Naming:
     return cls._instance
 
   def __init__(self):
-    self.returnn_ctx = ReturnnContext()
     self.tensors = WeakKeyDictionary()
     self.modules = OrderedDict()
     self.inputs = []
@@ -365,12 +381,6 @@ class Naming:
     entry = self.register_tensor(tensor)
     entry.is_input = True
     self.inputs.append(tensor)
-    # TODO hardcoded defaults
-    data_key = "data"
-    assert data_key not in self.returnn_ctx.extern_data.data
-    assert tensor.dim() == 3  # assume dense (B,T,D), TODO
-    data = Data(name=data_key, auto_create_placeholders=True, dim=tensor.shape[-1], available_for_inference=True)
-    self.returnn_ctx.extern_data.data[data_key] = data
     # "data" is a special layer name in RETURNN, representing input data
     self.root_namespace.register_input(name="data", tensor=entry)
 

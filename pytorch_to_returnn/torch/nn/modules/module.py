@@ -325,6 +325,13 @@ class Module:
       res = self.forward(*input, **kwargs)
     else:
       assert self.create_returnn_layer_dict
+      assert call_entry.namespace and call_entry.namespace.parent
+      parent_namespace = call_entry.namespace.parent
+      inputs = [parent_namespace.name_for_tensor(Naming.get_instance().tensors[x]) for x in input]
+      layer_dict = self.create_returnn_layer_dict(*inputs)
+      layer_name = call_entry.namespace.name
+      layer = parent_namespace.returnn_ctx.network.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      # TODO tensor from layer output?
       assert len(input) == 1  # TODO...
       res = Tensor(input[0])  # TODO...
     assert isinstance(res, Tensor)

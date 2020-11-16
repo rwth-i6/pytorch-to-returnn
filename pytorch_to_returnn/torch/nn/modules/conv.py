@@ -67,7 +67,7 @@ class _ConvNd(Module):
 
   def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
-    assert self.padding == 0  # not implemented otherwise
+    assert all(p == 0 for p in self.padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     return {
       "class": "conv", "from": input,
