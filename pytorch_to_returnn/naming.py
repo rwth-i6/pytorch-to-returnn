@@ -46,7 +46,7 @@ class CallEntry:
   Can be a module() call, or regular func.
   Note that a module can be called multiple times.
   """
-  func: Callable
+  func: Optional[Callable]
   module: Optional["ModuleEntry"]
   inputs: Optional[List["TensorEntry"]] = None
   outputs: Optional[List["TensorEntry"]] = None
@@ -55,13 +55,18 @@ class CallEntry:
   level: Optional[int] = None
   namespace: Optional["RegisteredName"] = None
 
-  def __init__(self, func: Callable, module: Optional["ModuleEntry"]):
+  def __init__(self, func: Optional[Callable], module: Optional["ModuleEntry"]):
     self.func = func
     self.module = module
     self.child_calls = []
 
   def __repr__(self):
     return f"<{self.__class__.__name__} #{self.level} {self.func!r}>"
+
+  def is_module_call(self) -> bool:
+    if not self.module:
+      return False
+    return self.module.module is self.func
 
   def get_root_call(self) -> "CallEntry":
     entry = self
@@ -70,9 +75,39 @@ class CallEntry:
     return entry
 
   def get_canonical_name(self) -> str:
+    """
+    Considering the canonical context where this is being used.
+    Not an absolute name but relative.
+    :return:
+    """
     if self.module:
       return self.module.get_canonical_name()
-    return self.func.__name__
+    if self.parent_call:
+      prefix = self.parent_call.get_canonical_name() + "_"
+    else:
+      prefix = ""
+    return prefix + self.func.__name__
+
+  def set_outputs(self, outputs: List[Tensor]):
+    assert self.outputs is None
+    naming = Naming.get_instance()
+    entry_outputs = [naming.register_tensor(x) for x in outputs]
+    self.outputs = entry_outputs
+    for x in entry_outputs:
+      x.output_from_calls.append(self)
+      if self.module:
+        x.output_from_modules.append(self.module)
+    if entry_outputs:
+      entry_outputs[0].names.append(self.namespace)
+
+  def __enter__(self):
+    # Assume via push_func_call
+    assert Naming.get_instance().func_call_stack[-1] is self
+    return self
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    if not exc_type:
+      Naming.get_instance().pop_func_call(self)
 
 
 class _ObjAttr:
@@ -124,11 +159,15 @@ class ModuleEntry:
   def get_canonical_name(self) -> str:
     if self.parent_owning_modules:
       for mod in self.parent_owning_modules:
+        if not mod.module.forward:
+          prefix = mod.get_canonical_name() + "_"
+        else:
+          prefix = ""
         for name, child_mod in mod.module.named_children():
           if child_mod is self.module:
-            if name[:1].isnumeric():
+            if not prefix and name[:1].isnumeric():
               return f"layer{name}"
-            return name
+            return prefix + name
     return self.module.__class__.__name__
 
 
@@ -368,8 +407,9 @@ class Naming:
     assert self.module_creation_call_stack[-1].module is module
     self.module_creation_call_stack.pop(-1)
 
-  def push_func_call(self, *, module: Optional[Module] = None, func: Callable, inputs: List[Tensor]) -> CallEntry:
-    module_entry = self.modules[module] if module else None
+  def push_func_call(self, *,
+                     module: Optional[Module] = None, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
+    module_entry = self.modules[module] if module is not None else None
     entry = CallEntry(func=func, module=module_entry)
     entry.inputs = [self.tensors[x] for x in inputs]
     entry.level = len(self.func_call_stack)
@@ -377,7 +417,7 @@ class Naming:
       recent_entry = self.func_call_stack[-1]
       recent_entry.child_calls.append(entry)
       entry.parent_call = recent_entry
-      if recent_entry.module and recent_entry.module.module.create_returnn_layer_dict:
+      if recent_entry.is_module_call() and recent_entry.module.module.create_returnn_layer_dict:
         raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
@@ -393,27 +433,16 @@ class Naming:
       namespace = entry.parent_call.namespace
       namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
     assert entry.namespace
-    if module.create_returnn_layer_dict:
+    if func is module and module.create_returnn_layer_dict:
       assert entry.namespace.parent
       for x in entry.inputs:
         name = entry.namespace.parent.name_for_tensor(x)
         assert name
     return entry
 
-  def pop_func_call(self, *, func: Callable, outputs: List[Tensor]):
-    assert self.func_call_stack[-1].func is func
-    entry_outputs = [self.register_tensor(x) for x in outputs]
-    entry = self.func_call_stack.pop(-1)
-    entry.outputs = entry_outputs
-    for x in entry_outputs:
-      x.output_from_calls.append(entry)
-      if entry.module:
-        x.output_from_modules.append(entry.module)
-    if entry_outputs:
-      entry_outputs[0].names.append(entry.namespace)
-    if not entry.child_calls:
-      assert entry.module
-      assert entry.module.module.create_returnn_layer_dict
+  def pop_func_call(self, call: CallEntry):
+    assert self.func_call_stack[-1] is call
+    self.func_call_stack.pop(-1)
 
   def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
     assert getattr(parent, attr) is child
