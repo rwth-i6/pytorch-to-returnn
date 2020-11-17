@@ -8,7 +8,8 @@ from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming
-
+from returnn.tf.layers.basic import LayerBase
+from returnn.tf.util.basic import reuse_name_scope
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
 # of `T` to annotate `self`. Many methods of `Module` return `self` and we want those return values to be
@@ -311,7 +312,8 @@ class Module:
 
   def __call__(self, *input, **kwargs):
     assert not kwargs  # not implemented yet
-    call_entry = Naming.get_instance().push_func_call(module=self, func=self, inputs=list(input))
+    naming = Naming.get_instance()
+    call_entry = naming.push_func_call(module=self, func=self, inputs=list(input))
     for hook in self._forward_pre_hooks.values():
       result = hook(self, input)
       if result is not None:
@@ -321,21 +323,40 @@ class Module:
     if self.forward:
       assert not self.create_returnn_layer_dict
       assert len(input) == 1  # TODO ...
-      call_entry.namespace.register_input(name="data", tensor=Naming.get_instance().tensors[input[0]])
+      call_entry.namespace.register_input(name="data", tensor=naming.tensors[input[0]])
       res = self.forward(*input, **kwargs)
+      assert isinstance(res, Tensor)  # TODO only single output supported currently...
+      res_entry = naming.tensors[res]
+      call_entry.namespace.assign_tensor(res_entry)
+      # Note: If name_for_tensor fails, it means the tensor was not registered properly.
+      res_layer_name = call_entry.namespace.name_for_tensor(res_entry)
+      layer = call_entry.namespace.returnn_ctx.define_output(res_layer_name)
+      print(
+        f"{layer.__class__.__name__} {layer.network.name}/{layer.name!r} output: "
+        f"[{','.join(layer.output.get_batch_axes_short_description())}]")
     else:
       assert self.create_returnn_layer_dict
       assert call_entry.namespace and call_entry.namespace.parent
       parent_namespace = call_entry.namespace.parent
-      inputs = [parent_namespace.name_for_tensor(Naming.get_instance().tensors[x]) for x in input]
+      inputs = [parent_namespace.name_for_tensor(naming.tensors[x]) for x in input]
       layer_dict = self.create_returnn_layer_dict(*inputs)
       layer_name = call_entry.namespace.name
-      layer = parent_namespace.returnn_ctx.network.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      returnn_net = parent_namespace.returnn_ctx.network
+      assert layer_name not in returnn_net.layers
+      with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
+        layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      print(
+        f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
+        f"[{','.join(layer.output.get_batch_axes_short_description())}]")
+      from returnn.tf.util.basic import print_graph_output
+      #if layer.output.have_time_axis() and layer.output.is_time_axis_dynamic():
+      #  print_graph_output(layer.output.get_sequence_lengths())
       # TODO tensor from layer output?
       assert len(input) == 1  # TODO...
       res = Tensor(input[0])  # TODO...
+      naming.register_tensor(res).returnn_data = layer.output
     assert isinstance(res, Tensor)
-    Naming.get_instance().pop_func_call(func=self, outputs=[res])
+    naming.pop_func_call(func=self, outputs=[res])
     return res
 
   # Define either or, but not both.

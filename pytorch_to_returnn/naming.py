@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import tensorflow as tf
 import typing
 from typing import Optional, Any, List, TypeVar, Dict, Callable, Iterable, Union
 import weakref
@@ -9,6 +10,7 @@ from collections import OrderedDict
 import itertools
 from returnn.config import Config
 from returnn.tf.network import ExternData, TFNetwork
+from returnn.tf.layers.basic import InternalLayer, LayerBase, CopyLayer, SubnetworkLayer
 from returnn.tf.util.data import Data
 
 if typing.TYPE_CHECKING:
@@ -19,6 +21,7 @@ if typing.TYPE_CHECKING:
 
 class TensorEntry:
   tensor: ref[Tensor]
+  returnn_data: Optional[Data] = None
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
@@ -173,7 +176,9 @@ class RegisteredName:
   returnn_ctx: Optional[ReturnnContext] = None
 
   def __init__(self, *,
-               parent: Optional["RegisteredName"] = None, name: str = None, tensor: Optional[TensorEntry] = None):
+               parent: Optional["RegisteredName"] = None, name: str = None,
+               call: Optional[CallEntry] = None,
+               tensor: Optional[TensorEntry] = None):
     self.childs_by_name = OrderedDict()
     self.parent = parent
     if parent:
@@ -182,19 +187,15 @@ class RegisteredName:
       assert not name
     self.name = name
     self.items = []
+    if call:
+      self.assign_call(call)
     if parent:
       self.level = parent.level + 1
-    self.tensor = tensor
     if tensor:
-      tensor.names.append(self)
-      assert parent and parent.returnn_ctx
-      # TODO hardcoded defaults
-      data_key = "data"
-      assert data_key not in parent.returnn_ctx.extern_data.data
-      assert tensor.tensor().dim() == 3  # assume dense (B,T,D), TODO
-      data = Data(
-        name=data_key, auto_create_placeholders=True, dim=tensor.tensor().shape[-1], available_for_inference=True)
-      parent.returnn_ctx.extern_data.data[data_key] = data
+      self.assign_tensor(tensor)
+      # no sub returnn ctx
+    elif call and call.module and not call.module.module.forward:
+      pass  # no sub returnn ctx
     else:
       self.returnn_ctx = ReturnnContext(parent=parent.returnn_ctx if parent else None, name=name)
 
@@ -209,7 +210,16 @@ class RegisteredName:
       name_ = name_.parent
     return "/".join(names) if names else ""
 
-  def assign(self, call: CallEntry):
+  def assign_tensor(self, tensor: TensorEntry):
+    assert not self.tensor
+    self.tensor = tensor
+    if tensor:
+      tensor.names.append(self)
+
+  def assign_call(self, call: CallEntry):
+    assert all(not c.module or c.module.module.forward for c in self.items)
+    if self.items:
+      assert not call.module or call.module.module.forward
     assert not call.namespace
     call.namespace = self
     self.items.append(call)
@@ -225,8 +235,7 @@ class RegisteredName:
   def register(self, suggested_name: str, child: CallEntry) -> RegisteredName:
     assert not child.namespace
     name = self._get_unique_name(suggested_name)
-    name_ = RegisteredName(parent=self, name=name)
-    name_.assign(child)
+    name_ = RegisteredName(parent=self, name=name, call=child)
     self.childs_by_name[name] = name_
     return name_
 
@@ -236,6 +245,15 @@ class RegisteredName:
       return self.childs_by_name[name]
     assert name not in self.childs_by_name
     name_ = RegisteredName(parent=self, name=name, tensor=tensor)
+    # TODO hardcoded defaults
+    data_key = "data"
+    if not tensor.returnn_data:
+      assert self.returnn_ctx
+      assert data_key not in self.returnn_ctx.extern_data.data
+      assert tensor.tensor().dim() == 3  # assume dense (B,T,D), TODO
+      tensor.returnn_data = Data(
+        name=data_key, auto_create_placeholders=True, dim=tensor.tensor().shape[-1], available_for_inference=True)
+    self.returnn_ctx.extern_data.data[data_key] = tensor.returnn_data
     self.childs_by_name[name] = name_
     return name_
 
@@ -256,16 +274,45 @@ class ReturnnContext:
   def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None):
     self.parent = parent
     if parent:
+      assert name
       self.config = parent.config
+      self.tf_name_scope = parent.network.get_absolute_name_scope_prefix() + LayerBase.cls_get_tf_scope_name(name)
+      assert parent.network.extern_data.data
+      self._sub_layer = (
+        parent.network.add_layer(
+          name=name, layer_class=SubnetworkLayer,
+          # This is just a placeholder, will be replaced in define_output.
+          sources=[parent.network.get_layer("data")],
+          subnetwork={"output": {"class": "copy"}}))  # type: SubnetworkLayer
+      self._dummy_sub_output = self._sub_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
-        "debug_print_layer_output_template": True,
+        # "debug_print_layer_output_template": True,
       })
+      self.tf_name_scope = ""
+      self._sub_layer = None
+      self._dummy_sub_output = None
     self.extern_data = ExternData()
-    self.network = TFNetwork(
-      extern_data=self.extern_data, config=self.config,
-      parent_net=parent.network if parent else None,
-      name="root" if not parent else "%s/%s" % (parent.network.name, name))
+    if self._sub_layer:
+      self.network = self._sub_layer.subnetwork
+    else:
+      assert not parent
+      self.network = TFNetwork(extern_data=self.extern_data, config=self.config, name="root")
+
+  def add_layer(self):
+    pass
+
+  def define_output(self, layer_name: str) -> LayerBase:
+    assert layer_name in self.network.layers
+    if "output" in self.network.layers:
+      assert self.network.layers["output"] is self._dummy_sub_output
+      self.network.layers.pop("output")
+      self._dummy_sub_output = None
+    self.network.construct_layer({"output": {"class": "copy", "from": layer_name}}, name="output")
+    layer = self.network.layers["output"]
+    if self._sub_layer:
+      self._sub_layer.output = layer.output
+    return layer
 
 
 class Naming:
@@ -328,7 +375,7 @@ class Naming:
     if entry.level == 0:
       if module_entry and not module_entry.parent_owning_modules:
         # Special case, somewhat nicer to flatten the namespace for this case.
-        self.root_namespace.assign(entry)
+        self.root_namespace.assign_call(entry)
       else:
         self.root_namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
     else:
