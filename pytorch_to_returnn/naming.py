@@ -262,7 +262,7 @@ class RegisteredName:
       if name_.parent is self:
         assert self.childs_by_name[name_.name] is name_
         return name_.name
-    raise Exception(f"namespace {self!r}: tensor {tensor!r} not found")
+    raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
 
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
@@ -373,7 +373,7 @@ class Naming:
       self.root_func_calls.append(entry)
     self.func_call_stack.append(entry)
     if entry.level == 0:
-      if module_entry and not module_entry.parent_owning_modules:
+      if module_entry and not module_entry.parent_owning_modules and module_entry.module.forward:
         # Special case, somewhat nicer to flatten the namespace for this case.
         self.root_namespace.assign_call(entry)
       else:

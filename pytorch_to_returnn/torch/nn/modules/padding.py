@@ -3,7 +3,6 @@ from ...tensor import Tensor
 from .module import Module
 from typing import Union, Tuple
 from .utils import _pair, _quadruple, _ntuple
-from .. import functional as F
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 
 
@@ -25,7 +24,7 @@ class GenericPadNd(Module):
     # For 2D, it assumes input (N, C, H_in, W_in).
     # For 3D, it assumes input (N, C, D_in, H_in, W_in).
     # I.e. does padding in the spatial axes.
-    d = {"class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding}
+    d = {"class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding, "from": input}
     if self.mode == "constant":
       d["value"] = self.value
     return d

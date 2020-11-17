@@ -8,6 +8,22 @@ from .._C import Size
 _size = Union[Size, List[int], Tuple[int, ...]]
 
 
+def add(x: Tensor, y: Tensor) -> Tensor:
+  return modules.BinaryOperator(kind="add")(x, y)
+
+
+def sub(x: Tensor, y: Tensor) -> Tensor:
+  return modules.BinaryOperator(kind="sub")(x, y)
+
+
+def mul(x: Tensor, y: Tensor) -> Tensor:
+  return modules.BinaryOperator(kind="mul")(x, y)
+
+
+def truediv(x: Tensor, y: Tensor) -> Tensor:
+  return modules.BinaryOperator(kind="truediv")(x, y)
+
+
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return input  # TODO
 

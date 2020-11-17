@@ -85,10 +85,17 @@ class Tensor:
     self._numpy_buffer[key] = value
 
   def __add__(self, other):
-    return Tensor(self)  # TODO
+    from .nn.functional import add
+    return add(self, other)
+
+  def __sub__(self, other):
+    from .nn.functional import sub
+    return sub(self, other)
 
   def __mul__(self, other):
-    return Tensor(self)  # TODO
+    from .nn.functional import mul
+    return mul(self, other)
 
   def __truediv__(self, other):
-    return Tensor(self)  # TODO
+    from .nn.functional import truediv
+    return truediv(self, other)
