@@ -1,7 +1,7 @@
 
 from ...tensor import Tensor
 from .module import Module
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 from .utils import _pair, _quadruple, _ntuple
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 
@@ -12,11 +12,16 @@ class GenericPadNd(Module):
   value: float = None  # set by subclass instance
   nd: int = None  # set by subclass
 
-  def __init__(self, *, padding: Tuple[int, ...]):
+  def __init__(self, *, padding: Tuple[int, ...], mode: Optional[str] = None, value: Optional[float] = None):
     super(GenericPadNd, self).__init__()
     self.padding = padding
+    if mode is not None:
+      self.mode = mode
+    if value is not None:
+      self.value = value
 
   def create_returnn_layer_dict(self, input: str):
+    assert self.mode
     assert self.mode != "replicate"  # not implemented
     # PyTorch assumes the input to be in batch-feature-major.
     # E.g. for 1D, it assumes input (N, C, W_in),

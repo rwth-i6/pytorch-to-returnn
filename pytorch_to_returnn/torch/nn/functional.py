@@ -25,7 +25,7 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
 
 
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
-  return input  # TODO
+  return modules.GenericPadNd(padding=pad, mode=mode, value=value)(input)
 
 
 def conv1d(

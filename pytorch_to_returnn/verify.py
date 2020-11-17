@@ -65,13 +65,14 @@ def verify_torch(
 
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
   from . import torch as torch_returnn
-  naming = Naming.get_instance()
-  in_returnn = torch_returnn.from_numpy(inputs)
-  assert isinstance(in_returnn, torch_returnn.Tensor)
-  naming.register_input(in_returnn)
-  out_returnn = model_func(wrapped_import_demo, in_returnn)
-  assert isinstance(out_returnn, torch_returnn.Tensor)
-  naming.register_output(out_returnn)
-  # TODO now build RETURNN model
+  with Naming.make_instance() as naming:
+    in_returnn = torch_returnn.from_numpy(inputs)
+    assert isinstance(in_returnn, torch_returnn.Tensor)
+    naming.register_input(in_returnn)
+    out_returnn = model_func(wrapped_import_demo, in_returnn)
+    assert isinstance(out_returnn, torch_returnn.Tensor)
+    naming.register_output(out_returnn)
+
+  # TODO now build RETURNN model again
   # TODO now forward through RETURNN model
   # TODO check output

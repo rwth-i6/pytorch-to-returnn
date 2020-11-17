@@ -7,6 +7,7 @@ from typing import Optional, Any, List, TypeVar, Dict, Callable, Iterable, Union
 import weakref
 from weakref import WeakKeyDictionary, ref
 from collections import OrderedDict
+from contextlib import contextmanager
 import itertools
 from returnn.config import Config
 from returnn.tf.network import ExternData, TFNetwork
@@ -323,12 +324,21 @@ class Naming:
   module_creation_call_stack: List[ModuleEntry]
   func_call_stack: List[CallEntry]
   root_func_calls: List[CallEntry]
-  _instance: Optional["Naming"] = None
+  _instance: Optional[Naming] = None
 
   @classmethod
-  def get_instance(cls) -> "Naming":
-    if not cls._instance:
-      cls._instance = Naming()
+  @contextmanager
+  def make_instance(cls) -> Naming:
+    assert not cls._instance
+    ctx = Naming()
+    cls._instance = ctx
+    yield ctx
+    assert cls._instance is ctx
+    cls._instance = None
+
+  @classmethod
+  def get_instance(cls) -> Naming:
+    assert cls._instance
     return cls._instance
 
   def __init__(self):
