@@ -4,12 +4,12 @@ from typing import Optional
 from functools import reduce
 import operator
 import numpy
-from ._C import Size
+from ._C import Size, dtype as _dtype
 from ..naming import Naming
 
 
 class Tensor:
-  def __init__(self, *args):
+  def __init__(self, *args, dtype="float32"):
     if args and isinstance(args[0], Tensor):
       shape = args[0].shape
     elif args and isinstance(args[0], (tuple, list)):
@@ -19,6 +19,7 @@ class Tensor:
     assert isinstance(shape, tuple) and all([isinstance(dim, int) for dim in shape])
     self._shape = shape
     self._numpy_buffer = numpy.zeros(shape)
+    self.dtype = _dtype(dtype)
     Naming.get_instance().register_tensor(self)
 
   def __repr__(self):

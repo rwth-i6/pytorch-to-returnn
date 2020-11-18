@@ -20,7 +20,7 @@ class GenericPadNd(Module):
     if value is not None:
       self.value = value
 
-  def create_returnn_layer_dict(self, input: str):
+  def create_returnn_layer_dict(self, input: Tensor):
     assert self.mode
     assert self.mode != "replicate"  # not implemented
     # PyTorch assumes the input to be in batch-feature-major.
@@ -29,7 +29,9 @@ class GenericPadNd(Module):
     # For 2D, it assumes input (N, C, H_in, W_in).
     # For 3D, it assumes input (N, C, D_in, H_in, W_in).
     # I.e. does padding in the spatial axes.
-    d = {"class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding, "from": input}
+    d = {
+      "class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding,
+      "from": self._get_input_layer_name(input)}
     if self.mode == "constant":
       d["value"] = self.value
     return d

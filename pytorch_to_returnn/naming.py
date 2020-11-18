@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tensorflow as tf
 import typing
-from typing import Optional, Any, List, TypeVar, Dict, Callable, Iterable, Union
+from typing import Optional, Any, List, Tuple, TypeVar, Dict, Callable, Iterable, Union, Generator
 import weakref
 from weakref import WeakKeyDictionary, ref
 from collections import OrderedDict
@@ -12,7 +12,7 @@ import itertools
 from returnn.config import Config
 from returnn.tf.network import ExternData, TFNetwork
 from returnn.tf.layers.basic import InternalLayer, LayerBase, CopyLayer, SubnetworkLayer
-from returnn.tf.util.data import Data
+from returnn.tf.util.data import Data, DimensionTag
 
 if typing.TYPE_CHECKING:
   # Just for typing. Although we also cover traced/wrapped Torch.
@@ -28,17 +28,48 @@ class TensorEntry:
   is_input: bool = False  # in TF1 terminology, would be a placeholder
   output_from_modules: List["ModuleEntry"]
   output_from_calls: List["CallEntry"]
-  parent_owning_modules: List["ModuleEntry"]  # e.g. param or buffer
+  parent_owning_modules: List[Tuple["ModuleEntry", str]]  # e.g. param or buffer
   creation_stack_call: Optional[CallEntry]
+  module_ctx: Optional[ModuleEntry]
   names: List["RegisteredName"]
 
-  def __init__(self, tensor: ref[Tensor], creation_stack_call: Optional[CallEntry]):
+  def __init__(self, tensor: ref[Tensor], creation_stack_call: Optional[CallEntry], module_ctx: Optional[ModuleEntry]):
     self.tensor = tensor
     self.creation_stack_call = creation_stack_call
+    self.module_ctx = module_ctx
     self.output_from_modules = []
     self.output_from_calls = []
     self.parent_owning_modules = []
     self.names = []
+
+  def get_canonical_name(self) -> str:
+    if self.parent_owning_modules:
+      return self.parent_owning_modules[0][1]
+    raise NotImplementedError
+
+  def get_axis_description(self, axis: int) -> str:
+    """
+    :param axis:
+    :return: name such that self.returnn_data.get_axis_from_description(name) == axis
+    """
+    assert self.returnn_data
+    if axis == self.returnn_data.batch_dim_axis:
+      return "B"
+    if axis == self.returnn_data.time_dim_axis:
+      return "T"
+    if axis == self.returnn_data.feature_dim_axis:
+      return "F"
+    dim_tag = self.returnn_data.get_dim_tag(axis)
+    assert dim_tag.kind == DimensionTag.Types.Spatial
+    if dim_tag.dyn_size is not None:
+      return f"stag:{dim_tag.description}"
+    static_axes = self.returnn_data.get_static_axes()
+    if axis in static_axes:
+      return f"static:{static_axes.index(axis)}"
+    spatial_axes = self.returnn_data.get_spatial_batch_axes()
+    if axis in spatial_axes:
+      return f"spatial:{spatial_axes.index(axis)}"
+    raise Exception(f"Should not get here. Dim tag {dim_tag} for axis {axis} for data {self.returnn_data}")
 
 
 class CallEntry:
@@ -91,7 +122,7 @@ class CallEntry:
   def set_outputs(self, outputs: List[Tensor]):
     assert self.outputs is None
     naming = Naming.get_instance()
-    entry_outputs = [naming.register_tensor(x) for x in outputs]
+    entry_outputs = [naming.tensors[x] for x in outputs]
     self.outputs = entry_outputs
     for x in entry_outputs:
       x.output_from_calls.append(self)
@@ -125,9 +156,10 @@ class ModuleEntry:
   level: Optional[int] = None
   calls: List[CallEntry]
   names: List[RegisteredName]
+  canonical_name: Optional[str] = None
   parent_created_modules: List["ModuleEntry"]
   child_created_modules: List["ModuleEntry"]
-  parent_owning_modules: List["ModuleEntry"]
+  parent_owning_modules: List[Tuple["ModuleEntry", str]]
   parent_context_modules: List["ModuleEntry"]
 
   def __init__(self, module: Module):
@@ -156,20 +188,21 @@ class ModuleEntry:
   def get_root_owning_module(self) -> "ModuleEntry":
     mod = self
     while mod.parent_owning_modules:
-      mod = mod.parent_owning_modules[0]
+      mod = mod.parent_owning_modules[0][0]
     return mod
 
   def get_canonical_name(self) -> str:
-    for mod in self.parent_owning_modules:
+    if self.canonical_name:
+      return self.canonical_name
+    if self.parent_owning_modules:
+      mod, name = self.parent_owning_modules[0]
       if not mod.module.forward:
         prefix = mod.get_canonical_name() + "_"
       else:
         prefix = ""
-      for name, child_mod in mod.module.named_children():
-        if child_mod is self.module:
-          if not prefix and name[:1].isnumeric():
-            return f"layer{name}"
-          return prefix + name
+      if not prefix and name[:1].isnumeric():
+        return f"layer{name}"
+      return prefix + name
     prefix = ""
     for mod in reversed(self.parent_context_modules):
       prefix = mod.get_canonical_name() + "_"
@@ -399,7 +432,7 @@ class Naming:
 
   @classmethod
   @contextmanager
-  def make_instance(cls) -> Naming:
+  def make_instance(cls) -> Generator[Naming]:
     assert not cls._instance
     ctx = Naming()
     cls._instance = ctx
@@ -455,6 +488,30 @@ class Naming:
     assert self.module_creation_call_stack[-1].module is module
     self.module_creation_call_stack.pop(-1)
 
+  def _prepare_module_call_returnn_inputs(self, call: CallEntry):
+    """
+    It means this module has no forward, i.e. it is wrapped as RETURNN layer.
+    We might need to make some inputs available, which are not available yet,
+    e.g. constants, params, etc.
+    """
+    assert not call.module.module.forward  # not needed to be called for this case
+    for x in call.inputs:
+      assert isinstance(x, TensorEntry)
+      if not x.names and x.is_param:
+        assert x.returnn_data
+        assert x.returnn_data.placeholder is None
+        from .torch.nn.modules import Variable
+        param_name = x.get_canonical_name()
+        prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
+        mod = Variable(param=x.tensor())
+        self.modules[mod].canonical_name = prefix + param_name
+        res = mod()
+        res_tensor = self.tensors[res]
+        assert isinstance(res_tensor, TensorEntry)
+        assert len(res_tensor.names) == 1
+        x.names.append(res_tensor.names[0])
+        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+
   def push_module_call(self, *,
                        module: Module, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
     module_entry = self.modules[module] if module is not None else None
@@ -474,6 +531,8 @@ class Naming:
       parent_namespace = entry.parent_call.namespace
     else:
       parent_namespace = self.root_namespace
+    # Call this before we put it on the call stack.
+    self._prepare_module_call_returnn_inputs(entry)
     # Find right parent namespace.
     parents_hierarchy = []
     parent_module = module_entry
@@ -489,7 +548,7 @@ class Naming:
         # no parent anymore, so use root namespace in any case
         parent_namespace = self.root_namespace
         break
-      parent_module = parent_module.parent_owning_modules[0]  # could do search over all, but just use first for now
+      parent_module = parent_module.parent_owning_modules[0][0]  # could do search over all, but just use first for now
     for parent_module in reversed(parents_hierarchy):
       assert parent_module not in parent_namespace.modules
       if parent_module is not module_entry and not parent_module.module.forward:
@@ -512,27 +571,12 @@ class Naming:
     assert parent_module in parent_namespace.modules and parent_module is module_entry
     namespace = parent_namespace
     assert module_entry in namespace.modules
-    if func is module and not module.forward:
-      assert namespace.parent
-      for x in entry.inputs:
-        assert isinstance(x, TensorEntry)
-        if not x.names and x.is_param:
-          from .torch.nn.modules import Variable
-          mod = Variable(param=x.tensor())
-          res = mod()
-          # TODO
-        name = namespace.parent.name_for_tensor(x)
-        assert name
     namespace.assign_call(entry)
     self.module_call_stack.append(entry)
     assert entry.namespace
-    if module:
-      self.push_module_context(module)
     return entry
 
   def pop_module_call(self, call: CallEntry):
-    if call.module:
-      self.pop_module_context(call.module.module)
     assert self.module_call_stack[-1] is call
     self.module_call_stack.pop(-1)
 
@@ -541,6 +585,7 @@ class Naming:
     parent_entry = self.modules[parent]
     if child in self.modules:
       child_entry = self.modules[child]
+      assert isinstance(child_entry, ModuleEntry)
     else:
       assert child in self.tensors
       child_entry = self.tensors[child]
@@ -549,13 +594,15 @@ class Naming:
         if parent_param is child:
           child_entry.is_param = True
           break
-    if parent_entry not in child_entry.parent_owning_modules:
-      child_entry.parent_owning_modules.append(parent_entry)
+    if (parent_entry, str) not in child_entry.parent_owning_modules:
+      child_entry.parent_owning_modules.append((parent_entry, attr))
 
   def register_tensor(self, tensor: Tensor) -> TensorEntry:
     if tensor not in self.tensors:
       self.tensors[tensor] = TensorEntry(
-        tensor=ref(tensor), creation_stack_call=self.module_call_stack[-1] if self.module_call_stack else None)
+        tensor=ref(tensor),
+        creation_stack_call=self.module_call_stack[-1] if self.module_call_stack else None,
+        module_ctx=self.module_context_stack[-1] if self.module_context_stack else None)
     return self.tensors[tensor]
 
   def register_input(self, tensor: Tensor):
@@ -564,6 +611,7 @@ class Naming:
     self.inputs.append(tensor)
     # "data" is a special layer name in RETURNN, representing input data
     self.root_namespace.register_input(name="data", tensor=entry)
+    assert entry.returnn_data
 
   @staticmethod
   def _register_call_names(root: RegisteredName, calls: List[CallEntry]):
@@ -579,3 +627,9 @@ class Naming:
     self.outputs.append(tensor)
 
     self.root_namespace.dump()
+
+  def get_input_layer_name(self, tensor: Tensor):
+    pass
+
+  def get_axis_description(self, tensor: Tensor, axis: int) -> str:
+    return self.register_tensor(tensor).get_axis_description(axis)

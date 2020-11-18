@@ -66,6 +66,7 @@ def verify_torch(
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
   from . import torch as torch_returnn
   with Naming.make_instance() as naming:
+    assert isinstance(naming, Naming)
     in_returnn = torch_returnn.from_numpy(inputs)
     assert isinstance(in_returnn, torch_returnn.Tensor)
     naming.register_input(in_returnn)

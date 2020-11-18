@@ -7,8 +7,8 @@ from ...tensor import Tensor
 class _ActivationReturnn(Module):
   func_name: str
 
-  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
-    return {"class": "activation", "activation": self.func_name, "from": input}
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {"class": "activation", "activation": self.func_name, "from": self._get_input_layer_name(input)}
 
 
 class Tanh(_ActivationReturnn):
@@ -21,8 +21,10 @@ class LeakyReLU(Module):
     self.negative_slope = negative_slope
     assert not inplace  # not supported/implemented -- see :doc:`Unsupported`
 
-  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
-    return {"class": "eval", "eval": f"tf.nn.leaky_relu(source(0), alpha={self.negative_slope})", "from": input}
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "eval", "eval": f"tf.nn.leaky_relu(source(0), alpha={self.negative_slope})",
+      "from": self._get_input_layer_name(input)}
 
 
 __all__ = [

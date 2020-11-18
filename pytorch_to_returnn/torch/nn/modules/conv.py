@@ -65,13 +65,13 @@ class _ConvNd(Module):
       bound = 1 / math.sqrt(fan_in)
       init.uniform_(self.bias, -bound, bound)
 
-  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
     assert all(p == 0 for p in self.padding)  # not implemented otherwise
     assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     return {
-      "class": "conv", "from": input,
+      "class": "conv", "from": self._get_input_layer_name(input),
       "activation": None,
       "with_bias": self.bias is not None,
       "n_out": self.out_channels,
@@ -127,12 +127,12 @@ class _ConvTransposeNd(_ConvNd):
       padding, dilation, transposed, output_padding,
       groups, bias, padding_mode)
 
-  def create_returnn_layer_dict(self, input: str) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert self.groups == 1  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     assert all(d == 1 for d in self.dilation)
     d = {
-      "class": "transposed_conv", "from": input,
+      "class": "transposed_conv", "from": self._get_input_layer_name(input),
       "activation": None,
       "with_bias": self.bias is not None,
       "n_out": self.out_channels,

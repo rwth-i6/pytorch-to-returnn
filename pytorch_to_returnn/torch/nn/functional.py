@@ -28,6 +28,10 @@ def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value)(input)
 
 
+def max(*inputs: Tensor) -> Tensor:
+  return modules.Max()(*inputs)
+
+
 def conv1d(
     input: Tensor, weight: Tensor, bias: Optional[Tensor] = None,
     stride: Union[int, _size] = 1, padding: Union[int, _size] = 0,
@@ -52,6 +56,18 @@ def tanh(input: Tensor) -> Tensor:
   return modules.Tanh()(input)
 
 
+def normalize(input: Tensor, p=2, dim=1, eps=1e-12) -> Tensor:
+  norm_ = modules.Norm(p=p, axes=[dim], keepdims=True)(input)
+  norm_f = modules.Reciprocal(eps=eps)(norm_)
+  return input * norm_f
+
+
+def norm(input: Tensor,
+         p: Optional[Union[str, float, int]] = "fro",
+         dim: Optional[Union[int, List[int]]] = None,
+         keepdim: bool = False) -> Tensor:
+  return modules.Norm(p=p, axes=[dim], keepdims=keepdim)(input)
+
+
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
-  # TODO ...
-  return Tensor(*[v.shape[i] if i == dim else 1 for i in range(v.dim())])
+  return modules.Norm(p=pow, axes=[i for i in range(v.dim()) if i != dim], keepdims=True)(v)

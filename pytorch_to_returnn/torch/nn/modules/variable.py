@@ -1,4 +1,7 @@
 
+from returnn.tf.layers.base import LayerBase
+from typing import Tuple
+from ...tensor import Tensor
 from ..parameter import Parameter
 from .module import Module
 
@@ -9,8 +12,14 @@ class Variable(Module):
     assert isinstance(param, Parameter)
     self.param = param
 
-  def create_returnn_layer_dict(self):
+  def create_returnn_layer_dict(self, *inputs):  # ignore inputs
     return {"class": "variable", "add_batch_axis": False, "shape": self.param.shape}
+
+  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+    return self.param
+
+  def _get_output_shape_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tuple[int, ...]:
+    return layer.output.batch_shape
 
 
 __all__ = [

@@ -9,5 +9,10 @@ class Parameter(Tensor):
   """
   def __init__(self, *args, **kwargs):
     super(Parameter, self).__init__(*args, **kwargs)
+    from ...dimensions import Data
     naming = Naming.get_instance()
-    naming.register_tensor(self).is_param = True
+    tensor_entry = naming.register_tensor(self)
+    tensor_entry.is_param = True
+    tensor_entry.returnn_data = Data(
+      name="_unnamed_param", shape=self.shape, dtype=self.dtype.name,
+      batch_dim_axis=None, time_dim_axis=None)

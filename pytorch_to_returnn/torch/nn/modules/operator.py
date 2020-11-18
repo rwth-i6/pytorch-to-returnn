@@ -1,5 +1,7 @@
 
+from typing import Optional, Tuple, Any
 from .module import Module
+from ...tensor import Tensor
 
 
 class BinaryOperator(Module):
@@ -10,9 +12,32 @@ class BinaryOperator(Module):
     super(BinaryOperator, self).__init__()
     self.kind = kind
 
-  def create_returnn_layer_dict(self, *inputs):
+  def create_returnn_layer_dict(self, *inputs: Tensor):
     # TODO: implicitly merge dims...
-    return {"class": "combine", "kind": self.kind, "from": inputs}
+    return {
+      "class": "combine", "kind": self.kind,
+      "from": [self._get_input_layer_name(input) for input in inputs]}
+
+
+class Reciprocal(Module):
+  """
+  1/x or 1/max(eps,x)
+  """
+  def __init__(self, eps: Optional[float] = None):
+    super(Reciprocal, self).__init__()
+    self.eps = eps
+
+  def create_returnn_layer_dict(self, input: Tensor):
+    x = "source(0)"
+    if self.eps is not None:
+      x = f"maximum_with_identity_grad({x})"
+    return {
+      "class": "eval", "eval": f"tf_compat.v1.reciprocal({x})",
+      "from": self._get_input_layer_name(input)}
+
+
+class Max(Module):
+  pass  # TODO
 
 
 __all__ = [

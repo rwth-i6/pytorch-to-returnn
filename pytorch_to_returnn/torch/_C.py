@@ -3,13 +3,26 @@
 Dummies...
 """
 
+from __future__ import annotations
+from typing import Union
+
 
 def device(name):
   return name
 
 
-class dtype(str):
-  pass
+# noinspection PyPep8Naming
+class dtype:
+  def __init__(self, arg: Union[str, dtype]):
+    if isinstance(arg, str):
+      self.name = arg
+    elif isinstance(arg, dtype):
+      self.name = arg.name
+    else:
+      raise TypeError(f"unexpected arg {arg}")
+
+  def __str__(self):
+    return f"torch.{self.name}"
 
 
 class Size(tuple):
@@ -25,4 +38,4 @@ def from_numpy(arr):
   import numpy
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
-  return Tensor(*arr.shape)
+  return Tensor(*arr.shape, dtype=str(arr.dtype))
