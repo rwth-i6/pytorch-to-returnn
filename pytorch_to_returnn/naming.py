@@ -128,6 +128,7 @@ class ModuleEntry:
   parent_created_modules: List["ModuleEntry"]
   child_created_modules: List["ModuleEntry"]
   parent_owning_modules: List["ModuleEntry"]
+  parent_context_modules: List["ModuleEntry"]
 
   def __init__(self, module: Module):
     self.module = module
@@ -136,6 +137,7 @@ class ModuleEntry:
     self.parent_created_modules = []
     self.child_created_modules = []
     self.parent_owning_modules = []
+    self.parent_context_modules = []
 
   def __repr__(self):
     return f"<ModuleEntry {self.module!r}>"
@@ -158,18 +160,21 @@ class ModuleEntry:
     return mod
 
   def get_canonical_name(self) -> str:
-    if self.parent_owning_modules:
-      for mod in self.parent_owning_modules:
-        if not mod.module.forward:
-          prefix = mod.get_canonical_name() + "_"
-        else:
-          prefix = ""
-        for name, child_mod in mod.module.named_children():
-          if child_mod is self.module:
-            if not prefix and name[:1].isnumeric():
-              return f"layer{name}"
-            return prefix + name
-    return self.module.__class__.__name__
+    for mod in self.parent_owning_modules:
+      if not mod.module.forward:
+        prefix = mod.get_canonical_name() + "_"
+      else:
+        prefix = ""
+      for name, child_mod in mod.module.named_children():
+        if child_mod is self.module:
+          if not prefix and name[:1].isnumeric():
+            return f"layer{name}"
+          return prefix + name
+    prefix = ""
+    for mod in reversed(self.parent_context_modules):
+      prefix = mod.get_canonical_name() + "_"
+      break
+    return prefix + self.module.__class__.__name__
 
   def __enter__(self):
     return self
@@ -420,6 +425,9 @@ class Naming:
 
   def push_module_context(self, module: Module) -> ModuleEntry:
     entry = self.modules[module]
+    if self.module_context_stack:
+      if self.module_context_stack[-1] not in entry.parent_context_modules:
+        entry.parent_context_modules.append(self.module_context_stack[-1])
     self.module_context_stack.append(entry)
     return entry
 
@@ -484,6 +492,9 @@ class Naming:
       parent_module = parent_module.parent_owning_modules[0]  # could do search over all, but just use first for now
     for parent_module in reversed(parents_hierarchy):
       assert parent_module not in parent_namespace.modules
+      if parent_module is not module_entry and not parent_module.module.forward:
+        # Skip.
+        parent_module = module_entry
       if (parent_namespace is self.root_namespace
               and parent_module.module.forward and not parent_module.parent_owning_modules):
         # Special case, somewhat nicer to flatten the namespace for this case.
@@ -496,6 +507,8 @@ class Naming:
           parent_namespace = parent_namespace.register(suggested_name=parent_module.get_canonical_name())
           parent_namespace.assign_module(parent_module)
       assert parent_module in parent_namespace.modules
+      if parent_module is module_entry:
+        break
     assert parent_module in parent_namespace.modules and parent_module is module_entry
     namespace = parent_namespace
     assert module_entry in namespace.modules
