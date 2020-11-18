@@ -102,12 +102,12 @@ class CallEntry:
 
   def __enter__(self):
     # Assume via push_func_call
-    assert Naming.get_instance().func_call_stack[-1] is self
+    assert Naming.get_instance().module_call_stack[-1] is self
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     if not exc_type:
-      Naming.get_instance().pop_func_call(self)
+      Naming.get_instance().pop_module_call(self)
 
 
 class _ObjAttr:
@@ -122,9 +122,9 @@ class _ObjAttr:
 
 class ModuleEntry:
   module: Module
-  name: Optional[str] = None
   level: Optional[int] = None
   calls: List[CallEntry]
+  names: List[RegisteredName]
   parent_created_modules: List["ModuleEntry"]
   child_created_modules: List["ModuleEntry"]
   parent_owning_modules: List["ModuleEntry"]
@@ -132,6 +132,7 @@ class ModuleEntry:
   def __init__(self, module: Module):
     self.module = module
     self.calls = []
+    self.names = []
     self.parent_created_modules = []
     self.child_created_modules = []
     self.parent_owning_modules = []
@@ -169,6 +170,13 @@ class ModuleEntry:
               return f"layer{name}"
             return prefix + name
     return self.module.__class__.__name__
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    if not exc_type:
+      Naming.get_instance().pop_module_context(self.module)
 
 
 _SearchType = TypeVar("_SearchType")
@@ -211,12 +219,13 @@ class RegisteredName:
   parent: Optional["RegisteredName"]
   name: Optional[str]  # if parent
   level: int = 0
-  items: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
-  tensor: Optional[TensorEntry] = None
+  modules: List[ModuleEntry]  # can be multiple merged together
+  calls: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
+  tensor: Optional[TensorEntry] = None  # output from the call
   returnn_ctx: Optional[ReturnnContext] = None
 
   def __init__(self, *,
-               parent: Optional["RegisteredName"] = None, name: str = None,
+               parent: Optional["RegisteredName"] = None, name: Optional[str] = None,
                call: Optional[CallEntry] = None,
                tensor: Optional[TensorEntry] = None):
     self.childs_by_name = OrderedDict()
@@ -226,18 +235,16 @@ class RegisteredName:
     else:
       assert not name
     self.name = name
-    self.items = []
+    self.modules = []
+    self.calls = []
     if call:
       self.assign_call(call)
     if parent:
       self.level = parent.level + 1
     if tensor:
       self.assign_tensor(tensor)
-      # no sub returnn ctx
-    elif call and call.module and not call.module.module.forward:
-      pass  # no sub returnn ctx
-    else:
-      self.returnn_ctx = ReturnnContext(parent=parent.returnn_ctx if parent else None, name=name)
+    if not parent:
+      self.returnn_ctx = ReturnnContext(parent=None, name=self.name)
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
@@ -257,12 +264,26 @@ class RegisteredName:
       tensor.names.append(self)
 
   def assign_call(self, call: CallEntry):
-    assert all(not c.module or c.module.module.forward for c in self.items)
-    if self.items:
+    if call.module:
+      self.assign_module(call.module)
+    assert all(not c.module or c.module.module.forward for c in self.calls)
+    if self.calls:
       assert not call.module or call.module.module.forward
     assert not call.namespace
     call.namespace = self
-    self.items.append(call)
+    self.calls.append(call)
+
+  def assign_module(self, module: ModuleEntry):
+    if module in self.modules:
+      return
+    self.modules.append(module)
+    module.names.append(self)
+    if module.module.forward and not self.returnn_ctx:
+      # Need our own returnn ctx / subnet.
+      assert self.parent
+      self.returnn_ctx = ReturnnContext(parent=self.parent.returnn_ctx, name=self.name)
+    if self.returnn_ctx:
+      assert all(m.module.forward for m in self.modules)
 
   def _get_unique_name(self, suggested_name: str) -> str:
     if suggested_name not in self.childs_by_name:
@@ -272,10 +293,9 @@ class RegisteredName:
       if suggested_name_ not in self.childs_by_name:
         return suggested_name_
 
-  def register(self, suggested_name: str, child: CallEntry) -> RegisteredName:
-    assert not child.namespace
+  def register(self, *, suggested_name: str, call: Optional[CallEntry] = None) -> RegisteredName:
     name = self._get_unique_name(suggested_name)
-    name_ = RegisteredName(parent=self, name=name, call=child)
+    name_ = RegisteredName(parent=self, name=name, call=call)
     self.childs_by_name[name] = name_
     return name_
 
@@ -304,9 +324,15 @@ class RegisteredName:
         return name_.name
     raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
 
+  def find_name_for_module(self, module: ModuleEntry) -> Optional[str]:
+    for name, child in self.childs_by_name.items():
+      if module in child.modules:
+        return name
+    return None
+
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
-      print(f"{prefix}{name}: {child.items}")
+      print(f"{prefix}{name}: {child.calls}")
       child.dump(prefix=f"{prefix}  ")
 
 
@@ -361,7 +387,8 @@ class Naming:
   inputs: List[Tensor]
   outputs: List[Tensor]
   module_creation_call_stack: List[ModuleEntry]
-  func_call_stack: List[CallEntry]
+  module_context_stack: List[ModuleEntry]
+  module_call_stack: List[CallEntry]
   root_func_calls: List[CallEntry]
   _instance: Optional[Naming] = None
 
@@ -386,9 +413,20 @@ class Naming:
     self.inputs = []
     self.outputs = []
     self.module_creation_call_stack = []
-    self.func_call_stack = []
+    self.module_context_stack = []
+    self.module_call_stack = []
     self.root_func_calls = []
     self.root_namespace = RegisteredName(parent=None)
+
+  def push_module_context(self, module: Module) -> ModuleEntry:
+    entry = self.modules[module]
+    self.module_context_stack.append(entry)
+    return entry
+
+  def pop_module_context(self, module: Module):
+    entry = self.modules[module]
+    assert self.module_context_stack[-1] is entry
+    self.module_context_stack.pop(-1)
 
   def push_module_creation(self, module: Module):
     if module not in self.modules:
@@ -402,54 +440,94 @@ class Naming:
         entry.parent_created_modules.append(recent_entry)
         recent_entry.child_created_modules.append(entry)
     self.module_creation_call_stack.append(entry)
+    self.push_module_context(module)
 
   def pop_module_creation(self, module: Module):
+    self.pop_module_context(module)
     assert self.module_creation_call_stack[-1].module is module
     self.module_creation_call_stack.pop(-1)
 
-  def push_func_call(self, *,
-                     module: Optional[Module] = None, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
+  def push_module_call(self, *,
+                       module: Module, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
     module_entry = self.modules[module] if module is not None else None
     entry = CallEntry(func=func, module=module_entry)
     entry.inputs = [self.tensors[x] for x in inputs]
-    entry.level = len(self.func_call_stack)
-    if self.func_call_stack:
-      recent_entry = self.func_call_stack[-1]
+    entry.level = len(self.module_call_stack)
+    if self.module_call_stack:
+      recent_entry = self.module_call_stack[-1]
       recent_entry.child_calls.append(entry)
       entry.parent_call = recent_entry
       if recent_entry.is_module_call() and recent_entry.module.module.create_returnn_layer_dict:
         raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
-    self.func_call_stack.append(entry)
-    if entry.level == 0:
-      if module_entry and not module_entry.parent_owning_modules and module_entry.module.forward:
-        # Special case, somewhat nicer to flatten the namespace for this case.
-        self.root_namespace.assign_call(entry)
-      else:
-        self.root_namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
-    else:
+    if entry.parent_call:
       assert entry.parent_call.namespace
-      namespace = entry.parent_call.namespace
-      namespace.register(suggested_name=entry.get_canonical_name(), child=entry)
-    assert entry.namespace
-    if func is module and module.create_returnn_layer_dict:
-      assert entry.namespace.parent
+      parent_namespace = entry.parent_call.namespace
+    else:
+      parent_namespace = self.root_namespace
+    # Find right parent namespace.
+    parents_hierarchy = []
+    parent_module = module_entry
+    while parent_module not in parent_namespace.modules:
+      parents_hierarchy.append(parent_module)
+      if not parent_module.parent_owning_modules:
+        if parent_module not in self.module_context_stack and self.module_context_stack:
+          parent_module = self.module_context_stack[-1]
+          continue  # try further
+        elif self.module_context_stack.index(parent_module) > 0:
+          parent_module = self.module_context_stack[self.module_context_stack.index(parent_module) - 1]
+          continue  # try further
+        # no parent anymore, so use root namespace in any case
+        parent_namespace = self.root_namespace
+        break
+      parent_module = parent_module.parent_owning_modules[0]  # could do search over all, but just use first for now
+    for parent_module in reversed(parents_hierarchy):
+      assert parent_module not in parent_namespace.modules
+      if (parent_namespace is self.root_namespace
+              and parent_module.module.forward and not parent_module.parent_owning_modules):
+        # Special case, somewhat nicer to flatten the namespace for this case.
+        self.root_namespace.assign_module(parent_module)
+      else:
+        name = parent_namespace.find_name_for_module(parent_module)
+        if name:
+          parent_namespace = parent_namespace.childs_by_name[name]
+        else:
+          parent_namespace = parent_namespace.register(suggested_name=parent_module.get_canonical_name())
+          parent_namespace.assign_module(parent_module)
+      assert parent_module in parent_namespace.modules
+    assert parent_module in parent_namespace.modules and parent_module is module_entry
+    namespace = parent_namespace
+    assert module_entry in namespace.modules
+    if func is module and not module.forward:
+      assert namespace.parent
       for x in entry.inputs:
-        name = entry.namespace.parent.name_for_tensor(x)
+        assert isinstance(x, TensorEntry)
+        if not x.names and x.is_param:
+          from .torch.nn.modules import Variable
+          mod = Variable(param=x.tensor())
+          res = mod()
+          # TODO
+        name = namespace.parent.name_for_tensor(x)
         assert name
+    namespace.assign_call(entry)
+    self.module_call_stack.append(entry)
+    assert entry.namespace
+    if module:
+      self.push_module_context(module)
     return entry
 
-  def pop_func_call(self, call: CallEntry):
-    assert self.func_call_stack[-1] is call
-    self.func_call_stack.pop(-1)
+  def pop_module_call(self, call: CallEntry):
+    if call.module:
+      self.pop_module_context(call.module.module)
+    assert self.module_call_stack[-1] is call
+    self.module_call_stack.pop(-1)
 
   def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
     assert getattr(parent, attr) is child
     parent_entry = self.modules[parent]
     if child in self.modules:
       child_entry = self.modules[child]
-      child_entry.parent_owning_modules.append(parent_entry)
     else:
       assert child in self.tensors
       child_entry = self.tensors[child]
@@ -458,12 +536,13 @@ class Naming:
         if parent_param is child:
           child_entry.is_param = True
           break
+    if parent_entry not in child_entry.parent_owning_modules:
       child_entry.parent_owning_modules.append(parent_entry)
 
   def register_tensor(self, tensor: Tensor) -> TensorEntry:
     if tensor not in self.tensors:
       self.tensors[tensor] = TensorEntry(
-        tensor=ref(tensor), creation_stack_call=self.func_call_stack[-1] if self.func_call_stack else None)
+        tensor=ref(tensor), creation_stack_call=self.module_call_stack[-1] if self.module_call_stack else None)
     return self.tensors[tensor]
 
   def register_input(self, tensor: Tensor):
@@ -476,7 +555,7 @@ class Naming:
   @staticmethod
   def _register_call_names(root: RegisteredName, calls: List[CallEntry]):
     for call in calls:
-      child = root.register(suggested_name=call.get_canonical_name(), child=call)
+      child = root.register(suggested_name=call.get_canonical_name(), call=call)
       Naming._register_call_names(child, call.child_calls)
 
   def register_output(self, tensor: Tensor):

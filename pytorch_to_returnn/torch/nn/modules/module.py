@@ -26,8 +26,7 @@ class Module:
     assert isinstance(res, Module)
     naming = Naming.get_instance()
     naming.push_module_creation(res)
-    with naming.push_func_call(module=res, func=res.__init__, inputs=[]):
-      res.__init__(*args, **kwargs)
+    res.__init__(*args, **kwargs)
     naming.pop_module_creation(res)
     return res
 
@@ -188,9 +187,9 @@ class Module:
         Naming.get_instance().register_module_child_attr(self, name, tensor)
 
   def apply(self: T, fn: Callable[['Module'], None]) -> T:
-    for module in self.children():
-      module.apply(fn)
-    with Naming.get_instance().push_func_call(module=self, func=fn, inputs=[]):  # func does not matter
+    with Naming.get_instance().push_module_context(self):
+      for module in self.children():
+        module.apply(fn)
       fn(self)
     return self
 
@@ -313,10 +312,10 @@ class Module:
   def to(self, *args):
     return self  # ignore
 
-  def __call__(self, *input, **kwargs):
+  def __call__(self, *input: Tensor, **kwargs):
     assert not kwargs  # not implemented yet
     naming = Naming.get_instance()
-    with naming.push_func_call(module=self, func=self, inputs=list(input)) as call_entry:
+    with naming.push_module_call(module=self, func=self, inputs=list(input)) as call_entry:
       for hook in self._forward_pre_hooks.values():
         result = hook(self, input)
         if result is not None:
