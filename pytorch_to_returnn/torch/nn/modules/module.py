@@ -323,7 +323,7 @@ class Module:
           if not isinstance(result, tuple):
             result = (result,)
           input = result
-      with naming.push_module_call(module=self, func=self, inputs=list(input)) as call_entry:
+      with naming.push_module_call(module=self, inputs=list(input)) as call_entry:
         input = tuple([x.tensor() for x in call_entry.inputs])  # make sure all are tensors
         if self.forward:
           assert not self.create_returnn_layer_dict

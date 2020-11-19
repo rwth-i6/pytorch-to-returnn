@@ -107,8 +107,7 @@ class CallEntry:
   Can be a module() call, or regular func.
   Note that a module can be called multiple times.
   """
-  func: Optional[Callable]
-  module: Optional["ModuleEntry"]
+  module: ModuleEntry
   inputs: Optional[List["TensorEntry"]] = None
   outputs: Optional[List["TensorEntry"]] = None
   parent_call: Optional["CallEntry"] = None  # parent in the call stack
@@ -116,18 +115,12 @@ class CallEntry:
   level: Optional[int] = None
   namespace: Optional["RegisteredName"] = None
 
-  def __init__(self, func: Optional[Callable], module: Optional["ModuleEntry"]):
-    self.func = func
+  def __init__(self, module: ModuleEntry):
     self.module = module
     self.child_calls = []
 
   def __repr__(self):
     return f"<{self.__class__.__name__} #{self.level} {self.func!r}>"
-
-  def is_module_call(self) -> bool:
-    if not self.module:
-      return False
-    return self.module.module is self.func
 
   def get_root_call(self) -> "CallEntry":
     entry = self
@@ -581,17 +574,16 @@ class Naming:
         else:
           raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
-  def push_module_call(self, *,
-                       module: Module, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
-    module_entry = self.modules[module] if module is not None else None
-    entry = CallEntry(func=func, module=module_entry)
+  def push_module_call(self, *, module: Module, inputs: List[Tensor]) -> CallEntry:
+    module_entry = self.modules[module]
+    entry = CallEntry(module=module_entry)
     entry.inputs = [self._make_tensor(x) for x in inputs]
     entry.level = len(self.module_call_stack)
     if self.module_call_stack:
       recent_entry = self.module_call_stack[-1]
       recent_entry.child_calls.append(entry)
       entry.parent_call = recent_entry
-      if recent_entry.is_module_call() and recent_entry.module.module.create_returnn_layer_dict:
+      if recent_entry.module.module.create_returnn_layer_dict:
         raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
