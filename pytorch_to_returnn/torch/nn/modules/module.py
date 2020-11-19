@@ -346,14 +346,12 @@ class Module:
           layer_name = call_entry.namespace.name
           returnn_net = parent_namespace.returnn_ctx.network
           assert layer_name not in returnn_net.layers
+          print(f"{returnn_net.name}/{layer_name!r} dict: {layer_dict}")
           with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
             layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
           print(
             f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
-          from returnn.tf.util.basic import print_graph_output
-          #if layer.output.have_time_axis() and layer.output.is_time_axis_dynamic():
-          #  print_graph_output(layer.output.get_sequence_lengths())
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
         assert isinstance(res, Tensor)
         call_entry.set_outputs([res])

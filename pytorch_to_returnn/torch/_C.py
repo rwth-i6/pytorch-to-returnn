@@ -36,6 +36,12 @@ def zeros(*shape):
 
 def from_numpy(arr):
   import numpy
+  if isinstance(arr, int):
+    arr = numpy.int32(arr)
+  if isinstance(arr, float):
+    arr = numpy.float(arr)
+  if isinstance(arr, numpy.number):
+    arr = numpy.array(arr)
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
   return Tensor(*arr.shape, dtype=str(arr.dtype))

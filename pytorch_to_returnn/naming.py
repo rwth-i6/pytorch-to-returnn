@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-import tensorflow as tf
+import numpy
 import typing
 from typing import Optional, Any, List, Tuple, TypeVar, Dict, Callable, Iterable, Union, Generator
 import weakref
@@ -31,21 +31,24 @@ class TensorEntry:
   output_from_calls: List["CallEntry"]
   parent_owning_modules: List[Tuple["ModuleEntry", str]]  # e.g. param or buffer
   creation_stack_call: Optional[CallEntry]
-  module_ctx: Optional[ModuleEntry]
+  module_context_stack: List[ModuleEntry]
   names: List["RegisteredName"]
 
-  def __init__(self, tensor: ref[Tensor], creation_stack_call: Optional[CallEntry], module_ctx: Optional[ModuleEntry]):
+  def __init__(self, tensor: ref[Tensor],
+               creation_stack_call: Optional[CallEntry], module_context_stack: List[ModuleEntry]):
     self.tensor = tensor
     self.creation_stack_call = creation_stack_call
-    self.module_ctx = module_ctx
+    self.module_context_stack = module_context_stack
     self.output_from_modules = []
     self.output_from_calls = []
     self.parent_owning_modules = []
     self.names = []
 
-  def get_canonical_name(self) -> str:
+  def get_canonical_name(self, *, fallback: Optional[str] = None) -> str:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][1]
+    if fallback:
+      return fallback
     raise NotImplementedError
 
   def get_returnn_axis_description(self, torch_axis: int) -> str:
@@ -423,6 +426,7 @@ class ReturnnContext:
 
 class Naming:
   tensors: WeakKeyDictionary[Tensor, TensorEntry]
+  const_tensor_cache: List[Tensor]
   modules: OrderedDict[Module, ModuleEntry]
   inputs: List[Tensor]
   outputs: List[Tensor]
@@ -449,6 +453,7 @@ class Naming:
 
   def __init__(self):
     self.tensors = WeakKeyDictionary()
+    self.const_tensor_cache = []
     self.modules = OrderedDict()
     self.inputs = []
     self.outputs = []
@@ -496,29 +501,53 @@ class Naming:
     We might need to make some inputs available, which are not available yet,
     e.g. constants, params, etc.
     """
-    assert not call.module.module.forward  # not needed to be called for this case
     for x in call.inputs:
       assert isinstance(x, TensorEntry)
-      if not x.names and x.is_param:
-        assert x.returnn_data
-        assert x.returnn_data.placeholder is None
-        from .torch.nn.modules import Variable
-        param_name = x.get_canonical_name()
-        prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
-        mod = Variable(param=x.tensor())
-        self.modules[mod].canonical_name = prefix + param_name
-        res = mod()
-        res_tensor = self.tensors[res]
-        assert isinstance(res_tensor, TensorEntry)
-        assert len(res_tensor.names) == 1
-        x.names.append(res_tensor.names[0])
-        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+      if not x.names:
+        if x.is_param:
+          assert x.returnn_data
+          assert x.returnn_data.placeholder is None
+          from .torch.nn.modules import Variable
+          param_name = x.get_canonical_name()
+          if x.returnn_data.name == "_unnamed_param":
+            x.returnn_data.name = f"param:{param_name}"
+          prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
+          mod = Variable(param=x.tensor())
+          self.modules[mod].canonical_name = prefix + param_name
+          res = mod()
+          res_tensor = self.tensors[res]
+          assert isinstance(res_tensor, TensorEntry)
+          assert len(res_tensor.names) == 1
+          x.names.append(res_tensor.names[0])
+          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+        elif not x.output_from_calls or x.is_const:
+          # Assume this is a constant.
+          const_name = x.get_canonical_name(fallback="_unnamed_const")
+          tensor = x.tensor()
+          if not x.returnn_data:
+            x.returnn_data = Data(
+              name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
+              batch_dim_axis=None, time_dim_axis=None)
+            x.returnn_axis_to_torch_axis = {i: i for i in range(len(tensor.shape))}
+          prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
+          from .torch.nn.modules import Constant
+          mod = Constant(value=tensor)
+          self.modules[mod].canonical_name = prefix + const_name
+          res = mod()
+          res_tensor = self.tensors[res]
+          assert isinstance(res_tensor, TensorEntry)
+          assert len(res_tensor.names) == 1
+          x.names.append(res_tensor.names[0])
+          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+          x.is_const = True
+        else:
+          raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
   def push_module_call(self, *,
                        module: Module, func: Optional[Callable], inputs: List[Tensor]) -> CallEntry:
     module_entry = self.modules[module] if module is not None else None
     entry = CallEntry(func=func, module=module_entry)
-    entry.inputs = [self.tensors[x] for x in inputs]
+    entry.inputs = [self._make_tensor(x) for x in inputs]
     entry.level = len(self.module_call_stack)
     if self.module_call_stack:
       recent_entry = self.module_call_stack[-1]
@@ -604,8 +633,16 @@ class Naming:
       self.tensors[tensor] = TensorEntry(
         tensor=ref(tensor),
         creation_stack_call=self.module_call_stack[-1] if self.module_call_stack else None,
-        module_ctx=self.module_context_stack[-1] if self.module_context_stack else None)
+        module_context_stack=list(self.module_context_stack))
     return self.tensors[tensor]
+
+  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> TensorEntry:
+    from .torch import from_numpy, Tensor
+    if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
+      x = from_numpy(x)
+      self.const_tensor_cache.append(x)
+    assert isinstance(x, Tensor)
+    return self.tensors[x]
 
   def register_input(self, tensor: Tensor, returnn_data: Data):
     entry = self.register_tensor(tensor)

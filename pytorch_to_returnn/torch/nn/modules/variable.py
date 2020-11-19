@@ -19,6 +19,19 @@ class Variable(Module):
     return self.param
 
 
+class Constant(Module):
+  def __init__(self, value: Tensor):
+    super(Constant, self).__init__()
+    assert isinstance(value, Tensor)
+    self.value = value
+
+  def create_returnn_layer_dict(self, *inputs):  # ignore inputs
+    return {"class": "constant", "value": self.value.numpy()}
+
+  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+    return self.value
+
+
 __all__ = [
   key for (key, value) in sorted(globals().items())
   if not key.startswith("_")
