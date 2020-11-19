@@ -655,7 +655,7 @@ class Naming:
         if parent_param is child:
           child_entry.is_param = True
           break
-    if (parent_entry, str) not in child_entry.parent_owning_modules:
+    if (parent_entry, attr) not in child_entry.parent_owning_modules:
       child_entry.parent_owning_modules.append((parent_entry, attr))
 
   def register_tensor(self, tensor: Tensor) -> TensorEntry:

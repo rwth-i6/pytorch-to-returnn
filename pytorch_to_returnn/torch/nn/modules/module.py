@@ -26,8 +26,9 @@ class Module:
     res = super(Module, cls).__new__(cls)
     assert isinstance(res, Module)
     naming = Naming.get_instance()
-    naming.push_module_creation(res)
-    res.__init__(*args, **kwargs)
+    naming.push_module_creation(res)  # TODO is this still needed?
+    # Do not call __init__ here. After __new__ returns, Python will call __init__.
+    # res.__init__(*args, **kwargs)
     naming.pop_module_creation(res)
     return res
 
