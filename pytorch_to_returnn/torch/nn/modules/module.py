@@ -1,15 +1,16 @@
 
 
 from collections import OrderedDict
-from typing import Optional, Callable, TypeVar, Iterator, Tuple, Union, Dict, Any, overload
+from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, overload
 import itertools
 from ..parameter import Parameter
 from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
-from ....naming import Naming, CallEntry
+from ....naming import Naming, CallEntry, TensorEntry
 from returnn.tf.layers.basic import LayerBase
 from returnn.tf.util.basic import reuse_name_scope
+from returnn.tf.util.data import DimensionTag, Data
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
 # of `T` to annotate `self`. Many methods of `Module` return `self` and we want those return values to be
@@ -341,7 +342,6 @@ class Module:
           assert self.create_returnn_layer_dict
           assert call_entry.namespace and call_entry.namespace.parent
           parent_namespace = call_entry.namespace.parent
-          inputs = [parent_namespace.name_for_tensor(naming.tensors[x]) for x in input]
           layer_dict = self.create_returnn_layer_dict(*input)
           layer_name = call_entry.namespace.name
           returnn_net = parent_namespace.returnn_ctx.network
@@ -355,7 +355,6 @@ class Module:
           #if layer.output.have_time_axis() and layer.output.is_time_axis_dynamic():
           #  print_graph_output(layer.output.get_sequence_lengths())
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
-          naming.register_tensor(res).returnn_data = layer.output
         assert isinstance(res, Tensor)
         call_entry.set_outputs([res])
       return res
@@ -368,7 +367,13 @@ class Module:
     pass
 
   def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
-    return Tensor(*self._get_output_shape_from_returnn(inputs=inputs, layer=layer))
+    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    tensor = Tensor(*shape)
+    naming = Naming.get_instance()
+    tensor_entry = naming.register_tensor(tensor)
+    tensor_entry.returnn_data = layer.output
+    tensor_entry.returnn_axis_to_torch_axis = axis_mapping
+    return tensor
 
   def _get_input_layer_name(self, input: Tensor):
     naming = Naming.get_instance()
@@ -379,15 +384,85 @@ class Module:
     return parent_namespace.name_for_tensor(naming.tensors[input])
 
   def _get_input_axis_to_returnn(self, input: Tensor, axis: int) -> str:
-    return Naming.get_instance().register_tensor(input).get_axis_description(axis)
+    return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
-  def _get_output_shape_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tuple[int, ...]:
+  def _get_output_shape_from_returnn(self,
+                                     inputs: Tuple[Tensor, ...], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
+    :return: (torch_shape, returnn_axis_to_torch_axis).
+      Torch shape how it would have looked when this would be processed within Torch.
+      The RETURNN layer.output shape (order of axes) might look different.
+
     This is a bit tricky.
     If axes got reordered (RETURNN does that for efficiency, and then returns as-is),
     Torch code would not expect this.
     We need a mapping of RETURNN axis -> Torch axis.
     We can automatically infer this, but this is a bit involved.
     """
-    # TODO
-    raise NotImplementedError
+    # We could also use functions like Data.get_batch_shape_dim_tags, Data.get_common_data,
+    # DimensionTag.get_all_dimension_tags, etc.
+    # However, this is simpler, and also more consistent with get_returnn_axis_description.
+    def _get_shape_meta(data: Data) -> List[str]:
+      _res = []
+      for i in range(data.batch_ndim):
+        if i == data.batch_dim_axis:
+          _res.append("B")
+        elif i == data.feature_dim_axis:
+          _res.append("F")
+        elif i in data.get_spatial_batch_axes():
+          _res.append(f"spatial:{data.get_spatial_batch_axes().index(i)}")
+        else:
+          raise Exception(f"not expected {data}, axis {i}")
+      return _res
+
+    layer_output_shape_meta = _get_shape_meta(layer.output)  # e.g. [T_out,B,D_out]
+    out_returnn_axis_to_torch_axis = {}
+    # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
+    naming = Naming.get_instance()
+    batch_size = None
+    dyn_size = None  # currently only a single supported
+    for input in inputs:
+      x = naming.tensors[input]
+      assert isinstance(x, TensorEntry)
+      assert x.returnn_data and x.returnn_axis_to_torch_axis is not None
+      if x.returnn_data.have_batch_axis():
+        batch_size = input.shape[x.returnn_axis_to_torch_axis[x.returnn_data.batch_dim_axis]]
+      if x.returnn_data.get_dynamic_axes():
+        i = x.returnn_data.get_dynamic_axes()[0]
+        dyn_size = input.shape[x.returnn_axis_to_torch_axis[i]]
+      shape_meta = _get_shape_meta(x.returnn_data)  # e.g. [B,T_in,D_in]
+      # Reorder dim tags as the input like it would look like for Torch, e.g. [B,D_in,T_in].
+      shape_meta_torch_order = [shape_meta[x.returnn_axis_to_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
+      for kind in ["B", "F"]:
+        if kind in shape_meta_torch_order and kind in layer_output_shape_meta:
+          if shape_meta_torch_order.index(kind) == len(shape_meta_torch_order) - 1:
+            out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = layer.output.batch_ndim - 1
+          else:
+            out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = shape_meta_torch_order.index(kind)
+      break
+    assert all(0 <= d < layer.output.batch_ndim for d in out_returnn_axis_to_torch_axis.values())
+    assert len(set(out_returnn_axis_to_torch_axis.values())) == len(out_returnn_axis_to_torch_axis)
+    rem_torch_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.values()))
+    rem_returnn_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.keys()))
+    assert len(rem_torch_axes) == len(rem_returnn_axes)
+    for i, j in zip(sorted(rem_returnn_axes), sorted(rem_torch_axes)):
+      assert i not in out_returnn_axis_to_torch_axis
+      out_returnn_axis_to_torch_axis[i] = j
+    assert (
+        len(set(out_returnn_axis_to_torch_axis.values())) ==
+        len(set(out_returnn_axis_to_torch_axis.keys())) ==
+        layer.output.batch_ndim)
+    out_shape = list(layer.output.batch_shape)
+    if layer.output.have_batch_axis():
+      assert batch_size is not None
+      out_shape[layer.output.batch_dim_axis] = batch_size
+    if layer.output.get_dynamic_axes():
+      assert dyn_size is not None
+      assert len(layer.output.get_dynamic_axes()) == 1  # not implemented otherwise
+      out_shape[layer.output.get_dynamic_axes()[0]] = dyn_size
+    assert all(d for d in out_shape)
+    torch_axis_to_returnn = {i: j for (j, i) in out_returnn_axis_to_torch_axis.items()}
+    assert len(torch_axis_to_returnn) == layer.output.batch_ndim
+    out_shape = [out_shape[torch_axis_to_returnn[i]] for i in range(layer.output.batch_ndim)]
+    return out_shape, out_returnn_axis_to_torch_axis

@@ -16,3 +16,4 @@ class Parameter(Tensor):
     tensor_entry.returnn_data = Data(
       name="_unnamed_param", shape=self.shape, dtype=self.dtype.name,
       batch_dim_axis=None, time_dim_axis=None)
+    tensor_entry.returnn_axis_to_torch_axis = {i: i for i in range(len(self.shape))}

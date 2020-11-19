@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
 class TensorEntry:
   tensor: ref[Tensor]
   returnn_data: Optional[Data] = None
+  returnn_axis_to_torch_axis: Optional[Dict[int, int]] = None
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
@@ -47,12 +48,16 @@ class TensorEntry:
       return self.parent_owning_modules[0][1]
     raise NotImplementedError
 
-  def get_axis_description(self, axis: int) -> str:
+  def get_returnn_axis_description(self, torch_axis: int) -> str:
     """
-    :param axis:
-    :return: name such that self.returnn_data.get_axis_from_description(name) == axis
+    :param torch_axis:
+    :return: name such that
+      self.returnn_axis_to_torch_axis[self.returnn_data.get_axis_from_description(name)] == torch_axis
     """
-    assert self.returnn_data
+    assert self.returnn_data and self.returnn_axis_to_torch_axis is not None
+    torch_axis_to_returnn_axis = {i: j for (j, i) in self.returnn_axis_to_torch_axis.items()}
+    assert len(torch_axis_to_returnn_axis) == len(self.returnn_axis_to_torch_axis) == self.returnn_data.batch_ndim
+    axis = torch_axis_to_returnn_axis[torch_axis]
     if axis == self.returnn_data.batch_dim_axis:
       return "B"
     if axis == self.returnn_data.time_dim_axis:
@@ -345,12 +350,9 @@ class RegisteredName:
     name_ = RegisteredName(parent=self, name=name, tensor=tensor)
     # TODO hardcoded defaults
     data_key = "data"
-    if not tensor.returnn_data:
-      assert self.returnn_ctx
-      assert data_key not in self.returnn_ctx.extern_data.data
-      assert tensor.tensor().dim() == 3  # assume dense (B,T,D), TODO
-      tensor.returnn_data = Data(
-        name=data_key, auto_create_placeholders=True, dim=tensor.tensor().shape[-1], available_for_inference=True)
+    assert self.returnn_ctx
+    assert data_key not in self.returnn_ctx.extern_data.data
+    assert tensor.returnn_data
     self.returnn_ctx.extern_data.data[data_key] = tensor.returnn_data
     self.childs_by_name[name] = name_
     return name_
@@ -605,12 +607,23 @@ class Naming:
         module_ctx=self.module_context_stack[-1] if self.module_context_stack else None)
     return self.tensors[tensor]
 
-  def register_input(self, tensor: Tensor):
+  def register_input(self, tensor: Tensor, returnn_data: Data):
     entry = self.register_tensor(tensor)
     entry.is_input = True
     self.inputs.append(tensor)
+    assert tensor.dim() == returnn_data.batch_ndim
+    assert all([dim in {tensor.shape[i], None} for i, dim in enumerate(returnn_data.batch_shape)])
+    entry.returnn_data = Data(
+      name=returnn_data.name, auto_create_placeholders=True,
+      dim=returnn_data.dim,
+      shape=returnn_data.shape,
+      batch_dim_axis=returnn_data.batch_dim_axis,
+      time_dim_axis=returnn_data.time_dim_axis,
+      feature_dim_axis=returnn_data.feature_dim_axis_or_unspecified,
+      available_for_inference=True)
+    entry.returnn_axis_to_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
     # "data" is a special layer name in RETURNN, representing input data
-    self.root_namespace.register_input(name="data", tensor=entry)
+    self.root_namespace.register_input(name=returnn_data.name, tensor=entry)
     assert entry.returnn_data
 
   @staticmethod
@@ -627,9 +640,3 @@ class Naming:
     self.outputs.append(tensor)
 
     self.root_namespace.dump()
-
-  def get_input_layer_name(self, tensor: Tensor):
-    pass
-
-  def get_axis_description(self, tensor: Tensor, axis: int) -> str:
-    return self.register_tensor(tensor).get_axis_description(axis)

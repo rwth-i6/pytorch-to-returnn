@@ -4,6 +4,7 @@ import torch
 import numpy
 import types
 from typing import Callable, Optional
+from returnn.tf.util.data import Data
 from .wrapped_import import wrapped_import, wrapped_import_demo
 from .naming import Naming
 
@@ -69,7 +70,7 @@ def verify_torch(
     assert isinstance(naming, Naming)
     in_returnn = torch_returnn.from_numpy(inputs)
     assert isinstance(in_returnn, torch_returnn.Tensor)
-    naming.register_input(in_returnn)
+    naming.register_input(in_returnn, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
     out_returnn = model_func(wrapped_import_demo, in_returnn)
     assert isinstance(out_returnn, torch_returnn.Tensor)
     naming.register_output(out_returnn)
