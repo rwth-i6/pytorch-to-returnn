@@ -567,7 +567,7 @@ class Naming:
     # Find right parent namespace.
     parents_hierarchy = []
     parent_module = module_entry
-    while parent_module not in parent_namespace.modules:
+    while parent_module not in parent_namespace.modules and parent_module not in parents_hierarchy:
       parents_hierarchy.append(parent_module)
       if not parent_module.parent_owning_modules:
         if parent_module not in self.module_context_stack and self.module_context_stack:
