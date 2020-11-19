@@ -44,6 +44,28 @@ class TensorEntry:
     self.parent_owning_modules = []
     self.names = []
 
+  def __repr__(self):
+    if self.returnn_data:
+      returnn_data_repr = f"[{','.join(self.returnn_data.get_batch_axes_short_description())}]"
+      if self.returnn_axis_to_torch_axis == {i: i for i in range(self.returnn_data.batch_ndim)}:
+        mapping_repr = "id"
+      else:
+        mapping_repr = repr(self.returnn_axis_to_torch_axis).replace(" ", "")
+      returnn_data_repr = f"{self.returnn_data.name!r} {returnn_data_repr} axes {mapping_repr}"
+    else:
+      returnn_data_repr = None
+    tensor = self.tensor()
+    tensor_repr = repr(tensor.shape).replace(" ", "") if tensor is not None else "?"
+    name_repr = self.get_canonical_name(fallback='?')
+    if name_repr != "?":
+      name_repr = repr(name_repr)
+    return (
+      f"<{self.__class__.__name__ }"
+      f" name:{name_repr}"
+      f" tensor:{tensor_repr}"
+      f" returnn_data:{returnn_data_repr}"
+      f">")
+
   def get_canonical_name(self, *, fallback: Optional[str] = None) -> str:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][1]
@@ -375,7 +397,23 @@ class RegisteredName:
 
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
-      print(f"{prefix}{name}: {child.calls}")
+      if len(child.modules) == 0:
+        mod = None
+      elif len(child.modules) == 1:
+        mod = child.modules[0]
+      else:
+        mod = child.modules
+      if len(child.calls) == 0:
+        res = None
+      elif len(child.calls) == 1:
+        res = child.calls[0].outputs
+        if len(res) == 0:
+          res = f"<{child.calls[0]} without outputs>"
+        elif len(res) == 1:
+          res = res[0]
+      else:
+        res = f"<multiple calls {child.calls}>"
+      print(f"{prefix}{name}: {mod} -> {res}")
       child.dump(prefix=f"{prefix}  ")
 
 
