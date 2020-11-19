@@ -542,7 +542,7 @@ class Naming:
           param_name = x.get_canonical_name()
           if x.returnn_data.name == "_unnamed_param":
             x.returnn_data.name = f"param:{param_name}"
-          prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
+          prefix = (x.parent_owning_modules[0][0].get_canonical_name() + "_") if x.parent_owning_modules else ""
           mod = Variable(param=x.tensor())
           self.modules[mod].canonical_name = prefix + param_name
           res = mod()
@@ -560,7 +560,7 @@ class Naming:
               name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
               batch_dim_axis=None, time_dim_axis=None)
             x.returnn_axis_to_torch_axis = {i: i for i in range(len(tensor.shape))}
-          prefix = (x.parent_owning_modules[0][1] + "_") if x.parent_owning_modules else ""
+          prefix = (x.parent_owning_modules[0][0].get_canonical_name() + "_") if x.parent_owning_modules else ""
           from .torch.nn.modules import Constant
           mod = Constant(value=tensor)
           self.modules[mod].canonical_name = prefix + const_name
