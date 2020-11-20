@@ -157,7 +157,8 @@ class CallEntry:
       if self.module:
         x.output_from_modules.append(self.module)
     if entry_outputs:
-      entry_outputs[0].names.append(self.namespace)
+      if self.namespace not in entry_outputs[0].names:
+        entry_outputs[0].names.append(self.namespace)
 
   def __enter__(self):
     # Assume via push_func_call
@@ -368,13 +369,8 @@ class RegisteredName:
       return self.childs_by_name[name]
     assert name not in self.childs_by_name
     name_ = RegisteredName(parent=self, name=name, tensor=tensor)
-    # TODO hardcoded defaults
-    data_key = "data"
-    assert self.returnn_ctx
-    assert data_key not in self.returnn_ctx.extern_data.data
-    assert tensor.returnn_data
-    self.returnn_ctx.extern_data.data[data_key] = tensor.returnn_data
     self.childs_by_name[name] = name_
+    self.returnn_ctx.define_input(tensor)
     return name_
 
   def name_for_tensor(self, tensor: TensorEntry) -> str:
@@ -437,24 +433,33 @@ class ReturnnContext:
       self.tf_name_scope = ""
       self._sub_layer = None
       self._dummy_sub_output = None
-    self.extern_data = ExternData()
     if self._sub_layer:
       self.network = self._sub_layer.subnetwork
     else:
       assert not parent
       self.network = TFNetwork(
-        extern_data=self.extern_data, config=self.config, name="root",
+        extern_data=ExternData(), config=self.config, name="root",
         absolute_name_prefix=(self.tf_name_scope + "/") if self.tf_name_scope else "")
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.network.get_absolute_name_prefix()!r}>"
 
+  def define_input(self, input: TensorEntry):
+    if self._dummy_sub_output:
+      assert self.network.layers["output"] is self._dummy_sub_output
+      self._dummy_sub_output = None
+      # Reset both, as we refill them. They contain dummy data.
+      self.network.layers.clear()
+      self.network.extern_data.data.clear()
+    # TODO hardcoded defaults
+    data_key = "data"
+    assert data_key not in self.network.extern_data.data
+    assert input.returnn_data
+    self.network.extern_data.data[data_key] = input.returnn_data
+
   def define_output(self, layer_name: str) -> LayerBase:
     assert layer_name in self.network.layers
-    if "output" in self.network.layers:
-      assert self.network.layers["output"] is self._dummy_sub_output
-      self.network.layers.pop("output")
-      self._dummy_sub_output = None
+    assert "output" not in self.network.layers
     self.network.construct_layer({"output": {"class": "copy", "from": layer_name}}, name="output")
     layer = self.network.layers["output"]
     if self._sub_layer:
