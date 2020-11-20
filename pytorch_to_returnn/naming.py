@@ -67,11 +67,15 @@ class TensorEntry:
       f" returnn_data:{returnn_data_repr}"
       f">")
 
-  def get_canonical_parent_module(self) -> Optional[ModuleEntry]:
+  def get_canonical_parent_module(self, parent_namespace: Optional[RegisteredName] = None) -> Optional[ModuleEntry]:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][0]
     if self.module_context_stack:
-      return self.module_context_stack[-1]
+      mod = self.module_context_stack[-1]
+      if parent_namespace and mod in parent_namespace.modules:
+        pass
+      else:
+        return mod
     return None
 
   def get_canonical_name(self, *, fallback: Optional[str] = None) -> str:
@@ -211,7 +215,7 @@ class ModuleEntry:
       mod = mod.parent_owning_modules[0][0]
     return mod
 
-  def get_canonical_name(self) -> str:
+  def get_canonical_name(self, parent_namespace: Optional[RegisteredName] = None) -> str:
     if self.canonical_name:
       return self.canonical_name
     if self.parent_owning_modules:
@@ -225,6 +229,8 @@ class ModuleEntry:
       return prefix + name
     prefix = ""
     for mod in reversed(self.parent_context_modules):
+      if parent_namespace and mod in parent_namespace.modules:
+        break
       prefix = mod.get_canonical_name() + "_"
       break
     return prefix + self.module.get_returnn_name()
@@ -636,7 +642,8 @@ class Naming:
         if name:
           parent_namespace = parent_namespace.childs_by_name[name]
         else:
-          parent_namespace = parent_namespace.register(suggested_name=parent_module.get_canonical_name())
+          parent_namespace = parent_namespace.register(
+            suggested_name=parent_module.get_canonical_name(parent_namespace=parent_namespace))
           parent_namespace.assign_module(parent_module)
       assert parent_module in parent_namespace.modules
       if parent_module is module_entry:
