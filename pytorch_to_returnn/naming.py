@@ -378,6 +378,7 @@ class RegisteredName:
       if name_.parent is self:
         assert self.childs_by_name[name_.name] is name_
         return name_.name
+    # If you get here, check the logic in Module.__call__, Naming.push_module_call.
     raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
 
   def find_name_for_module(self, module: ModuleEntry) -> Optional[str]:
@@ -600,8 +601,6 @@ class Naming:
       recent_entry = self.module_call_stack[-1]
       recent_entry.child_calls.append(entry)
       entry.parent_call = recent_entry
-      if recent_entry.module.module.create_returnn_layer_dict:
-        raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
     if self.module_creation_stack or self.module_apply_stack:
@@ -613,6 +612,9 @@ class Naming:
     if entry.parent_call:
       assert entry.parent_call.namespace
       parent_namespace = entry.parent_call.namespace
+      while not parent_namespace.returnn_ctx:  # e.g. if call within another module non-forward call
+        assert parent_namespace.parent
+        parent_namespace = parent_namespace.parent
     else:
       parent_namespace = root_namespace
     # Call this before we put it on the call stack.
