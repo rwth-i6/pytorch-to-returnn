@@ -23,15 +23,24 @@ class Module:
   """
   Base class.
   """
+  _wrapped_class_cache = {}  # cls -> WrappedClass
+
+  # Need to overwrite to wrap __init__ to correctly set context.
   def __new__(cls, *args, **kwargs):
-    res = super(Module, cls).__new__(cls)
-    assert isinstance(res, Module)
-    naming = Naming.get_instance()
-    naming.push_module_creation(res)  # TODO is this still needed?
-    # Do not call __init__ here. After __new__ returns, Python will call __init__.
-    # res.__init__(*args, **kwargs)
-    naming.pop_module_creation(res)
-    return res
+    if cls not in cls._wrapped_class_cache:
+      class WrappedClass(cls):
+        def __init__(self, *args, **kwargs):
+          self.__class__ = cls  # we don't need this wrapper class anymore
+          with Naming.get_instance().push_module_context(self):
+            cls.__init__(self, *args, **kwargs)
+      WrappedClass.__name__ = cls.__name__
+      WrappedClass.__qualname__ = cls.__qualname__
+      WrappedClass.__module__ = cls.__module__
+      wrapped_cls = WrappedClass
+      cls._wrapped_class_cache[cls] = wrapped_cls
+    else:
+      wrapped_cls = cls._wrapped_class_cache[cls]
+    return super(Module, cls).__new__(wrapped_cls)
 
   def __init__(self):
     self._parameters = OrderedDict()  # type: OrderedDict[str, Parameter]
@@ -45,8 +54,12 @@ class Module:
 
   # Overwrite to catch all access, to be able to wrap member functions.
   def __getattribute__(self, item: str):
-    if item in {"__getattr__", "__setattr__", "__delattr__", "__dir__"}:
+    if item in {"__getattr__", "__setattr__", "__delattr__", "__dir__", "__dict__", "__class__"}:
       # Fast path, and no need for wrapping.
+      return super(Module, self).__getattribute__(item)
+    if hasattr(Module, item) and getattr(self.__class__, item) is getattr(Module, item):
+      # Some member of the base class.
+      # No wrapping needed.
       return super(Module, self).__getattribute__(item)
     obj = super(Module, self).__getattribute__(item)
     if isinstance(obj, types.MethodType):

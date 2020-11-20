@@ -187,8 +187,6 @@ class ModuleEntry:
   calls: List[CallEntry]
   names: List[RegisteredName]
   canonical_name: Optional[str] = None
-  parent_created_modules: List["ModuleEntry"]
-  child_created_modules: List["ModuleEntry"]
   parent_owning_modules: List[Tuple["ModuleEntry", str]]
   parent_context_modules: List["ModuleEntry"]
 
@@ -196,8 +194,6 @@ class ModuleEntry:
     self.module = module
     self.calls = []
     self.names = []
-    self.parent_created_modules = []
-    self.child_created_modules = []
     self.parent_owning_modules = []
     self.parent_context_modules = []
 
@@ -468,7 +464,6 @@ class Naming:
   modules: OrderedDict[Module, ModuleEntry]
   inputs: List[Tensor]
   outputs: List[Tensor]
-  module_creation_call_stack: List[ModuleEntry]
   module_context_stack: List[ModuleEntry]
   module_call_stack: List[CallEntry]
   root_func_calls: List[CallEntry]
@@ -495,14 +490,17 @@ class Naming:
     self.modules = OrderedDict()
     self.inputs = []
     self.outputs = []
-    self.module_creation_call_stack = []
     self.module_context_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
     self.root_namespace = RegisteredName(parent=None)
 
   def push_module_context(self, module: Module) -> ModuleEntry:
-    entry = self.modules[module]
+    if module not in self.modules:
+      entry = ModuleEntry(module=module)
+      self.modules[module] = entry
+    else:
+      entry = self.modules[module]
     if self.module_context_stack:
       prev_top = self.module_context_stack[-1]
       if prev_top not in entry.parent_context_modules and prev_top.module is not module:
@@ -514,25 +512,6 @@ class Naming:
     entry = self.modules[module]
     assert self.module_context_stack[-1] is entry
     self.module_context_stack.pop(-1)
-
-  def push_module_creation(self, module: Module):
-    if module not in self.modules:
-      entry = ModuleEntry(module=module)
-      self.modules[module] = entry
-    else:
-      entry = self.modules[module]
-    if self.module_creation_call_stack:
-      recent_entry = self.module_creation_call_stack[-1]
-      if recent_entry not in entry.parent_created_modules:
-        entry.parent_created_modules.append(recent_entry)
-        recent_entry.child_created_modules.append(entry)
-    self.module_creation_call_stack.append(entry)
-    self.push_module_context(module)
-
-  def pop_module_creation(self, module: Module):
-    self.pop_module_context(module)
-    assert self.module_creation_call_stack[-1].module is module
-    self.module_creation_call_stack.pop(-1)
 
   def _prepare_module_call_returnn_inputs(self, call: CallEntry):
     """
