@@ -45,7 +45,7 @@ class Max(Module):
   pass  # TODO
 
 
-class _ReturnnReinterpretSameSizeAs(Module):
+class ReturnnReinterpretSameSizeAs(Module):
   """
   Used by :func:`_unify_tensor_dyn_axes`.
   """
@@ -96,7 +96,7 @@ def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor]:
           # This is the case we wanted to catch here.
           # We have two different dynamic axes, which are expected to represent the same seq lengths.
           # So we unify them via reinterpret_data.
-          x_ = _ReturnnReinterpretSameSizeAs()(x.tensor(), prev_x.tensor())
+          x_ = ReturnnReinterpretSameSizeAs()(x.tensor(), prev_x.tensor())
           x = naming.tensors[x_]
           tensors[i] = x
           used_reinterpret = True
