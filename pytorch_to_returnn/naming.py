@@ -233,7 +233,7 @@ class ModuleEntry:
     for mod in reversed(self.parent_context_modules):
       prefix = mod.get_canonical_name() + "_"
       break
-    return prefix + self.module.__class__.__name__
+    return prefix + self.module.get_returnn_name()
 
   def __enter__(self):
     return self

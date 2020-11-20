@@ -52,6 +52,9 @@ class Module:
   def __repr__(self):
     return f"<{self.__class__.__name__}>"
 
+  def get_returnn_name(self) -> str:
+    return self.__class__.__name__
+
   # Overwrite to catch all access, to be able to wrap member functions.
   def __getattribute__(self, item: str):
     if item in {"__getattr__", "__setattr__", "__delattr__", "__dir__", "__dict__", "__class__"}:

@@ -12,6 +12,9 @@ class BinaryOperator(Module):
     super(BinaryOperator, self).__init__()
     self.kind = kind
 
+  def get_returnn_name(self) -> str:
+    return self.kind
+
   def create_returnn_layer_dict(self, *inputs: Tensor):
     # TODO: implicitly merge dims...
     return {
