@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import tensorflow as tf
 import numpy
 import typing
 from typing import Optional, Any, List, Tuple, TypeVar, Dict, Callable, Iterable, Union, Generator
@@ -300,7 +301,7 @@ class RegisteredName:
       self.level = parent.level + 1
     if tensor:
       self.assign_tensor(tensor)
-    if not parent:
+    if not parent:  # with parent, returnn_ctx will be created once needed
       self.returnn_ctx = ReturnnContext(parent=None, name=self.name)
 
   def __repr__(self):
@@ -317,8 +318,7 @@ class RegisteredName:
   def assign_tensor(self, tensor: TensorEntry):
     assert not self.tensor
     self.tensor = tensor
-    if tensor:
-      tensor.names.append(self)
+    tensor.names.append(self)
 
   def assign_call(self, call: CallEntry):
     if call.module:
@@ -386,6 +386,9 @@ class RegisteredName:
 
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
+      if name.startswith("."):
+        print(f"{prefix}{name}: (hidden)")
+        continue
       if len(child.modules) == 0:
         mod = None
       elif len(child.modules) == 1:
@@ -433,10 +436,12 @@ class ReturnnContext:
       self.network = self._sub_layer.subnetwork
     else:
       assert not parent
-      self.network = TFNetwork(extern_data=self.extern_data, config=self.config, name="root")
+      self.network = TFNetwork(
+        extern_data=self.extern_data, config=self.config, name="root",
+        absolute_name_prefix=(self.tf_name_scope + "/") if self.tf_name_scope else "")
 
-  def add_layer(self):
-    pass
+  def __repr__(self):
+    return f"<{self.__class__.__name__} {self.network.get_absolute_name_prefix()!r}>"
 
   def define_output(self, layer_name: str) -> LayerBase:
     assert layer_name in self.network.layers
@@ -457,6 +462,8 @@ class Naming:
   modules: OrderedDict[Module, ModuleEntry]
   inputs: List[Tensor]
   outputs: List[Tensor]
+  module_creation_stack: List[ModuleEntry]
+  module_apply_stack: List[ModuleEntry]
   module_context_stack: List[ModuleEntry]
   module_call_stack: List[CallEntry]
   root_func_calls: List[CallEntry]
@@ -484,16 +491,35 @@ class Naming:
     self.inputs = []
     self.outputs = []
     self.module_context_stack = []
+    self.module_creation_stack = []
+    self.module_apply_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
     self.root_namespace = RegisteredName(parent=None)
+    self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
+
+  @contextmanager
+  def push_module_creation(self, module: Module) -> ModuleEntry:
+    assert module not in self.modules
+    entry = ModuleEntry(module=module)
+    self.modules[module] = entry
+    self.module_creation_stack.append(entry)
+    with self.push_module_context(module):
+      yield entry
+    assert self.module_creation_stack[-1] is entry
+    self.module_creation_stack.pop(-1)
+
+  @contextmanager
+  def push_module_apply(self, module: Module) -> ModuleEntry:
+    entry = self.modules[module]
+    self.module_apply_stack.append(entry)
+    with self.push_module_context(module):
+      yield entry
+    assert self.module_apply_stack[-1] is entry
+    self.module_apply_stack.pop(-1)
 
   def push_module_context(self, module: Module) -> ModuleEntry:
-    if module not in self.modules:
-      entry = ModuleEntry(module=module)
-      self.modules[module] = entry
-    else:
-      entry = self.modules[module]
+    entry = self.modules[module]
     if self.module_context_stack:
       prev_top = self.module_context_stack[-1]
       if prev_top not in entry.parent_context_modules and prev_top.module is not module:
@@ -530,7 +556,6 @@ class Naming:
           res_tensor = self.tensors[res]
           assert isinstance(res_tensor, TensorEntry)
           assert len(res_tensor.names) == 1
-          x.names.append(res_tensor.names[0])
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
         elif not x.output_from_calls or x.is_const:
           # Assume this is a constant.
@@ -550,7 +575,6 @@ class Naming:
           res_tensor = self.tensors[res]
           assert isinstance(res_tensor, TensorEntry)
           assert len(res_tensor.names) == 1
-          x.names.append(res_tensor.names[0])
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
           x.is_const = True
         else:
@@ -569,11 +593,17 @@ class Naming:
         raise Exception(f"Not expected to have sub call stacks on module {recent_entry.module.module}")
     else:
       self.root_func_calls.append(entry)
+    if self.module_creation_stack or self.module_apply_stack:
+      # This is likely for parameter initialization, or setting up constants.
+      # Keep this in a separate namespace.
+      root_namespace = self.tmp_eager_root_namespace
+    else:
+      root_namespace = self.root_namespace
     if entry.parent_call:
       assert entry.parent_call.namespace
       parent_namespace = entry.parent_call.namespace
     else:
-      parent_namespace = self.root_namespace
+      parent_namespace = root_namespace
     # Call this before we put it on the call stack.
     self._prepare_module_call_returnn_inputs(entry)
     # Find right parent namespace.
@@ -589,7 +619,7 @@ class Naming:
           parent_module = self.module_context_stack[self.module_context_stack.index(parent_module) - 1]
           continue  # try further
         # no parent anymore, so use root namespace in any case
-        parent_namespace = self.root_namespace
+        parent_namespace = root_namespace
         break
       parent_module = parent_module.parent_owning_modules[0][0]  # could do search over all, but just use first for now
     for parent_module in reversed(parents_hierarchy):
@@ -597,10 +627,10 @@ class Naming:
       if parent_module is not module_entry and not parent_module.module.forward:
         # Skip.
         parent_module = module_entry
-      if (parent_namespace is self.root_namespace
+      if (parent_namespace is root_namespace
               and parent_module.module.forward and not parent_module.parent_owning_modules):
         # Special case, somewhat nicer to flatten the namespace for this case.
-        self.root_namespace.assign_module(parent_module)
+        root_namespace.assign_module(parent_module)
       else:
         name = parent_namespace.find_name_for_module(parent_module)
         if name:

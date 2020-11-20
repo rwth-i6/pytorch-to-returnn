@@ -44,7 +44,7 @@ class Module:
       class WrappedClass(cls):
         def __init__(self, *args, **kwargs):
           self.__class__ = cls  # we don't need this wrapper class anymore
-          with Naming.get_instance().push_module_context(self):
+          with Naming.get_instance().push_module_creation(self):
             cls.__init__(self, *args, **kwargs)
       WrappedClass.__name__ = cls.__name__
       WrappedClass.__qualname__ = cls.__qualname__
@@ -234,7 +234,7 @@ class Module:
         Naming.get_instance().register_module_child_attr(self, name, tensor)
 
   def apply(self: T, fn: Callable[['Module'], None]) -> T:
-    with Naming.get_instance().push_module_context(self):
+    with Naming.get_instance().push_module_apply(self):
       for module in self.children():
         module.apply(fn)
       fn(self)
@@ -404,21 +404,21 @@ class Module:
         call_entry.set_outputs([res])
       return res
 
+  def forward(self, *inputs: Tensor) -> Tensor:
+    raise Exception("should not get here")
+
+  def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
+    raise Exception("should not get here")
+
   # Define either or, but not both.
-  forward: Optional[Callable] = None
-  create_returnn_layer_dict: Optional[Callable[[Tensor], Dict[str, Any]]] = None
+  # We now reset them to None, so that we can easily check whether a subclass has implemented them.
+  # noinspection PyRedeclaration
+  forward = None
+  # noinspection PyRedeclaration
+  create_returnn_layer_dict = None
 
   def check_returnn_layer(self, layer):
     pass
-
-  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
-    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
-    tensor = Tensor(*shape)
-    naming = Naming.get_instance()
-    tensor_entry = naming.register_tensor(tensor)
-    tensor_entry.returnn_data = layer.output
-    tensor_entry.returnn_axis_to_torch_axis = axis_mapping
-    return tensor
 
   def _get_input_layer_name(self, input: Tensor):
     naming = Naming.get_instance()
@@ -430,6 +430,15 @@ class Module:
 
   def _get_input_axis_to_returnn(self, input: Tensor, axis: int) -> str:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
+
+  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    tensor = Tensor(*shape)
+    naming = Naming.get_instance()
+    tensor_entry = naming.register_tensor(tensor)
+    tensor_entry.returnn_data = layer.output
+    tensor_entry.returnn_axis_to_torch_axis = axis_mapping
+    return tensor
 
   def _get_output_shape_from_returnn(self,
                                      inputs: Tuple[Tensor, ...], layer: LayerBase
