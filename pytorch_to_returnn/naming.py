@@ -700,7 +700,7 @@ class Naming:
     assert isinstance(x, Tensor)
     return self.tensors[x]
 
-  def register_input(self, tensor: Tensor, returnn_data: Data):
+  def register_input(self, tensor: Tensor, returnn_data: Data) -> Data:
     entry = self.register_tensor(tensor)
     entry.is_input = True
     self.inputs.append(tensor)
@@ -718,6 +718,7 @@ class Naming:
     # "data" is a special layer name in RETURNN, representing input data
     self.root_namespace.register_input(name=returnn_data.name, tensor=entry)
     assert entry.returnn_data
+    return entry.returnn_data
 
   @staticmethod
   def _register_call_names(root: RegisteredName, calls: List[CallEntry]):
@@ -725,7 +726,7 @@ class Naming:
       child = root.register(suggested_name=call.get_canonical_name(), call=call)
       Naming._register_call_names(child, call.child_calls)
 
-  def register_output(self, tensor: Tensor):
+  def register_output(self, tensor: Tensor) -> Data:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, TensorEntry)
@@ -733,3 +734,4 @@ class Naming:
     self.outputs.append(tensor)
 
     self.root_namespace.dump()
+    return entry.returnn_data
