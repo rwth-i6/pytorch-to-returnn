@@ -127,7 +127,7 @@ class CallEntry:
     self.child_calls = []
 
   def __repr__(self):
-    return f"<{self.__class__.__name__} #{self.level} {self.func!r}>"
+    return f"<{self.__class__.__name__} #{self.level} {self.module!r}>"
 
   def get_root_call(self) -> "CallEntry":
     entry = self
@@ -139,15 +139,8 @@ class CallEntry:
     """
     Considering the canonical context where this is being used.
     Not an absolute name but relative.
-    :return:
     """
-    if self.module:
-      return self.module.get_canonical_name()
-    if self.parent_call:
-      prefix = self.parent_call.get_canonical_name() + "_"
-    else:
-      prefix = ""
-    return prefix + self.func.__name__
+    return self.module.get_canonical_name()
 
   def set_outputs(self, outputs: List[Tensor]):
     assert self.outputs is None

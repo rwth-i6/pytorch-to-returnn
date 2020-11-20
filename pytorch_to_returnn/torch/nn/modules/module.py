@@ -22,6 +22,19 @@ T = TypeVar('T', bound='Module')
 class Module:
   """
   Base class.
+
+  Note::
+
+  When porting over a PyTorch module to here, you should keep the module mostly as-is,
+  i.e. mostly use the original code, and keep all parameters, buffers, etc.
+  You can even keep the `forward` function as long as all other modules/functions it uses are wrapped.
+  Or you remove the `forward` function, and implement `create_returnn_layer_dict`.
+
+  Low-level modules which would wrap directly to a corresponding RETURNN layer,
+  should do that, i.e. have no `forward`, but implement `create_returnn_layer_dict`.
+
+  Other modules should work just as-is.
+  I.e. this can be used as base class for external PyTorch code.
   """
   _wrapped_class_cache = {}  # cls -> WrappedClass
 
