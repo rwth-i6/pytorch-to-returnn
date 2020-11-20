@@ -1,7 +1,8 @@
 
-
+from __future__ import annotations
 from collections import OrderedDict
 from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, overload
+import types
 import itertools
 from ..parameter import Parameter
 from ...tensor import Tensor
@@ -41,6 +42,21 @@ class Module:
 
   def __repr__(self):
     return f"<{self.__class__.__name__}>"
+
+  # Overwrite to catch all access, to be able to wrap member functions.
+  def __getattribute__(self, item: str):
+    if item in {"__getattr__", "__setattr__", "__delattr__", "__dir__"}:
+      # Fast path, and no need for wrapping.
+      return super(Module, self).__getattribute__(item)
+    obj = super(Module, self).__getattribute__(item)
+    if isinstance(obj, types.MethodType):
+      def wrapped_func(*args, **kwargs):
+        with Naming.get_instance().push_module_context(self):
+          return obj(*args, **kwargs)
+      wrapped_func.__name__ = obj.__name__
+      wrapped_func.__qualname__ = obj.__qualname__
+      return wrapped_func
+    return obj
 
   def __getattr__(self, item):
     if item in {"_parameters", "_modules", "_buffers"}:

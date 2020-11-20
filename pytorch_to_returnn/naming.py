@@ -66,6 +66,13 @@ class TensorEntry:
       f" returnn_data:{returnn_data_repr}"
       f">")
 
+  def get_canonical_parent_module(self) -> Optional[ModuleEntry]:
+    if self.parent_owning_modules:
+      return self.parent_owning_modules[0][0]
+    if self.module_context_stack:
+      return self.module_context_stack[-1]
+    return None
+
   def get_canonical_name(self, *, fallback: Optional[str] = None) -> str:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][1]
@@ -497,8 +504,9 @@ class Naming:
   def push_module_context(self, module: Module) -> ModuleEntry:
     entry = self.modules[module]
     if self.module_context_stack:
-      if self.module_context_stack[-1] not in entry.parent_context_modules:
-        entry.parent_context_modules.append(self.module_context_stack[-1])
+      prev_top = self.module_context_stack[-1]
+      if prev_top not in entry.parent_context_modules and prev_top.module is not module:
+        entry.parent_context_modules.append(prev_top)
     self.module_context_stack.append(entry)
     return entry
 
@@ -542,7 +550,8 @@ class Naming:
           param_name = x.get_canonical_name()
           if x.returnn_data.name == "_unnamed_param":
             x.returnn_data.name = f"param:{param_name}"
-          prefix = (x.parent_owning_modules[0][0].get_canonical_name() + "_") if x.parent_owning_modules else ""
+          parent_mod = x.get_canonical_parent_module()
+          prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
           mod = Variable(param=x.tensor())
           self.modules[mod].canonical_name = prefix + param_name
           res = mod()
@@ -553,14 +562,15 @@ class Naming:
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
         elif not x.output_from_calls or x.is_const:
           # Assume this is a constant.
-          const_name = x.get_canonical_name(fallback="_unnamed_const")
+          const_name = x.get_canonical_name(fallback="unnamed_const")
           tensor = x.tensor()
           if not x.returnn_data:
             x.returnn_data = Data(
               name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
               batch_dim_axis=None, time_dim_axis=None)
             x.returnn_axis_to_torch_axis = {i: i for i in range(len(tensor.shape))}
-          prefix = (x.parent_owning_modules[0][0].get_canonical_name() + "_") if x.parent_owning_modules else ""
+          parent_mod = x.get_canonical_parent_module()
+          prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
           from .torch.nn.modules import Constant
           mod = Constant(value=tensor)
           self.modules[mod].canonical_name = prefix + const_name
