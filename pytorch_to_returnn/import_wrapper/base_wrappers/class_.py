@@ -2,7 +2,7 @@
 from ... import log
 from .object import WrappedObject
 from ..context import WrapCtx
-from ._helpers import copy_attribs_qualname_and_co
+from .utils import copy_attribs_qualname_and_co
 
 
 class WrappedClassBase(WrappedObject):
