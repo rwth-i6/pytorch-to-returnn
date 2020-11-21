@@ -208,7 +208,14 @@ class ModuleEntry:
     self.parent_context_modules = []
 
   def __repr__(self):
-    return f"<ModuleEntry {self.module!r}>"
+    module_repr = repr(self.module)
+    # torch.nn.Module.__repr__ can be too verbose when there are children...
+    # Strip that away.
+    if "\n" in module_repr:
+      lines = module_repr.splitlines()
+      assert len(lines) >= 2
+      module_repr = f"{lines[0].strip()}...{lines[-1].strip()}"
+    return f"<ModuleEntry {module_repr}>"
 
   def get_parent_calling_modules(self) -> List["ModuleEntry"]:
     res = []
