@@ -150,6 +150,9 @@ class CallEntry:
     """
     return self.module.get_canonical_name()
 
+  def set_returnn_layer(self, layer: LayerBase):
+    self.returnn_layer = layer
+
   def set_outputs(self, outputs: Union[Tensor, Tuple[Tensor], List[Tensor]]):
     assert self.outputs is None
     naming = Naming.get_instance()
@@ -492,7 +495,8 @@ class ReturnnContext:
     layer = self.network.layers["output"]
     if self._sub_layer:
       self._sub_layer.output = layer.output
-    return self._sub_layer
+      return self._sub_layer
+    return layer
 
 
 class Naming:
@@ -679,9 +683,7 @@ class Naming:
       if parent_module is not module_entry and not parent_module.module.forward:
         # Skip.
         parent_module = module_entry
-      if (parent_namespace is root_namespace
-              and not parent_module.module.__module__.startswith(__package__ + ".")
-              and parent_module.module.forward and not parent_module.parent_owning_modules):
+      if parent_namespace is root_namespace and _flatten_namespace_for_mod(parent_module):
         # Special case, somewhat nicer to flatten the namespace for this case.
         root_namespace.assign_module(parent_module)
       else:
@@ -805,3 +807,24 @@ class Naming:
 
     visit(namespace=self.root_namespace, prefix="")
     return d
+
+  def get_returnn_layer_from_module(self, module: Module) -> LayerBase:
+    assert self.wrap_to_returnn_enabled
+    entry = self.modules[module]
+    assert entry.calls
+    call = entry.calls[0]
+    assert call.returnn_layer
+    return call.returnn_layer
+
+
+def _flatten_namespace_for_mod(mod_entry: ModuleEntry) -> bool:
+  if mod_entry.parent_owning_modules:
+    # Use the parent module.
+    return False
+  mod = mod_entry.module
+  if not list(mod.children()):
+    # For RETURNN wrapped modules, e.g. it means that it has no forward, but wraps to a RETURNN layer.
+    # But more generally, if there are no children modules, we assume this directly does some operation.
+    # So, keep this as a separate item, do not flatten it.
+    return False
+  return True

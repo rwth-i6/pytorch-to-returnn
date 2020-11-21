@@ -363,6 +363,7 @@ class Module:
     assert not kwargs  # not implemented yet
     naming = Naming.get_instance()
     with naming.push_module_context(self):
+      assert naming.wrap_to_returnn_enabled
       for hook in self._forward_pre_hooks.values():
         result = hook(self, input)
         if result is not None:
@@ -401,6 +402,7 @@ class Module:
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
         assert isinstance(res, Tensor)
+        call_entry.set_returnn_layer(layer)
         call_entry.set_outputs([res])
       return res
 
