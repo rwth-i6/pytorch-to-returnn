@@ -149,11 +149,11 @@ class _ConvTransposeNd(_ConvNd):
       "with_bias": self.bias is not None,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
-      "strides": self.stride}
+      "strides": self.stride,
+      "padding": "valid",
+      "output_padding": self.output_padding}
     if self.padding:
       d["remove_padding"] = self.padding
-    if self.output_padding:
-      d["output_padding"] = self.output_padding
     return d
 
 
