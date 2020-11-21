@@ -71,7 +71,7 @@ def setup():
     print("no faulthandler")
 
   import pytorch_to_returnn.log
-  pytorch_to_returnn.log.Verbosity = 6
+  pytorch_to_returnn.log.Verbosity = 3
 
 
 setup()

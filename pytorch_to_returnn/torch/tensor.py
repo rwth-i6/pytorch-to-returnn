@@ -74,6 +74,9 @@ class Tensor:
     from .nn.init import normal_
     normal_(self, mean=mean, std=std)
 
+  def detach(self):
+    return self  # TODO use stop_gradient?
+
   def numpy(self):
     return self._numpy_buffer
 

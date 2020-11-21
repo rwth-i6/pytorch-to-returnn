@@ -1,6 +1,9 @@
 
+from __future__ import annotations
+import tensorflow as tf
 import math
 from typing import Optional, Dict, Any
+from returnn.tf.layers.basic import LayerBase
 from .module import Module
 from .utils import _single, _pair, _triple, _reverse_repeat_tuple
 from ..common_types import _size_1_t, _size_2_t, _size_3_t
@@ -83,10 +86,19 @@ class _ConvNd(Module):
   def check_returnn_layer(self, layer):
     assert layer.input_data.dim == self.in_channels
 
-  def param_import_torch_to_returnn(self, layer):
-    # TODO {"weight": "W", "bias": "bias"}
-    # TODO transpose ...
-    pass
+  def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module: _ConvNd):
+    session = tf.compat.v1.get_default_session()
+    if self.transposed:
+      # E.g. convert 11,13,10 -> 10,1,13,11.
+      values = torch_module.weight.detach().numpy()
+      assert len(self.kernel_size) in {1, 2}
+      values = values.transpose()
+      if len(self.kernel_size) == 1:
+        values = values[:, None]
+      layer.params["W_native_transposed_conv"].load(values, session=session)
+    else:
+      layer.params["W"].load(torch_module.weight.detach().numpy(), session=session)
+    layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
 
 class Conv1d(_ConvNd):

@@ -521,14 +521,9 @@ class Naming:
 
   @classmethod
   @contextmanager
-  def make_instance(cls,
-                    wrap_to_returnn_enabled: bool = False,
-                    keep_orig_module_io_tensors: bool = False
-                    ) -> Generator[Naming]:
+  def make_instance(cls, **kwargs) -> Generator[Naming]:
     assert not cls._instance
-    ctx = Naming(
-      wrap_to_returnn_enabled=wrap_to_returnn_enabled,
-      keep_orig_module_io_tensors=keep_orig_module_io_tensors)
+    ctx = Naming(**kwargs)
     cls._instance = ctx
     yield ctx
     assert cls._instance is ctx
@@ -539,9 +534,20 @@ class Naming:
     assert cls._instance
     return cls._instance
 
-  def __init__(self, wrap_to_returnn_enabled: bool, keep_orig_module_io_tensors: bool):
+  def __init__(self, *,
+               wrap_to_returnn_enabled: bool,
+               keep_orig_module_io_tensors: bool,
+               import_params_from_torch_namespace: Optional[Naming] = None
+               ):
+    """
+    :param wrap_to_returnn_enabled: Will construct corresponding RETURNN layers.
+    :param keep_orig_module_io_tensors: Keeps references to the original (or wrapped) torch.Tensor instances
+       for all module calls. This will need extra memory.
+    :param import_params_from_torch_namespace: If given, we try to import params.
+    """
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
     self.keep_orig_module_io_tensors = keep_orig_module_io_tensors
+    self.import_params_from_torch_namespace = import_params_from_torch_namespace
     self.tensors = WeakKeyDictionary()
     self.const_tensor_cache = []
     self.modules = OrderedDict()
@@ -787,6 +793,29 @@ class Naming:
     self.outputs.append(tensor)
     return entry.returnn_data
 
+  def get_module_abs_name(self, module: Module) -> str:
+    parts = []
+    mod_entry = self.modules[module]
+    while mod_entry.parent_owning_modules:
+      mod_entry, name = mod_entry.parent_owning_modules[0]
+      parts.append(name)
+    if mod_entry in self.root_namespace.modules:
+      pass
+    else:
+      name = self.root_namespace.find_name_for_module(mod_entry)
+      parts.append(name)
+    abs_name = ".".join(reversed(parts))
+    checked_mod = self.get_module_by_abs_name(abs_name)
+    assert checked_mod is module
+    return abs_name
+
+  def get_module_by_abs_name(self, name: str) -> Module:
+    namespace = self.root_namespace
+    for part_name in name.split("."):
+      namespace = namespace.childs_by_name[part_name]
+    assert namespace.modules
+    return namespace.modules[0].module
+
   def get_root_module_calls(self) -> OrderedDict[str, CallEntry]:
     d = OrderedDict()
     for name, sub in self.root_namespace.childs_by_name.items():
@@ -804,13 +833,13 @@ class Naming:
           return
         if not list(mod.module.parameters(recurse=False)):
           continue
-        assert prefix and prefix.endswith("/") and len(namespace.modules) == 1
+        assert prefix and prefix.endswith(".") and len(namespace.modules) == 1
         d[prefix[:-1]] = mod.module
         _visited.add(mod.module)
       for name, sub in namespace.childs_by_name.items():
         if name.startswith("."):
           continue  # skip hidden sub spaces
-        visit(namespace=sub, prefix=f"{prefix}{name}/")
+        visit(namespace=sub, prefix=f"{prefix}{name}.")
 
     visit(namespace=self.root_namespace, prefix="")
     return d

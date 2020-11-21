@@ -76,6 +76,7 @@ def verify_torch(
       torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
       print(">>>> Modules with params:")
       pprint(dict(torch_mods_with_params))
+      torch_namespace = naming
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
   print(">>>> Looks good!")
@@ -85,7 +86,10 @@ def verify_torch(
   torch.manual_seed(42)
   from . import torch as torch_returnn
   with tf.compat.v1.Session() as session:
-    with Naming.make_instance(wrap_to_returnn_enabled=True, keep_orig_module_io_tensors=True) as naming:
+    with Naming.make_instance(
+          wrap_to_returnn_enabled=True,
+          keep_orig_module_io_tensors=True,
+          import_params_from_torch_namespace=torch_namespace) as naming:
       assert isinstance(naming, Naming)
       in_returnn = torch_returnn.from_numpy(inputs)
       assert isinstance(in_returnn, torch_returnn.Tensor)

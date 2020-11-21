@@ -400,6 +400,10 @@ class Module:
           print(
             f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
+          if naming.import_params_from_torch_namespace:
+            mod_abs_name = naming.get_module_abs_name(self)
+            torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
+            self.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
         assert isinstance(res, Tensor)
         call_entry.set_returnn_layer(layer)
@@ -419,7 +423,15 @@ class Module:
   # noinspection PyRedeclaration
   create_returnn_layer_dict = None
 
-  def check_returnn_layer(self, layer):
+  def check_returnn_layer(self, layer: LayerBase):
+    """
+    You can override this function to perform extra checks on the constructed RETURNN layer,
+    e.g. the right input dimension.
+
+    :param LayerBase layer: the constructed layer
+    """
+
+  def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
     pass
 
   def _get_input_layer_name(self, input: Tensor):
