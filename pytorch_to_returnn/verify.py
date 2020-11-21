@@ -4,6 +4,7 @@ import tensorflow as tf
 import torch
 import numpy
 import types
+from pprint import pprint
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
 from .wrapped_import import wrapped_import, wrapped_import_demo
@@ -66,7 +67,10 @@ def verify_torch(
     wrapped_torch = wrapped_import("torch")
     out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
     assert isinstance(out_wrapped, WrappedTorchTensor)
+    print(">>>> Module naming hierarchy")
     naming.root_namespace.dump()
+    print(">>>> Root module calls:")
+    pprint(naming.get_root_module_calls())
     out_wrapped_np = out_wrapped.cpu().numpy()
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
@@ -87,7 +91,10 @@ def verify_torch(
       assert isinstance(out_returnn, torch_returnn.Tensor)
       y = naming.register_output(out_returnn)
       print("RETURNN output:", y)
+      print(">>>> Module naming hierarchy")
       naming.root_namespace.dump()
+      print(">>>> Root module calls:")
+      pprint(naming.get_root_module_calls())
 
     session.run(tf.compat.v1.global_variables_initializer())
     feed_dict = {

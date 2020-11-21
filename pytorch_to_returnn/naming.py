@@ -766,3 +766,10 @@ class Naming:
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
     return entry.returnn_data
+
+  def get_root_module_calls(self) -> Dict[str, CallEntry]:
+    d = {}
+    for name, sub in self.root_namespace.childs_by_name.items():
+      if sub.calls:
+        d[name] = sub.calls[0]
+    return d
