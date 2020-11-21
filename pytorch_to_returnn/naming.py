@@ -767,9 +767,28 @@ class Naming:
     self.outputs.append(tensor)
     return entry.returnn_data
 
-  def get_root_module_calls(self) -> Dict[str, CallEntry]:
-    d = {}
+  def get_root_module_calls(self) -> OrderedDict[str, CallEntry]:
+    d = OrderedDict()
     for name, sub in self.root_namespace.childs_by_name.items():
       if sub.calls:
         d[name] = sub.calls[0]
+    return d
+
+  def get_modules_with_params_by_abs_name(self) -> OrderedDict[str, Module]:
+    d = OrderedDict()
+    _visited = set()
+
+    def visit(namespace: RegisteredName, prefix: str):
+      for mod in namespace.modules:
+        if mod.module in _visited:
+          return
+        if not list(mod.module.parameters(recurse=False)):
+          continue
+        assert prefix and prefix.endswith("/") and len(namespace.modules) == 1
+        d[prefix[:-1]] = mod.module
+        _visited.add(mod.module)
+      for name, sub in namespace.childs_by_name.items():
+        visit(namespace=sub, prefix=name + "/")
+
+    visit(namespace=self.root_namespace, prefix="")
     return d

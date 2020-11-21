@@ -63,15 +63,19 @@ def verify_torch(
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
   torch.manual_seed(42)
-  with torch.no_grad(), Naming.make_instance(wrap_to_returnn_enabled=False, keep_orig_module_io_tensors=True) as naming:
-    wrapped_torch = wrapped_import("torch")
-    out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
-    assert isinstance(out_wrapped, WrappedTorchTensor)
-    print(">>>> Module naming hierarchy")
-    naming.root_namespace.dump()
-    print(">>>> Root module calls:")
-    pprint(naming.get_root_module_calls())
-    out_wrapped_np = out_wrapped.cpu().numpy()
+  with torch.no_grad():
+    with Naming.make_instance(wrap_to_returnn_enabled=False, keep_orig_module_io_tensors=True) as naming:
+      wrapped_torch = wrapped_import("torch")
+      out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
+      assert isinstance(out_wrapped, WrappedTorchTensor)
+      out_wrapped_np = out_wrapped.cpu().numpy()
+      print(">>>> Module naming hierarchy")
+      naming.root_namespace.dump()
+      print(">>>> Root module calls:")
+      pprint(naming.get_root_module_calls())
+      torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
+      print(">>>> Modules with params:")
+      pprint(torch_mods_with_params)
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
   print(">>>> Looks good!")
@@ -95,6 +99,9 @@ def verify_torch(
       naming.root_namespace.dump()
       print(">>>> Root module calls:")
       pprint(naming.get_root_module_calls())
+      torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
+      print(">>>> Modules with params:")
+      pprint(torch_mods_with_params)
 
     session.run(tf.compat.v1.global_variables_initializer())
     feed_dict = {
