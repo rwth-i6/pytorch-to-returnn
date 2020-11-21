@@ -27,8 +27,7 @@ def test_conv_transposed():
       stride=5,
       padding=3,
       output_padding=1)
-    with torch.no_grad():
-      return model(inputs)
+    return model(inputs)
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")

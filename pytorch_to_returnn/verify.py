@@ -46,9 +46,10 @@ def verify_torch(
   # The reference, using the original import.
   print(">>> Running with standard reference imports...")
   torch.manual_seed(42)
-  out_ref = model_func(None, torch.from_numpy(inputs))
-  assert isinstance(out_ref, torch.Tensor)
-  out_ref_np = out_ref.cpu().numpy()
+  with torch.no_grad():
+    out_ref = model_func(None, torch.from_numpy(inputs))
+    assert isinstance(out_ref, torch.Tensor)
+    out_ref_np = out_ref.cpu().numpy()
   print()
 
   # Now with wrapped import. That will also use the original PyTorch code, but wrapped with our custom logic.
@@ -59,10 +60,11 @@ def verify_torch(
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
   torch.manual_seed(42)
-  wrapped_torch = wrapped_import("torch")
-  out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
-  assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
-  out_wrapped_np = out_wrapped.cpu().numpy()
+  with torch.no_grad():
+    wrapped_torch = wrapped_import("torch")
+    out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
+    assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
+    out_wrapped_np = out_wrapped.cpu().numpy()
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
   print(">>>> Looks good!")
