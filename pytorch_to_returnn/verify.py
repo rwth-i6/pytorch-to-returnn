@@ -60,7 +60,7 @@ def verify_torch(
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
   torch.manual_seed(42)
-  with torch.no_grad():
+  with torch.no_grad(), Naming.make_instance(wrap_to_returnn_enabled=False) as naming:
     wrapped_torch = wrapped_import("torch")
     out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
     assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
@@ -73,26 +73,25 @@ def verify_torch(
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
   torch.manual_seed(42)
   from . import torch as torch_returnn
-  with tf.compat.v1.Session() as session:
-    with Naming.make_instance() as naming:
-      assert isinstance(naming, Naming)
-      in_returnn = torch_returnn.from_numpy(inputs)
-      assert isinstance(in_returnn, torch_returnn.Tensor)
-      n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
-      x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
-      out_returnn = model_func(wrapped_import_demo, in_returnn)
-      assert isinstance(out_returnn, torch_returnn.Tensor)
-      y = naming.register_output(out_returnn)
-      print("RETURNN output:", y)
+  with tf.compat.v1.Session() as session, Naming.make_instance(wrap_to_returnn_enabled=True) as naming:
+    assert isinstance(naming, Naming)
+    in_returnn = torch_returnn.from_numpy(inputs)
+    assert isinstance(in_returnn, torch_returnn.Tensor)
+    n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
+    x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
+    out_returnn = model_func(wrapped_import_demo, in_returnn)
+    assert isinstance(out_returnn, torch_returnn.Tensor)
+    y = naming.register_output(out_returnn)
+    print("RETURNN output:", y)
 
-      session.run(tf.compat.v1.global_variables_initializer())
-      feed_dict = {
-        x.placeholder: inputs,
-        x.get_sequence_lengths(): [n_time] * n_batch}
-      y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
-      print("Output shape:", y_.shape)
-      print("Output seq lens:", y_size)
-      numpy.testing.assert_allclose(out_ref_np, y_)
+    session.run(tf.compat.v1.global_variables_initializer())
+    feed_dict = {
+      x.placeholder: inputs,
+      x.get_sequence_lengths(): [n_time] * n_batch}
+    y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
+    print("Output shape:", y_.shape)
+    print("Output seq lens:", y_size)
+    numpy.testing.assert_allclose(out_ref_np, y_)
 
   # TODO now build RETURNN model again
   # TODO now forward through RETURNN model

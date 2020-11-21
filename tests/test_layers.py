@@ -1,7 +1,6 @@
 
 import _setup_test_env  # noqa
 import sys
-import better_exchook
 import unittest
 import typing
 import numpy

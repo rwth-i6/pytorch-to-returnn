@@ -290,6 +290,7 @@ class RegisteredName:
   returnn_ctx: Optional[ReturnnContext] = None
 
   def __init__(self, *,
+               wrap_to_returnn_enabled: Optional[bool] = None,
                parent: Optional["RegisteredName"] = None, name: Optional[str] = None,
                call: Optional[CallEntry] = None,
                tensor: Optional[TensorEntry] = None):
@@ -297,9 +298,13 @@ class RegisteredName:
     self.parent = parent
     if parent:
       assert name
+      assert wrap_to_returnn_enabled is None
+      wrap_to_returnn_enabled = parent.wrap_to_returnn_enabled
     else:
       assert not name
+      assert wrap_to_returnn_enabled is not None
     self.name = name
+    self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
     self.modules = []
     self.calls = []
     if call:
@@ -308,8 +313,9 @@ class RegisteredName:
       self.level = parent.level + 1
     if tensor:
       self.assign_tensor(tensor)
-    if not parent:  # with parent, returnn_ctx will be created once needed
-      self.returnn_ctx = ReturnnContext(parent=None, name=self.name)
+    if self.wrap_to_returnn_enabled:
+      if not parent:  # with parent, returnn_ctx will be created once needed
+        self.returnn_ctx = ReturnnContext(parent=None, name=self.name)
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
@@ -342,12 +348,13 @@ class RegisteredName:
       return
     self.modules.append(module)
     module.names.append(self)
-    if module.module.forward and not self.returnn_ctx:
-      # Need our own returnn ctx / subnet.
-      assert self.parent
-      self.returnn_ctx = ReturnnContext(parent=self.parent.returnn_ctx, name=self.name)
-    if self.returnn_ctx:
-      assert all(m.module.forward for m in self.modules)
+    if self.wrap_to_returnn_enabled:
+      if module.module.forward and not self.returnn_ctx:
+        # Need our own returnn ctx / subnet.
+        assert self.parent
+        self.returnn_ctx = ReturnnContext(parent=self.parent.returnn_ctx, name=self.name)
+      if self.returnn_ctx:
+        assert all(m.module.forward for m in self.modules)
 
   def _get_unique_name(self, suggested_name: str) -> str:
     if suggested_name not in self.childs_by_name:
@@ -370,7 +377,8 @@ class RegisteredName:
     assert name not in self.childs_by_name
     name_ = RegisteredName(parent=self, name=name, tensor=tensor)
     self.childs_by_name[name] = name_
-    self.returnn_ctx.define_input(tensor)
+    if self.wrap_to_returnn_enabled:
+      self.returnn_ctx.define_input(tensor)
     return name_
 
   def name_for_tensor(self, tensor: TensorEntry) -> str:
@@ -483,9 +491,9 @@ class Naming:
 
   @classmethod
   @contextmanager
-  def make_instance(cls) -> Generator[Naming]:
+  def make_instance(cls, wrap_to_returnn_enabled: bool = False) -> Generator[Naming]:
     assert not cls._instance
-    ctx = Naming()
+    ctx = Naming(wrap_to_returnn_enabled=wrap_to_returnn_enabled)
     cls._instance = ctx
     yield ctx
     assert cls._instance is ctx
@@ -496,7 +504,8 @@ class Naming:
     assert cls._instance
     return cls._instance
 
-  def __init__(self):
+  def __init__(self, wrap_to_returnn_enabled: bool):
+    self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
     self.tensors = WeakKeyDictionary()
     self.const_tensor_cache = []
     self.modules = OrderedDict()
@@ -507,7 +516,7 @@ class Naming:
     self.module_apply_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
-    self.root_namespace = RegisteredName(parent=None)
+    self.root_namespace = RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
     self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
 
   @contextmanager
@@ -550,6 +559,8 @@ class Naming:
     We might need to make some inputs available, which are not available yet,
     e.g. constants, params, etc.
     """
+    if not self.wrap_to_returnn_enabled:
+      return
     for x in call.inputs:
       assert isinstance(x, TensorEntry)
       if not x.names:
@@ -628,7 +639,7 @@ class Naming:
         if parent_module not in self.module_context_stack and self.module_context_stack:
           parent_module = self.module_context_stack[-1]
           continue  # try further
-        elif self.module_context_stack.index(parent_module) > 0:
+        elif parent_module in self.module_context_stack and self.module_context_stack.index(parent_module) > 0:
           parent_module = self.module_context_stack[self.module_context_stack.index(parent_module) - 1]
           continue  # try further
         # no parent anymore, so use root namespace in any case
@@ -692,7 +703,11 @@ class Naming:
         module_context_stack=list(self.module_context_stack))
     return self.tensors[tensor]
 
-  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> TensorEntry:
+  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> Optional[TensorEntry]:
+    if not self.wrap_to_returnn_enabled:
+      if x in self.tensors:
+        return self.tensors[x]
+      return None
     from .torch import from_numpy, Tensor
     if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
       x = from_numpy(x)
