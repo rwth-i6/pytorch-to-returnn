@@ -785,13 +785,13 @@ class Naming:
       child = root.register(suggested_name=call.get_canonical_name(), call=call)
       Naming._register_call_names(child, call.child_calls)
 
-  def register_output(self, tensor: Tensor) -> Data:
+  def register_output(self, tensor: Tensor) -> Tuple[Data, Dict[int, int]]:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
-    return entry.returnn_data
+    return entry.returnn_data, entry.returnn_axis_to_torch_axis
 
   def get_module_abs_name(self, module: Module) -> str:
     parts = []

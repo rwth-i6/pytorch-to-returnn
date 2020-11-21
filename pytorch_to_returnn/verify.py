@@ -97,8 +97,8 @@ def verify_torch(
       x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
       out_returnn = model_func(wrapped_import_demo, in_returnn)
       assert isinstance(out_returnn, torch_returnn.Tensor)
-      y = naming.register_output(out_returnn)
-      print("RETURNN output:", y)
+      y, returnn_axis_to_torch_axis = naming.register_output(out_returnn)
+      print("RETURNN output:", y, "axis map RETURNN->Torch", returnn_axis_to_torch_axis)
       print(">>>> Module naming hierarchy")
       naming.root_namespace.dump()
       print(">>>> Root module calls:")
@@ -107,14 +107,16 @@ def verify_torch(
       print(">>>> Modules with params:")
       pprint(dict(torch_mods_with_params))
 
-    session.run(tf.compat.v1.global_variables_initializer())
     feed_dict = {
       x.placeholder: inputs,
       x.get_sequence_lengths(): [n_time] * n_batch}
     y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
+    assert isinstance(y_, numpy.ndarray)
     print("Output shape:", y_.shape)
+    y_ = y_.transpose(*[returnn_axis_to_torch_axis[i] for i in range(y_.ndim)])
+    print("Output shape (converted to Torch):", y_.shape)
     print("Output seq lens:", y_size)
-    numpy.testing.assert_allclose(out_ref_np, y_)
+    numpy.testing.assert_allclose(out_ref_np, y_, rtol=1e-4)
 
   # TODO now build RETURNN model again
   # TODO now forward through RETURNN model
