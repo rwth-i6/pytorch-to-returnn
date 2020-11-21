@@ -45,6 +45,7 @@ def verify_torch(
   """
   # The reference, using the original import.
   print(">>> Running with standard reference imports...")
+  torch.manual_seed(42)
   out_ref = model_func(None, torch.from_numpy(inputs))
   assert isinstance(out_ref, torch.Tensor)
   out_ref_np = out_ref.cpu().numpy()
@@ -57,15 +58,18 @@ def verify_torch(
   # just to check that there is no subtle bug due to the wrapping logic.
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
+  torch.manual_seed(42)
   wrapped_torch = wrapped_import("torch")
   out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
   assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
   out_wrapped_np = out_wrapped.cpu().numpy()
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
+  print(">>>> Looks good!")
   print()
 
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
+  torch.manual_seed(42)
   from . import torch as torch_returnn
   with tf.compat.v1.Session() as session:
     with Naming.make_instance() as naming:
@@ -73,7 +77,7 @@ def verify_torch(
       in_returnn = torch_returnn.from_numpy(inputs)
       assert isinstance(in_returnn, torch_returnn.Tensor)
       n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
-      x = naming.register_input(in_returnn, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
+      x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
       out_returnn = model_func(wrapped_import_demo, in_returnn)
       assert isinstance(out_returnn, torch_returnn.Tensor)
       y = naming.register_output(out_returnn)
@@ -91,3 +95,5 @@ def verify_torch(
   # TODO now build RETURNN model again
   # TODO now forward through RETURNN model
   # TODO check output
+  print(">>>> Looks good!")
+  print()
