@@ -400,7 +400,9 @@ class Module:
           print(
             f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
-          if naming.import_params_from_torch_namespace:
+          if (naming.import_params_from_torch_namespace
+                  and not layer.get_absolute_name_scope_prefix().startswith(".")
+                  and list(self.parameters(recurse=False))):
             mod_abs_name = naming.get_module_abs_name(self)
             torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
             self.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)

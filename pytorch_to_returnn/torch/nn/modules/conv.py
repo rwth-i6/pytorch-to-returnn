@@ -97,7 +97,10 @@ class _ConvNd(Module):
         values = values[:, None]
       layer.params["W_native_transposed_conv"].load(values, session=session)
     else:
-      layer.params["W"].load(torch_module.weight.detach().numpy(), session=session)
+      # E.g. 384,80,7 -> 7,80,384
+      values = torch_module.weight.detach().numpy()
+      values = values.transpose()
+      layer.params["W"].load(values, session=session)
     layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
 

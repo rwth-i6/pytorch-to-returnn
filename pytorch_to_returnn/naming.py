@@ -812,6 +812,8 @@ class Naming:
   def get_module_by_abs_name(self, name: str) -> Module:
     namespace = self.root_namespace
     for part_name in name.split("."):
+      if part_name[:1].isnumeric():
+        part_name = f"layer{part_name}"
       namespace = namespace.childs_by_name[part_name]
     assert namespace.modules
     return namespace.modules[0].module
