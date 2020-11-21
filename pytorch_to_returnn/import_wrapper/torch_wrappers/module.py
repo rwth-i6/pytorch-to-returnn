@@ -1,5 +1,6 @@
 
 import torch
+from typing import Optional
 from ... import log
 from ...naming import Naming
 
@@ -35,6 +36,16 @@ class WrappedModuleBase(torch.nn.Module):
       res = super(WrappedModuleBase, self).__call__(*args, **kwargs)
       call_entry.set_outputs(res)
     return res
+
+  def __setattr__(self, key, value):
+    super(WrappedModuleBase, self).__setattr__(key, value)
+    if isinstance(value, torch.nn.Module):
+      Naming.get_instance().register_module_child_attr(self, key, value)
+
+  def add_module(self, name: str, module: Optional[torch.nn.Module]) -> None:
+    super(WrappedModuleBase, self).add_module(name=name, module=module)
+    if module:
+      Naming.get_instance().register_module_child_attr(self, name, module)
 
   def get_returnn_name(self) -> str:
     return self.__class__.__name__
