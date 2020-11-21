@@ -1,2 +1,5 @@
 /.idea
 __pycache__
+
+# You might add a symlink. Or alternatively install it.
+/returnn
