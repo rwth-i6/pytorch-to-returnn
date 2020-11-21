@@ -72,10 +72,10 @@ def verify_torch(
       print(">>>> Module naming hierarchy")
       naming.root_namespace.dump()
       print(">>>> Root module calls:")
-      pprint(naming.get_root_module_calls())
+      pprint(dict(naming.get_root_module_calls()))
       torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
       print(">>>> Modules with params:")
-      pprint(torch_mods_with_params)
+      pprint(dict(torch_mods_with_params))
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
   print(">>>> Looks good!")
@@ -98,10 +98,10 @@ def verify_torch(
       print(">>>> Module naming hierarchy")
       naming.root_namespace.dump()
       print(">>>> Root module calls:")
-      pprint(naming.get_root_module_calls())
+      pprint(dict(naming.get_root_module_calls()))
       torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
       print(">>>> Modules with params:")
-      pprint(torch_mods_with_params)
+      pprint(dict(torch_mods_with_params))
 
     session.run(tf.compat.v1.global_variables_initializer())
     feed_dict = {

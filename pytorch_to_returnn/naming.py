@@ -128,6 +128,7 @@ class CallEntry:
   child_calls: List["CallEntry"]
   level: Optional[int] = None
   namespace: Optional["RegisteredName"] = None
+  returnn_layer: Optional[LayerBase] = None
 
   def __init__(self, module: ModuleEntry):
     self.module = module
@@ -322,7 +323,7 @@ class RegisteredName:
       self.assign_tensor(tensor)
     if self.wrap_to_returnn_enabled:
       if not parent:  # with parent, returnn_ctx will be created once needed
-        self.returnn_ctx = ReturnnContext(parent=None, name=self.name)
+        self._create_returnn_ctx()
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
@@ -350,6 +351,15 @@ class RegisteredName:
     call.namespace = self
     self.calls.append(call)
 
+  def _create_returnn_ctx(self):
+    if self.parent:
+      if not self.parent.returnn_ctx:
+        self.parent._create_returnn_ctx()
+      assert self.parent.returnn_ctx
+    self.returnn_ctx = ReturnnContext(
+      parent=self.parent.returnn_ctx if self.parent else None,
+      name=self.name)
+
   def assign_module(self, module: ModuleEntry):
     if module in self.modules:
       return
@@ -359,7 +369,7 @@ class RegisteredName:
       if module.module.forward and not self.returnn_ctx:
         # Need our own returnn ctx / subnet.
         assert self.parent
-        self.returnn_ctx = ReturnnContext(parent=self.parent.returnn_ctx, name=self.name)
+        self._create_returnn_ctx()
       if self.returnn_ctx:
         assert all(m.module.forward for m in self.modules)
 
@@ -482,7 +492,7 @@ class ReturnnContext:
     layer = self.network.layers["output"]
     if self._sub_layer:
       self._sub_layer.output = layer.output
-    return layer
+    return self._sub_layer
 
 
 class Naming:
@@ -640,9 +650,10 @@ class Naming:
     if entry.parent_call:
       assert entry.parent_call.namespace
       parent_namespace = entry.parent_call.namespace
-      while not parent_namespace.returnn_ctx:  # e.g. if call within another module non-forward call
-        assert parent_namespace.parent
-        parent_namespace = parent_namespace.parent
+      if self.wrap_to_returnn_enabled:
+        while not parent_namespace.returnn_ctx:  # e.g. if call within another module non-forward call
+          assert parent_namespace.parent
+          parent_namespace = parent_namespace.parent
     else:
       parent_namespace = root_namespace
     # Call this before we put it on the call stack.
@@ -788,7 +799,9 @@ class Naming:
         d[prefix[:-1]] = mod.module
         _visited.add(mod.module)
       for name, sub in namespace.childs_by_name.items():
-        visit(namespace=sub, prefix=name + "/")
+        if name.startswith("."):
+          continue  # skip hidden sub spaces
+        visit(namespace=sub, prefix=f"{prefix}{name}/")
 
     visit(namespace=self.root_namespace, prefix="")
     return d
