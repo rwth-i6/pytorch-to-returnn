@@ -7,6 +7,8 @@ import types
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
 from .wrapped_import import wrapped_import, wrapped_import_demo
+from .import_wrapper.torch_wrappers.module import WrappedModuleBase
+from .import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
 from .naming import Naming
 
 
@@ -60,10 +62,11 @@ def verify_torch(
   # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
   torch.manual_seed(42)
-  with torch.no_grad(), Naming.make_instance(wrap_to_returnn_enabled=False) as naming:
+  with torch.no_grad(), Naming.make_instance(wrap_to_returnn_enabled=False, keep_orig_module_io_tensors=True) as naming:
     wrapped_torch = wrapped_import("torch")
     out_wrapped = model_func(wrapped_import, wrapped_torch.from_numpy(inputs))
-    assert isinstance(out_wrapped, torch.Tensor)  # TODO expect WrappedTensor ...
+    assert isinstance(out_wrapped, WrappedTorchTensor)
+    naming.root_namespace.dump()
     out_wrapped_np = out_wrapped.cpu().numpy()
   assert out_ref_np.shape == out_wrapped_np.shape
   numpy.testing.assert_allclose(out_ref_np, out_wrapped_np)
@@ -73,16 +76,18 @@ def verify_torch(
   print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
   torch.manual_seed(42)
   from . import torch as torch_returnn
-  with tf.compat.v1.Session() as session, Naming.make_instance(wrap_to_returnn_enabled=True) as naming:
-    assert isinstance(naming, Naming)
-    in_returnn = torch_returnn.from_numpy(inputs)
-    assert isinstance(in_returnn, torch_returnn.Tensor)
-    n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
-    x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
-    out_returnn = model_func(wrapped_import_demo, in_returnn)
-    assert isinstance(out_returnn, torch_returnn.Tensor)
-    y = naming.register_output(out_returnn)
-    print("RETURNN output:", y)
+  with tf.compat.v1.Session() as session:
+    with Naming.make_instance(wrap_to_returnn_enabled=True, keep_orig_module_io_tensors=True) as naming:
+      assert isinstance(naming, Naming)
+      in_returnn = torch_returnn.from_numpy(inputs)
+      assert isinstance(in_returnn, torch_returnn.Tensor)
+      n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
+      x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
+      out_returnn = model_func(wrapped_import_demo, in_returnn)
+      assert isinstance(out_returnn, torch_returnn.Tensor)
+      y = naming.register_output(out_returnn)
+      print("RETURNN output:", y)
+      naming.root_namespace.dump()
 
     session.run(tf.compat.v1.global_variables_initializer())
     feed_dict = {

@@ -1,6 +1,7 @@
 
 import torch
 from ... import log
+from ...naming import Naming
 
 
 # See the discussion here, which is very relevant,
@@ -12,7 +13,7 @@ from ... import log
 # and they are used in `torch.nn.Module`.
 
 
-class WrappedTorchTensor(torch.Tensor):  # TODO
+class WrappedTorchTensor(torch.Tensor):
   def __getattribute__(self, item):
     if log.Verbosity >= 10:
       log.unique_print(f"**** torch tensor __getattribute__ {item!r}")

@@ -120,6 +120,8 @@ class CallEntry:
   Note that a module can be called multiple times.
   """
   module: ModuleEntry
+  orig_inputs: Optional[Tuple[Union[Tensor, Any]]] = None
+  orig_outputs: Optional[Union[Tensor, Tuple[Tensor]]] = None
   inputs: Optional[List["TensorEntry"]] = None
   outputs: Optional[List["TensorEntry"]] = None
   parent_call: Optional["CallEntry"] = None  # parent in the call stack
@@ -147,18 +149,23 @@ class CallEntry:
     """
     return self.module.get_canonical_name()
 
-  def set_outputs(self, outputs: List[Tensor]):
+  def set_outputs(self, outputs: Union[Tensor, Tuple[Tensor], List[Tensor]]):
     assert self.outputs is None
     naming = Naming.get_instance()
-    entry_outputs = [naming.tensors[x] for x in outputs]
-    self.outputs = entry_outputs
-    for x in entry_outputs:
-      x.output_from_calls.append(self)
-      if self.module:
-        x.output_from_modules.append(self.module)
-    if entry_outputs:
-      if self.namespace not in entry_outputs[0].names:
-        entry_outputs[0].names.append(self.namespace)
+    if naming.keep_orig_module_io_tensors:
+      self.orig_outputs = outputs
+    if naming.wrap_to_returnn_enabled:
+      if not isinstance(outputs, (list, tuple)):
+        outputs = [outputs]
+      entry_outputs = [naming.tensors[x] for x in outputs]
+      self.outputs = entry_outputs
+      for x in entry_outputs:
+        x.output_from_calls.append(self)
+        if self.module:
+          x.output_from_modules.append(self.module)
+      if entry_outputs:
+        if self.namespace not in entry_outputs[0].names:
+          entry_outputs[0].names.append(self.namespace)
 
   def __enter__(self):
     # Assume via push_func_call
@@ -410,7 +417,9 @@ class RegisteredName:
         res = None
       elif len(child.calls) == 1:
         res = child.calls[0].outputs
-        if len(res) == 0:
+        if res is None:
+          res = "..."
+        elif len(res) == 0:
           res = f"<{child.calls[0]} without outputs>"
         elif len(res) == 1:
           res = res[0]
@@ -491,9 +500,14 @@ class Naming:
 
   @classmethod
   @contextmanager
-  def make_instance(cls, wrap_to_returnn_enabled: bool = False) -> Generator[Naming]:
+  def make_instance(cls,
+                    wrap_to_returnn_enabled: bool = False,
+                    keep_orig_module_io_tensors: bool = False
+                    ) -> Generator[Naming]:
     assert not cls._instance
-    ctx = Naming(wrap_to_returnn_enabled=wrap_to_returnn_enabled)
+    ctx = Naming(
+      wrap_to_returnn_enabled=wrap_to_returnn_enabled,
+      keep_orig_module_io_tensors=keep_orig_module_io_tensors)
     cls._instance = ctx
     yield ctx
     assert cls._instance is ctx
@@ -504,8 +518,9 @@ class Naming:
     assert cls._instance
     return cls._instance
 
-  def __init__(self, wrap_to_returnn_enabled: bool):
+  def __init__(self, wrap_to_returnn_enabled: bool, keep_orig_module_io_tensors: bool):
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
+    self.keep_orig_module_io_tensors = keep_orig_module_io_tensors
     self.tensors = WeakKeyDictionary()
     self.const_tensor_cache = []
     self.modules = OrderedDict()
@@ -606,6 +621,8 @@ class Naming:
   def push_module_call(self, *, module: Module, inputs: List[Tensor]) -> CallEntry:
     module_entry = self.modules[module]
     entry = CallEntry(module=module_entry)
+    if self.keep_orig_module_io_tensors:
+      entry.orig_inputs = inputs
     entry.inputs = [self._make_tensor(x) for x in inputs]
     entry.level = len(self.module_call_stack)
     if self.module_call_stack:
@@ -652,6 +669,7 @@ class Naming:
         # Skip.
         parent_module = module_entry
       if (parent_namespace is root_namespace
+              and not parent_module.module.__module__.startswith(__package__ + ".")
               and parent_module.module.forward and not parent_module.parent_owning_modules):
         # Special case, somewhat nicer to flatten the namespace for this case.
         root_namespace.assign_module(parent_module)
@@ -747,6 +765,4 @@ class Naming:
     assert isinstance(entry, TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
-
-    self.root_namespace.dump()
     return entry.returnn_data

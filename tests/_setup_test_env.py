@@ -56,6 +56,8 @@ def setup():
   if tf:
     import returnn.tf.util.basic as tf_util
     tf_util.debug_register_better_repr()
+    tf_util.setup_tf_thread_pools()
+    tf_util.print_available_devices()
 
   import returnn.util.debug as debug
   debug.install_lib_sig_segfault()
@@ -67,6 +69,9 @@ def setup():
     faulthandler.enable()
   except ImportError:
     print("no faulthandler")
+
+  import pytorch_to_returnn.log
+  pytorch_to_returnn.log.Verbosity = 6
 
 
 setup()
