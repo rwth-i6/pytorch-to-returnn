@@ -132,6 +132,7 @@ class CallEntry:
 
   def __init__(self, module: ModuleEntry):
     self.module = module
+    module.calls.append(self)
     self.child_calls = []
 
   def __repr__(self):
@@ -817,6 +818,14 @@ class Naming:
       namespace = namespace.childs_by_name[part_name]
     assert namespace.modules
     return namespace.modules[0].module
+
+  def get_module_call_idx(self, *, module: Module, call: CallEntry) -> int:
+    mod_entry = self.modules[module]
+    assert call in mod_entry.calls
+    return mod_entry.calls.index(call)
+
+  def get_module_calls(self, module: Module) -> List[CallEntry]:
+    return self.modules[module].calls
 
   def get_root_module_calls(self) -> OrderedDict[str, CallEntry]:
     d = OrderedDict()

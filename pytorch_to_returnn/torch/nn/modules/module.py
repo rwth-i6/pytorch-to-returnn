@@ -1,5 +1,7 @@
 
 from __future__ import annotations
+import tensorflow as tf
+import numpy
 from collections import OrderedDict
 from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, overload
 import types
@@ -36,6 +38,7 @@ class Module:
   Other modules should work just as-is.
   I.e. this can be used as base class for external PyTorch code.
   """
+  is_original_torch_module: Optional[bool] = True
   _wrapped_class_cache = {}  # cls -> WrappedClass
 
   # Need to overwrite to wrap __init__ to correctly set context.
@@ -400,16 +403,21 @@ class Module:
           print(
             f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
-          if (naming.import_params_from_torch_namespace
-                  and not layer.get_absolute_name_scope_prefix().startswith(".")
-                  and list(self.parameters(recurse=False))):
-            mod_abs_name = naming.get_module_abs_name(self)
-            torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
-            self.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
+          self.check_returnn_layer(layer)
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
         assert isinstance(res, Tensor)
         call_entry.set_returnn_layer(layer)
         call_entry.set_outputs([res])
+
+        if naming.import_params_from_torch_namespace:
+          if not layer.get_absolute_name_scope_prefix().startswith("."):  # temp layer
+            if self.is_original_torch_module:
+              if list(self.parameters(recurse=False)):
+                mod_abs_name = naming.get_module_abs_name(self)
+                torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
+                self.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
+              self.check_call_returnn_outputs_to_prev_torch(call_entry)
+
       return res
 
   def forward(self, *inputs: Tensor) -> Tensor:
@@ -435,6 +443,53 @@ class Module:
 
   def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
     pass
+
+  def check_call_returnn_outputs_to_prev_torch(self, call: CallEntry):
+    naming = Naming.get_instance()
+    assert naming.wrap_to_returnn_enabled and naming.import_params_from_torch_namespace and call.returnn_layer
+    assert call.module.module is self
+    torch_naming = naming.import_params_from_torch_namespace
+    mod_entry = call.module
+    mod = mod_entry.module
+    call_idx = naming.get_module_call_idx(module=mod, call=call)
+    mod_abs_name = naming.get_module_abs_name(mod)
+    torch_mod = torch_naming.get_module_by_abs_name(mod_abs_name)
+    torch_mod_calls = torch_naming.get_module_calls(torch_mod)
+    assert call_idx < len(torch_mod_calls)
+    torch_mod_call = torch_mod_calls[call_idx]
+    assert torch_mod_call.orig_outputs is not None and torch_mod_call.orig_inputs is not None
+    assert len(call.inputs) == len(torch_mod_call.orig_inputs)
+    feed_dict = {}
+    for tensor_entry, torch_input in zip(call.inputs, torch_mod_call.orig_inputs):
+      assert isinstance(tensor_entry, TensorEntry)
+      torch_axis_to_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_to_torch_axis.items()}
+      torch_input_np = torch_input.detach().cpu().numpy()
+      assert isinstance(torch_input_np, numpy.ndarray)
+      assert len(torch_input_np.shape) == tensor_entry.returnn_data.batch_ndim
+      torch_input_np = torch_input_np.transpose(*[torch_axis_to_returnn_axis[i] for i in range(torch_input_np.ndim)])
+      feed_dict[tensor_entry.returnn_data.placeholder] = torch_input_np
+      for i, size in tensor_entry.returnn_data.size_placeholder.items():
+        axis = tensor_entry.returnn_data.get_batch_axis(i)
+        n_batch = torch_input_np.shape[tensor_entry.returnn_data.batch_dim_axis]
+        n_time = torch_input_np.shape[axis]
+        size_np = [n_time] * n_batch  # fake, not so important
+        feed_dict[size] = size_np
+    session = tf.compat.v1.get_default_session()
+    assert len(call.outputs) == 1
+    returnn_output_tensor_entry = call.outputs[0]
+    assert returnn_output_tensor_entry.returnn_data is call.returnn_layer.output
+    returnn_output_np = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
+    assert isinstance(returnn_output_np, numpy.ndarray)
+    returnn_output_np = returnn_output_np.transpose(*[
+      returnn_output_tensor_entry.returnn_axis_to_torch_axis[i] for i in range(returnn_output_np.ndim)])
+    torch_outputs = torch_mod_call.orig_outputs
+    if not isinstance(torch_mod_call.orig_outputs, (list, tuple)):
+      torch_outputs = [torch_outputs]
+    assert len(torch_outputs) == 1
+    torch_out_np = torch_outputs[0].detach().cpu().numpy()
+    numpy.testing.assert_allclose(
+      returnn_output_np, torch_out_np, rtol=1e-4,
+      err_msg=f"{call.returnn_layer} vs {torch_mod}")
 
   def _get_input_layer_name(self, input: Tensor):
     naming = Naming.get_instance()

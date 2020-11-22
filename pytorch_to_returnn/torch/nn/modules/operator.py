@@ -7,6 +7,8 @@ from ....naming import Naming, TensorEntry
 
 
 class BinaryOperator(Module):
+  is_original_torch_module = False
+
   def __init__(self, kind: str):
     """
     :param kind: "add", "sub", "mul", "truediv"
@@ -28,6 +30,8 @@ class Reciprocal(Module):
   """
   1/x or 1/max(eps,x)
   """
+  is_original_torch_module = False
+
   def __init__(self, eps: Optional[float] = None):
     super(Reciprocal, self).__init__()
     self.eps = eps
@@ -42,6 +46,7 @@ class Reciprocal(Module):
 
 
 class Max(Module):
+  is_original_torch_module = False
   pass  # TODO
 
 
@@ -49,6 +54,8 @@ class ReturnnReinterpretSameSizeAs(Module):
   """
   Used by :func:`_unify_tensor_dyn_axes`.
   """
+  is_original_torch_module = False
+
   def create_returnn_layer_dict(self, input: Tensor, same_as: Tensor) -> Dict[str, Any]:
     return {
       "class": "reinterpret_data",

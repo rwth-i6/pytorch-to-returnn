@@ -7,6 +7,8 @@ from .module import Module
 
 
 class Variable(Module):
+  is_original_torch_module = False
+
   def __init__(self, param: Parameter):
     super(Variable, self).__init__()
     assert isinstance(param, Parameter)
@@ -20,6 +22,8 @@ class Variable(Module):
 
 
 class Constant(Module):
+  is_original_torch_module = False
+
   def __init__(self, value: Tensor):
     super(Constant, self).__init__()
     assert isinstance(value, Tensor)

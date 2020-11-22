@@ -5,6 +5,8 @@ from ...tensor import Tensor
 
 
 class Norm(Module):
+  is_original_torch_module = False
+
   def __init__(self, *, axes: List[int], p: float = 2, keepdims: bool = False):
     super(Norm, self).__init__()
     self.axes = axes
