@@ -477,7 +477,6 @@ class Module:
     session = tf.compat.v1.get_default_session()
     assert len(call.outputs) == 1
     returnn_output_tensor_entry = call.outputs[0]
-    assert returnn_output_tensor_entry.returnn_data is call.returnn_layer.output
     returnn_output_np = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
     assert isinstance(returnn_output_np, numpy.ndarray)
     returnn_output_np = returnn_output_np.transpose(*[
@@ -488,7 +487,7 @@ class Module:
     assert len(torch_outputs) == 1
     torch_out_np = torch_outputs[0].detach().cpu().numpy()
     numpy.testing.assert_allclose(
-      returnn_output_np, torch_out_np, rtol=1e-4,
+      returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
       err_msg=f"{call.returnn_layer} vs {torch_mod}")
 
   def _get_input_layer_name(self, input: Tensor):
