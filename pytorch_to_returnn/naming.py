@@ -235,13 +235,18 @@ class ModuleEntry:
       mod = mod.parent_owning_modules[0][0]
     return mod
 
-  def get_canonical_name(self, parent_namespace: Optional[RegisteredName] = None) -> str:
+  def get_canonical_name(self, parent_namespace: Optional[RegisteredName] = None, *, _visited=None) -> str:
     if self.canonical_name:
       return self.canonical_name
+    if _visited is None:
+      _visited = set()
+    _visited.add(self)
     if self.parent_owning_modules:
       mod, name = self.parent_owning_modules[0]
-      if not mod.module.forward:
-        prefix = mod.get_canonical_name() + "_"
+      if parent_namespace and mod in parent_namespace.modules:
+        prefix = ""
+      elif not mod.module.has_torch_forward() and mod not in _visited:
+        prefix = mod.get_canonical_name(_visited=_visited) + "_"
       else:
         prefix = ""
       if not prefix and name[:1].isnumeric():
@@ -251,7 +256,9 @@ class ModuleEntry:
     for mod in reversed(self.parent_context_modules):
       if parent_namespace and mod in parent_namespace.modules:
         break
-      prefix = mod.get_canonical_name() + "_"
+      if mod in _visited:
+        break
+      prefix = mod.get_canonical_name(_visited=_visited) + "_"
       break
     return prefix + self.module.get_returnn_name()
 
@@ -377,12 +384,12 @@ class RegisteredName:
     self.modules.append(module)
     module.names.append(self)
     if self.wrap_to_returnn_enabled:
-      if module.module.forward and not self.returnn_ctx:
+      if module.module.has_torch_forward() and not self.returnn_ctx:
         # Need our own returnn ctx / subnet.
         assert self.parent
         self._create_returnn_ctx()
       if self.returnn_ctx:
-        assert all(m.module.forward for m in self.modules)
+        assert all(m.module.has_torch_forward() for m in self.modules)
 
   def _get_unique_name(self, suggested_name: str) -> str:
     if suggested_name not in self.childs_by_name:
@@ -694,7 +701,7 @@ class Naming:
       parent_module = parent_module.parent_owning_modules[0][0]  # could do search over all, but just use first for now
     for parent_module in reversed(parents_hierarchy):
       assert parent_module not in parent_namespace.modules
-      if parent_module is not module_entry and not parent_module.module.forward:
+      if parent_module is not module_entry and not parent_module.module.has_torch_forward():
         # Skip.
         parent_module = module_entry
       if parent_namespace is root_namespace and _flatten_namespace_for_mod(parent_module):
@@ -797,14 +804,18 @@ class Naming:
   def get_module_abs_name(self, module: Module) -> str:
     parts = []
     mod_entry = self.modules[module]
-    while mod_entry.parent_owning_modules:
-      mod_entry, name = mod_entry.parent_owning_modules[0]
-      parts.append(name)
-    if mod_entry in self.root_namespace.modules:
-      pass
-    else:
+    while True:
+      if mod_entry in self.root_namespace.modules:
+        break
       name = self.root_namespace.find_name_for_module(mod_entry)
-      parts.append(name)
+      if name:
+        parts.append(name)
+        break
+      if mod_entry.parent_owning_modules:
+        mod_entry, name = mod_entry.parent_owning_modules[0]
+        parts.append(name)
+        continue
+      raise Exception(f"no name for mod {module}")
     abs_name = ".".join(reversed(parts))
     checked_mod = self.get_module_by_abs_name(abs_name)
     assert checked_mod is module

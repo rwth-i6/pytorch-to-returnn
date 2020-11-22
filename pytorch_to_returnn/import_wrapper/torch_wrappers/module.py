@@ -49,3 +49,19 @@ class WrappedModuleBase(torch.nn.Module):
 
   def get_returnn_name(self) -> str:
     return self.__class__.__name__
+
+  @classmethod
+  def has_torch_forward(cls) -> bool:
+    in_prefix = False
+    from pytorch_to_returnn.import_wrapper.import_ import WrappedModPrefixes
+    for prefix in WrappedModPrefixes:
+      prefix += "torch.nn."
+      if cls.__module__.startswith(prefix):
+        in_prefix = True
+        break
+    if not in_prefix:
+      return True
+    from pytorch_to_returnn.torch import nn as returnn_torch_nn
+    returnn_cls = getattr(returnn_torch_nn, cls.__qualname__)
+    assert issubclass(returnn_cls, returnn_torch_nn.Module)
+    return returnn_cls.has_torch_forward()

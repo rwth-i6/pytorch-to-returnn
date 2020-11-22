@@ -9,6 +9,9 @@ from .meta_path import MetaPathFinder, MetaPathLoader
 from .. import log
 
 
+WrappedModPrefixes = set()
+
+
 def import_module(mod_name: str, *, ctx: WrapCtx) -> Union[types.ModuleType, WrappedModule, Any]:
   _maybe_register_meta_path(ctx)
   if ctx.mod_map.should_wrap_mod_name(mod_name):
@@ -33,3 +36,4 @@ def _maybe_register_meta_path(ctx: WrapCtx):
   loader = MetaPathLoader(ctx=ctx)
   finder = MetaPathFinder(loader=loader)
   sys.meta_path.append(finder)
+  WrappedModPrefixes.add(ctx.wrapped_mod_prefix)

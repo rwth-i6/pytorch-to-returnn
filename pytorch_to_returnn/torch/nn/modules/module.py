@@ -433,6 +433,12 @@ class Module:
   # noinspection PyRedeclaration
   create_returnn_layer_dict = None
 
+  @classmethod
+  def has_torch_forward(cls) -> bool:
+    if not cls.create_returnn_layer_dict:
+      return True  # always assume that the user module has custom forward code, even if not cls.forward
+    return bool(cls.forward)
+
   def check_returnn_layer(self, layer: LayerBase):
     """
     You can override this function to perform extra checks on the constructed RETURNN layer,
