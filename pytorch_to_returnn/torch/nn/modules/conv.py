@@ -225,22 +225,37 @@ class _FunctionalConvNd(Module):
     if bias is not None:
       assert bias.shape == (out_channels,)
     assert self.groups == 1  # not implemented otherwise
-    assert all(p == 0 for p in self.padding)  # not implemented otherwise
-    assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
-    assert not self.transposed  # not implemented (transposed conv...)
-    return {
-      "class": "conv", "from": self._get_input_layer_name(input),
-      "n_out": out_channels,
-      "activation": None,
-      "with_bias": bias is not None,
-      "bias": self._get_input_layer_name(bias) if bias is not None else None,
-      "filter_size": kernel_size,
-      "filter": self._get_input_layer_name(weight),
-      "filter_perm": returnn_weight_transpose_perm,
-      "padding": "valid",
-      "strides": self.stride,
-      "dilation_rate": self.dilation}
+    if self.transposed:  # transposed conv
+      assert all(d == 1 for d in self.dilation)
+      return {
+        "class": "transposed_conv", "from": self._get_input_layer_name(input),
+        "n_out": out_channels,
+        "activation": None,
+        "with_bias": bias is not None,
+        "bias": self._get_input_layer_name(bias) if bias is not None else None,
+        "filter_size": kernel_size,
+        "filter": self._get_input_layer_name(weight),
+        "filter_perm": returnn_weight_transpose_perm,
+        "padding": "valid",
+        "output_padding": self.output_padding,
+        "remove_padding": self.padding,
+        "strides": self.stride}
+    else:
+      assert all(p == 0 for p in self.padding)  # not implemented otherwise
+      assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
+      return {
+        "class": "conv", "from": self._get_input_layer_name(input),
+        "n_out": out_channels,
+        "activation": None,
+        "with_bias": bias is not None,
+        "bias": self._get_input_layer_name(bias) if bias is not None else None,
+        "filter_size": kernel_size,
+        "filter": self._get_input_layer_name(weight),
+        "filter_perm": returnn_weight_transpose_perm,
+        "padding": "valid",
+        "strides": self.stride,
+        "dilation_rate": self.dilation}
 
 
 class FunctionalConv1d(_FunctionalConvNd):
