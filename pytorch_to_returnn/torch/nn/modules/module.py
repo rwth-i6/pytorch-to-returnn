@@ -269,8 +269,7 @@ class Module:
       if key in state_dict:
         input_param = state_dict[key]
         if isinstance(input_param, torch.Tensor):  # we allow this here
-          input_param = Tensor(*input_param.shape)
-          # TODO copy...
+          input_param = Tensor(*input_param.shape, numpy_array=input_param.detach().cpu().numpy())
 
         # Backward compatibility: loading 1-dim tensor from 0.3.* to version 0.4+
         if len(param.shape) == 0 and len(input_param.shape) == 1:
@@ -384,8 +383,7 @@ class Module:
           input = result
       with naming.push_module_call(module=self, inputs=list(input)) as call_entry:
         input = tuple([x.tensor() if x else None for x in call_entry.inputs])  # make sure all are tensors
-        if self.forward:
-          assert not self.create_returnn_layer_dict
+        if self.has_torch_forward():
           assert len(input) == 1  # TODO ...
           call_entry.namespace.register_input(name="data", tensor=naming.tensors[input[0]])
           res = self.forward(*input, **kwargs)
@@ -394,12 +392,14 @@ class Module:
           call_entry.namespace.assign_tensor(res_entry)
           # Note: If name_for_tensor fails, it means the tensor was not registered properly.
           res_layer_name = call_entry.namespace.name_for_tensor(res_entry)
+          layer_dict = None  # will be constructed later lazily
+          # TODO set call_entry.namespace "output" directly as well...
           layer = call_entry.namespace.returnn_ctx.define_output(res_layer_name)
           print(
             f"{layer.__class__.__name__} {layer.network.name}/{layer.name!r} output: "
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
         else:
-          assert self.create_returnn_layer_dict
+          assert self.create_returnn_layer_dict is not Module.create_returnn_layer_dict
           assert call_entry.namespace and call_entry.namespace.parent
           parent_namespace = call_entry.namespace.parent
           layer_dict = self.create_returnn_layer_dict(*input)
@@ -418,7 +418,7 @@ class Module:
           assert isinstance(res_entry, TensorEntry)
           res_entry.returnn_data = layer.output
         assert isinstance(res, Tensor)
-        call_entry.set_returnn_layer(layer)
+        call_entry.set_returnn_layer(layer=layer, layer_dict=layer_dict)
         call_entry.set_outputs([res])
 
         if naming.import_params_from_torch_namespace:
@@ -438,18 +438,11 @@ class Module:
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
     raise Exception("should not get here")
 
-  # Define either or, but not both.
-  # We now reset them to None, so that we can easily check whether a subclass has implemented them.
-  # noinspection PyRedeclaration
-  forward = None
-  # noinspection PyRedeclaration
-  create_returnn_layer_dict = None
-
   @classmethod
   def has_torch_forward(cls) -> bool:
-    if not cls.create_returnn_layer_dict:
+    if cls.create_returnn_layer_dict is Module.create_returnn_layer_dict:
       return True  # always assume that the user module has custom forward code, even if not cls.forward
-    return bool(cls.forward)
+    return cls.forward is not Module.forward
 
   def check_returnn_layer(self, layer: LayerBase):
     """

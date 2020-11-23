@@ -129,6 +129,7 @@ class CallEntry:
   level: Optional[int] = None
   namespace: Optional["RegisteredName"] = None
   returnn_layer: Optional[LayerBase] = None
+  returnn_layer_dict: Optional[Dict[str, Any]] = None
 
   def __init__(self, module: ModuleEntry):
     self.module = module
@@ -151,8 +152,9 @@ class CallEntry:
     """
     return self.module.get_canonical_name(parent_namespace=self.namespace.parent)
 
-  def set_returnn_layer(self, layer: LayerBase):
+  def set_returnn_layer(self, layer: LayerBase, layer_dict: Optional[Dict[str, Any]]):
     self.returnn_layer = layer
+    self.returnn_layer_dict = layer_dict
 
   def set_outputs(self, outputs: Union[Tensor, Tuple[Tensor], List[Tensor]]):
     assert self.outputs is None
@@ -364,9 +366,9 @@ class RegisteredName:
   def assign_call(self, call: CallEntry):
     if call.module:
       self.assign_module(call.module)
-    assert all(not c.module or c.module.module.forward for c in self.calls)
+    assert all(not c.module or c.module.module.has_torch_forward() for c in self.calls)
     if self.calls:
-      assert not call.module or call.module.module.forward
+      assert not call.module or call.module.module.has_torch_forward()
     assert not call.namespace
     call.namespace = self
     self.calls.append(call)
@@ -458,6 +460,29 @@ class RegisteredName:
       print(f"{prefix}{name}: {mod} -> {res}")
       child.dump(prefix=f"{prefix}  ")
 
+  def dump_as_returnn_layer_dict(self):
+    if self.calls and not self.calls[0].module.module.has_torch_forward():
+      assert len(self.calls) == 1
+      call = self.calls[0]
+      return call.returnn_layer_dict
+    # Subnetwork
+    input_child = self.childs_by_name["data"]
+    input_tensor = input_child.tensor
+    assert input_tensor
+    assert self.parent
+    parent_namespace = self.parent
+    input_layer_name = parent_namespace.name_for_tensor(input_tensor)
+    subnet_dict = self.dump_as_returnn_net_dict()
+    return {"class": "subnetwork", "from": input_layer_name, "subnetwork": subnet_dict}
+
+  def dump_as_returnn_net_dict(self) -> Dict[str, Dict[str, Any]]:
+    net_dict = {}
+    for name, child in self.childs_by_name.items():
+      if not child.calls:
+        continue  # e.g. input "data"
+      net_dict[name] = child.dump_as_returnn_layer_dict()
+    return net_dict
+
 
 class ReturnnContext:
   def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None):
@@ -507,7 +532,8 @@ class ReturnnContext:
 
   def define_output(self, layer_name: str) -> LayerBase:
     assert layer_name in self.network.layers
-    assert "output" not in self.network.layers
+    if "output" in self.network.layers:
+      del self.network.layers["output"]  # just redefine...  # TODO better?
     self.network.construct_layer({"output": {"class": "copy", "from": layer_name}}, name="output")
     layer = self.network.layers["output"]
     if self._sub_layer:
@@ -806,6 +832,8 @@ class Naming:
     assert isinstance(entry, TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
+    name = self.root_namespace.name_for_tensor(entry)
+    self.root_namespace.returnn_ctx.define_output(name)
     return entry.returnn_data, entry.returnn_axis_to_torch_axis
 
   def get_module_abs_name(self, module: Module) -> str:
