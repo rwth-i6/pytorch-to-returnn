@@ -683,8 +683,6 @@ class Naming:
           parent_namespace = parent_namespace.parent
     else:
       parent_namespace = root_namespace
-    # Call this before we put it on the call stack.
-    self._prepare_module_call_returnn_inputs(entry)
     # Find right parent namespace.
     parents_hierarchy = []
     parent_module = module_entry
@@ -726,6 +724,7 @@ class Naming:
     namespace.assign_call(entry)
     self.module_call_stack.append(entry)
     assert entry.namespace
+    self._prepare_module_call_returnn_inputs(entry)
     return entry
 
   def pop_module_call(self, call: CallEntry):
