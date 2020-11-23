@@ -214,14 +214,14 @@ class _FunctionalConvNd(Module):
     self._reversed_padding_repeated_twice = _reverse_repeat_tuple(self.padding, 2)
 
   def create_returnn_layer_dict(self, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Dict[str, Any]:
-    from ..functional import tensorflow_transpose
     assert len(weight.shape) == 2 + self.nd
     kernel_size = weight.shape[2:]
     out_channels, in_channels = weight.shape[:2]
     in_channels *= self.groups
     if self.transposed:
       out_channels, in_channels = in_channels, out_channels
-    weight_transposed = tensorflow_transpose(weight, perm=None)
+    returnn_weight_axes = [self._get_input_axis_to_returnn(weight, i) for i in range(len(weight.shape))]
+    returnn_weight_transpose_perm = {i: j for (i, j) in zip(returnn_weight_axes, reversed(returnn_weight_axes))}
     if bias is not None:
       assert bias.shape == (out_channels,)
     assert self.groups == 1  # not implemented otherwise
@@ -236,7 +236,8 @@ class _FunctionalConvNd(Module):
       "with_bias": bias is not None,
       "bias": self._get_input_layer_name(bias) if bias is not None else None,
       "filter_size": kernel_size,
-      "filter": self._get_input_layer_name(weight_transposed),
+      "filter": self._get_input_layer_name(weight),
+      "filter_perm": returnn_weight_transpose_perm,
       "padding": "valid",
       "strides": self.stride,
       "dilation_rate": self.dilation}

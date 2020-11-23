@@ -77,12 +77,10 @@ class ReturnnReinterpretSameSizeAs(Module):
 
 class Transpose(Module):
   """
-  Note::
-
-  The resulting Torch tensor would be transposed in any case, so on the Torch side,
-  everything would be as expected.
+  Note: The resulting Torch tensor is transposed as expected.
   However, on the RETURNN side, we actually should never need to transpose,
   as we have dimension tags, and all layers should refer to axes by dim tags.
+  So on RETURNN side, this is a no-op.
   """
   is_original_torch_module = False
 
@@ -113,16 +111,8 @@ class Transpose(Module):
     return perm
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
-    return {
-      "class": "transpose",
-      "perm": self._get_returnn_perm(input),
-      "from": self._get_input_layer_name(input)}
-
-  def _get_returnn_perm(self, input: Tensor) -> Dict[str, str]:
-    perm = self._get_perm(input)
-    return {
-      self._get_input_axis_to_returnn(input, i): self._get_input_axis_to_returnn(input, j)
-      for (i, j) in perm.items()}
+    # See comment in class docstring. No need to actually transpose.
+    return {"class": "copy", "from": self._get_input_layer_name(input)}
 
   def _get_output_shape_from_returnn(self,
                                      inputs: Tuple[Tensor, ...], layer: LayerBase
@@ -132,8 +122,8 @@ class Transpose(Module):
       Torch shape how it would have looked when this would be processed within Torch.
       The RETURNN layer.output shape (order of axes) might look different.
 
-    This is overwritten because we know how the output should look like,
-    and the base heuristic inference likely will fail.
+    On RETURNN side, this is a no-op.
+    But on Torch side, we transpose as expected.
     """
     input, = inputs
     perm = self._get_perm(input)
@@ -151,12 +141,10 @@ class Transpose(Module):
     assert isinstance(tensor_entry, TensorEntry)
     assert tensor_entry.returnn_data and tensor_entry.returnn_axis_to_torch_axis
     assert tensor_entry.returnn_data.batch_ndim == ndim
-    returnn_perm = self._get_returnn_perm(input)
-    returnn_perm_int = TransposeLayer.get_perm_int(input_data=tensor_entry.returnn_data, perm=returnn_perm)
 
     out_torch_shape = [input.shape[perm[i]] for i in range(ndim)]
     out_returnn_axis_to_torch_axis = {
-      returnn_perm_int[i]: perm[j] for (i, j) in tensor_entry.returnn_axis_to_torch_axis.items()}
+      i: perm[j] for (i, j) in tensor_entry.returnn_axis_to_torch_axis.items()}
     return tuple(out_torch_shape), out_returnn_axis_to_torch_axis
 
 

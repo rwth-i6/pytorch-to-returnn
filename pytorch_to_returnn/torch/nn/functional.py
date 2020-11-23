@@ -111,11 +111,10 @@ def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tup
   """
   Note: This function is added by us, not available in original PyTorch.
 
-  Note: The internal behavior of this function might change.
-  The resulting Torch tensor would be transposed in any case, so on the Torch side,
-  everything would be as expected.
+  Note: The resulting Torch tensor is transposed as expected.
   However, on the RETURNN side, we actually should never need to transpose,
   as we have dimension tags, and all layers should refer to axes by dim tags.
+  So on RETURNN side, this is a no-op.
   """
   return modules.Transpose(perm=perm)(input)
 
