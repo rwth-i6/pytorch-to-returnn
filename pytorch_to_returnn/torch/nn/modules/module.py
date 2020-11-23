@@ -37,8 +37,17 @@ class Module:
 
   Other modules should work just as-is.
   I.e. this can be used as base class for external PyTorch code.
+
+  This would wrap all the standard PyTorch modules (e.g. torch.nn.Conv1d)
+  (in that case, `is_original_torch_module = True`).
+  This would also be used to implement new modules
+  which are needed to wrap other functions (e.g. torch.nn.functional)
+  (in that case, `is_original_torch_module = False`).
   """
-  is_original_torch_module: Optional[bool] = True
+  # All derived classes here, which exist in PyTorch as well (e.g. torch.nn.Conv1d etc),
+  # should have this set to True.
+  is_original_torch_module: bool = True
+
   _wrapped_class_cache = {}  # cls -> WrappedClass
 
   # Need to overwrite to wrap __init__ to correctly set context.
@@ -496,7 +505,7 @@ class Module:
       returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
       err_msg=f"{call.returnn_layer} vs {torch_mod}")
 
-  def _get_input_layer_name(self, input: Tensor):
+  def _get_input_layer_name(self, input: Tensor) -> str:
     naming = Naming.get_instance()
     assert naming.module_call_stack
     top_call_entry = naming.module_call_stack[-1]

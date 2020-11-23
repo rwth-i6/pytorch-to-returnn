@@ -5,8 +5,8 @@ import math
 from typing import Optional, Dict, Any
 from returnn.tf.layers.basic import LayerBase
 from .module import Module
-from .utils import _single, _pair, _triple, _reverse_repeat_tuple
-from ..common_types import _size_1_t, _size_2_t, _size_3_t
+from .utils import _single, _pair, _triple, _reverse_repeat_tuple, _ntuple
+from ..common_types import _scalar_or_tuple_any_t, _size_1_t, _size_2_t, _size_3_t
 from ...tensor import Tensor
 from ..parameter import Parameter
 from .. import init
@@ -182,6 +182,73 @@ class ConvTranspose1d(_ConvTransposeNd):
     super(ConvTranspose1d, self).__init__(
       in_channels, out_channels, kernel_size, stride, padding, dilation,
       True, output_padding, groups, bias, padding_mode)
+
+
+class _FunctionalConvNd(Module):
+  is_original_torch_module = False
+  nd: Optional[int] = None
+  transposed: bool = False
+
+  def __init__(self,
+               stride: _scalar_or_tuple_any_t = 1,
+               padding: _scalar_or_tuple_any_t = 0,
+               dilation: _scalar_or_tuple_any_t = 1,
+               output_padding: _scalar_or_tuple_any_t = 0,
+               groups: int = 1,
+               padding_mode: str = "zeros") -> None:
+    super(_FunctionalConvNd, self).__init__()
+    valid_padding_modes = {'zeros', 'reflect', 'replicate', 'circular'}
+    if padding_mode not in valid_padding_modes:
+      raise ValueError("padding_mode must be one of {}, but got padding_mode='{}'".format(
+        valid_padding_modes, padding_mode))
+    self.stride = _ntuple(self.nd)(stride)
+    self.padding = _ntuple(self.nd)(padding)
+    self.dilation = _ntuple(self.nd)(dilation)
+    self.output_padding = _ntuple(self.nd)(output_padding)
+    self.groups = groups
+    self.padding_mode = padding_mode
+    # `_reversed_padding_repeated_twice` is the padding to be passed to
+    # `F.pad` if needed (e.g., for non-zero padding types that are
+    # implemented as two ops: padding + conv). `F.pad` accepts paddings in
+    # reverse order than the dimension.
+    self._reversed_padding_repeated_twice = _reverse_repeat_tuple(self.padding, 2)
+
+  def create_returnn_layer_dict(self, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Dict[str, Any]:
+    from ..functional import tensorflow_transpose
+    assert len(weight.shape) == 2 + self.nd
+    kernel_size = weight.shape[2:]
+    out_channels, in_channels = weight.shape[:2]
+    in_channels *= self.groups
+    if self.transposed:
+      out_channels, in_channels = in_channels, out_channels
+    weight_transposed = tensorflow_transpose(weight, perm=None)
+    if bias is not None:
+      assert bias.shape == (out_channels,)
+    assert self.groups == 1  # not implemented otherwise
+    assert all(p == 0 for p in self.padding)  # not implemented otherwise
+    assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
+    assert self.padding_mode == "zeros"  # not implemented otherwise
+    assert not self.transposed  # not implemented (transposed conv...)
+    return {
+      "class": "conv", "from": self._get_input_layer_name(input),
+      "n_out": out_channels,
+      "activation": None,
+      "with_bias": bias is not None,
+      "bias": self._get_input_layer_name(bias) if bias is not None else None,
+      "filter_size": kernel_size,
+      "filter": self._get_input_layer_name(weight_transposed),
+      "padding": "valid",
+      "strides": self.stride,
+      "dilation_rate": self.dilation}
+
+
+class FunctionalConv1d(_FunctionalConvNd):
+  nd = 1
+
+
+class FunctionalConvTransposed1d(_FunctionalConvNd):
+  nd = 1
+  transposed = True
 
 
 __all__ = [

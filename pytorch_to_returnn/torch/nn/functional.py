@@ -1,5 +1,12 @@
 
-from typing import Optional, Union, List, Tuple
+"""
+This wraps both torch.nn.functional and torch.functional, and other __torch_function__ on tensors.
+
+Note that this all maps to modules, which will be temporarily created.
+In RETURNN, every operation is a layer.
+"""
+
+from typing import Optional, Union, List, Tuple, Dict
 from . import modules
 from ..tensor import Tensor
 from .._C import Size
@@ -24,6 +31,24 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
   return modules.BinaryOperator(kind="truediv")(x, y)
 
 
+def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Union[int, Tuple[int, ...]]):
+  if isinstance(source, int):
+    source = (source,)
+  if isinstance(destination, int):
+    destination = (destination,)
+  assert isinstance(source, (tuple, list)) and isinstance(destination, (tuple, list))
+  assert len(source) == len(destination)
+  return tensorflow_transpose(input, perm={i: j for (i, j) in zip(destination, source)})
+
+
+def transpose(input: Tensor, dim0: int, dim1: int):
+  return tensorflow_transpose(input, perm={dim0: dim1, dim1: dim0})
+
+
+def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tuple[int, ...], List[int]]]):
+  return modules.Transpose(perm=perm)(input)
+
+
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value)(input)
 
@@ -36,7 +61,8 @@ def conv1d(
     input: Tensor, weight: Tensor, bias: Optional[Tensor] = None,
     stride: Union[int, _size] = 1, padding: Union[int, _size] = 0,
     dilation: Union[int, _size] = 1, groups: int = 1) -> Tensor:
-  return input  # TODO
+  mod = modules.FunctionalConv1d(stride=stride, padding=padding, dilation=dilation, groups=groups)
+  return mod(input, weight, bias)
 
 
 def conv_transpose1d(
@@ -45,7 +71,9 @@ def conv_transpose1d(
     output_padding: Union[int, _size] = 0,
     groups: int = 1,
     dilation: Union[int, _size] = 1) -> Tensor:
-  return input  # TODO
+  mod = modules.FunctionalConvTransposed1d(
+    stride=stride, padding=padding, output_padding=output_padding, dilation=dilation, groups=groups)
+  return mod(input, weight, bias)
 
 
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:

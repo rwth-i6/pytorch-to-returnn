@@ -1,6 +1,6 @@
 
 
-from typing import Optional
+from typing import Optional, Union
 from functools import reduce
 import operator
 import numpy
@@ -9,16 +9,28 @@ from ..naming import Naming
 
 
 class Tensor:
-  def __init__(self, *args, dtype="float32"):
+  def __init__(self, *args, dtype: Optional[Union[str, _dtype]] = None, numpy_array: Optional[numpy.ndarray] = None):
+    if dtype is not None and isinstance(dtype, _dtype):
+      dtype = dtype.name
     if args and isinstance(args[0], Tensor):
+      assert numpy_array is None
+      numpy_array = args[0]._numpy_buffer.copy()
       shape = args[0].shape
     elif args and isinstance(args[0], (tuple, list)):
       shape = tuple(args[0])
     else:
       shape = args
     assert isinstance(shape, tuple) and all([isinstance(dim, int) for dim in shape])
+    if numpy_array is not None:
+      if dtype is not None:
+        numpy_array = numpy_array.astype(dtype)
+      else:
+        dtype = str(numpy_array.dtype)
+      assert numpy_array.shape == shape
+    if dtype is None:
+      dtype = "float32"
     self._shape = shape
-    self._numpy_buffer = numpy.zeros(shape)
+    self._numpy_buffer = numpy.zeros(shape, dtype=dtype) if numpy_array is None else numpy_array
     self.dtype = _dtype(dtype)
     Naming.get_instance().register_tensor(self)
 

@@ -1,5 +1,6 @@
 
-from typing import Optional, Tuple, Any, List, Dict
+from typing import Optional, Tuple, Any, List, Dict, Union
+from returnn.tf.layers.basic import LayerBase, TransposeLayer
 from returnn.tf.util.data import Data, DimensionTag
 from .module import Module
 from ...tensor import Tensor
@@ -61,6 +62,83 @@ class ReturnnReinterpretSameSizeAs(Module):
       "class": "reinterpret_data",
       "from": self._get_input_layer_name(input),
       "size_base": self._get_input_layer_name(same_as)}
+
+
+class Transpose(Module):
+  is_original_torch_module = False
+
+  def __init__(self, perm: Optional[Union[Dict[int, int], Tuple[int, ...], List[int]]]):
+    super(Transpose, self).__init__()
+    if perm is None:
+      self.perm = None
+    else:
+      if isinstance(perm, (list, tuple)):
+        perm = dict(enumerate(perm))
+      assert isinstance(perm, dict)
+      self.perm = perm  # type: Optional[Dict[int, int]]
+      assert len(perm) == len(set(perm.values()))  # should be unique
+
+  def _get_perm(self, input: Tensor) -> Dict[int, int]:
+    if self.perm is None:
+      dims = range(len(input.shape))
+      return {i: j for (i, j) in zip(dims, reversed(dims))}
+
+    def _axis(i):
+      assert -len(input.shape) <= i < len(input.shape)
+      if i < 0:
+        i += len(input.shape)
+      assert 0 <= i < len(input.shape)
+      return i
+    perm = {_axis(i): _axis(j) for (i, j) in self.perm.items()}
+    assert len(perm) == len(set(perm.values()))  # should be unique
+    return perm
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "transpose",
+      "perm": self._get_returnn_perm(input),
+      "from": self._get_input_layer_name(input)}
+
+  def _get_returnn_perm(self, input: Tensor) -> Dict[str, str]:
+    perm = self._get_perm(input)
+    return {
+      self._get_input_axis_to_returnn(input, i): self._get_input_axis_to_returnn(input, j)
+      for (i, j) in perm.items()}
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs: Tuple[Tensor, ...], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    :return: (torch_shape, returnn_axis_to_torch_axis).
+      Torch shape how it would have looked when this would be processed within Torch.
+      The RETURNN layer.output shape (order of axes) might look different.
+
+    This is overwritten because we know how the output should look like,
+    and the base heuristic inference likely will fail.
+    """
+    input, = inputs
+    perm = self._get_perm(input)
+    target_axes = set(perm)
+    source_axes = set(perm.values())
+    ndim = len(input.shape)
+    rem_target_axes = [i for i in range(ndim) if i not in target_axes]
+    rem_source_axes = [i for i in range(ndim) if i not in source_axes]
+    assert len(rem_target_axes) == len(rem_source_axes)
+    perm.update({i: j for (i, j) in zip(rem_target_axes, rem_source_axes)})
+    assert len(perm) == len(set(perm.values())) == ndim
+
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[input]
+    assert isinstance(tensor_entry, TensorEntry)
+    assert tensor_entry.returnn_data and tensor_entry.returnn_axis_to_torch_axis
+    assert tensor_entry.returnn_data.batch_ndim == ndim
+    returnn_perm = self._get_returnn_perm(input)
+    returnn_perm_int = TransposeLayer.get_perm_int(input_data=tensor_entry.returnn_data, perm=returnn_perm)
+
+    out_torch_shape = [input.shape[perm[i]] for i in range(ndim)]
+    out_returnn_axis_to_torch_axis = {
+      returnn_perm_int[i]: perm[j] for (i, j) in tensor_entry.returnn_axis_to_torch_axis.items()}
+    return tuple(out_torch_shape), out_returnn_axis_to_torch_axis
 
 
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor]:

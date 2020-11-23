@@ -44,4 +44,4 @@ def from_numpy(arr):
     arr = numpy.array(arr)
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
-  return Tensor(*arr.shape, dtype=str(arr.dtype))
+  return Tensor(*arr.shape, dtype=str(arr.dtype), numpy_array=arr)
