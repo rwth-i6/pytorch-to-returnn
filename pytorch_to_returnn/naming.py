@@ -149,7 +149,7 @@ class CallEntry:
     Considering the canonical context where this is being used.
     Not an absolute name but relative.
     """
-    return self.module.get_canonical_name()
+    return self.module.get_canonical_name(parent_namespace=self.namespace.parent)
 
   def set_returnn_layer(self, layer: LayerBase):
     self.returnn_layer = layer
@@ -252,13 +252,13 @@ class ModuleEntry:
       if not prefix and name[:1].isnumeric():
         return f"layer{name}"
       return prefix + name
+    if parent_namespace and self in parent_namespace.modules:
+      return self.module.get_returnn_name()
     prefix = ""
     for mod in reversed(self.parent_context_modules):
-      if parent_namespace and mod in parent_namespace.modules:
-        break
       if mod in _visited:
         break
-      prefix = mod.get_canonical_name(_visited=_visited) + "_"
+      prefix = mod.get_canonical_name(_visited=_visited, parent_namespace=parent_namespace) + "_"
       break
     return prefix + self.module.get_returnn_name()
 
