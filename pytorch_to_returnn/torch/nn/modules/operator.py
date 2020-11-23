@@ -3,8 +3,19 @@ from typing import Optional, Tuple, Any, List, Dict, Union
 from returnn.tf.layers.basic import LayerBase, TransposeLayer
 from returnn.tf.util.data import Data, DimensionTag
 from .module import Module
-from ...tensor import Tensor
+from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
+
+
+class Cast(Module):
+  is_original_torch_module = False
+
+  def __init__(self, dtype: Union[str, _dtype]):
+    super(Cast, self).__init__()
+    self.dtype = _dtype(dtype)
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {"class": "cast", "from": self._get_input_layer_name(input), "dtype": self.dtype.name}
 
 
 class BinaryOperator(Module):
@@ -65,6 +76,14 @@ class ReturnnReinterpretSameSizeAs(Module):
 
 
 class Transpose(Module):
+  """
+  Note::
+
+  The resulting Torch tensor would be transposed in any case, so on the Torch side,
+  everything would be as expected.
+  However, on the RETURNN side, we actually should never need to transpose,
+  as we have dimension tags, and all layers should refer to axes by dim tags.
+  """
   is_original_torch_module = False
 
   def __init__(self, perm: Optional[Union[Dict[int, int], Tuple[int, ...], List[int]]]):

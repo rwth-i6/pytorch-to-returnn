@@ -6,29 +6,91 @@ Note that this all maps to modules, which will be temporarily created.
 In RETURNN, every operation is a layer.
 """
 
-from typing import Optional, Union, List, Tuple, Dict
+import numpy
+from typing import Optional, Union, List, Tuple, Dict, TypeVar
 from . import modules
 from ..tensor import Tensor
-from .._C import Size
+from .._C import Size, dtype as _dtype
 
 
+_number = Union[int, float, numpy.ndarray, numpy.number]
 _size = Union[Size, List[int], Tuple[int, ...]]
+_T = TypeVar("_T")
+
+
+def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[_T, Tensor]:
+  dtype = _dtype(dtype)
+  if dtype == get_dtype(input):
+    return input
+  return modules.Cast(dtype=dtype)(input)
+
+
+def get_dtype(tensor: Union[Tensor, _number]) -> _dtype:
+  if isinstance(tensor, Tensor):
+    return tensor.dtype
+  if isinstance(tensor, int):
+    return _dtype("int32")
+  if isinstance(tensor, float):
+    return _dtype("float32")
+  if isinstance(tensor, (numpy.number, numpy.ndarray)):
+    return _dtype(str(tensor.dtype))
+  raise TypeError(f"unexpected type {type(tensor)}")
+
+
+def result_type(tensor1: Union[Tensor, _number], tensor2: Union[Tensor, _number]) -> _dtype:
+  # https://pytorch.org/docs/stable/generated/torch.result_type.html
+  return promote_types(get_dtype(tensor1), get_dtype(tensor2))
+
+
+def promote_types(type1: Union[str, _dtype], type2: Union[str, _dtype]) -> _dtype:
+  # https://pytorch.org/docs/stable/generated/torch.promote_types.html
+  type1 = _dtype(type1)
+  type2 = _dtype(type2)
+  if type1.category_int != type2.category_int:
+    if type1.category_int < type2.category_int:
+      type1, type2 = type2, type1
+    assert type1.category_int > type2.category_int
+    return type1
+  assert type1.category_int == type2.category_int
+  if type1.bit_size == type2.bit_size:
+    assert type1 == type2
+    return type1
+  if type1.bit_size < type2.bit_size:
+    type1, type2 = type2, type1
+  assert type1.bit_size > type2.bit_size
+  return type1
+
+
+def as_tensor(data: Union[Tensor, _number],
+              dtype: Optional[Union[str, _dtype]] = None,
+              device=None) -> Tensor:
+  if not isinstance(data, Tensor):
+    from .._C import from_numpy
+    data = from_numpy(data)
+  assert isinstance(data, Tensor)
+  if dtype:
+    data = cast(data, dtype)
+  return data
 
 
 def add(x: Tensor, y: Tensor) -> Tensor:
-  return modules.BinaryOperator(kind="add")(x, y)
+  dtype = result_type(x, y)
+  return modules.BinaryOperator(kind="add")(cast(x, dtype), cast(y, dtype))
 
 
 def sub(x: Tensor, y: Tensor) -> Tensor:
-  return modules.BinaryOperator(kind="sub")(x, y)
+  dtype = result_type(x, y)
+  return modules.BinaryOperator(kind="sub")(cast(x, dtype), cast(y, dtype))
 
 
 def mul(x: Tensor, y: Tensor) -> Tensor:
-  return modules.BinaryOperator(kind="mul")(x, y)
+  dtype = result_type(x, y)
+  return modules.BinaryOperator(kind="mul")(cast(x, dtype), cast(y, dtype))
 
 
 def truediv(x: Tensor, y: Tensor) -> Tensor:
-  return modules.BinaryOperator(kind="truediv")(x, y)
+  dtype = result_type(x, y)
+  return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
 
 
 def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Union[int, Tuple[int, ...]]):
@@ -46,6 +108,15 @@ def transpose(input: Tensor, dim0: int, dim1: int):
 
 
 def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tuple[int, ...], List[int]]]):
+  """
+  Note: This function is added by us, not available in original PyTorch.
+
+  Note: The internal behavior of this function might change.
+  The resulting Torch tensor would be transposed in any case, so on the Torch side,
+  everything would be as expected.
+  However, on the RETURNN side, we actually should never need to transpose,
+  as we have dimension tags, and all layers should refer to axes by dim tags.
+  """
   return modules.Transpose(perm=perm)(input)
 
 

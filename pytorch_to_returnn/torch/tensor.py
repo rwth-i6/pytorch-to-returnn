@@ -1,11 +1,14 @@
 
-
+from __future__ import annotations
 from typing import Optional, Union
 from functools import reduce
 import operator
 import numpy
-from ._C import Size, dtype as _dtype
+from ._C import Size, dtype
 from ..naming import Naming
+
+
+_dtype = dtype
 
 
 class Tensor:
@@ -58,6 +61,12 @@ class Tensor:
     :returns: the total number of elements in the :attr:`input` tensor.
     """
     return reduce(operator.mul, self.shape, 1)
+
+  def type(self, dtype=None, non_blocking=False, **kwargs) -> Union[_dtype, Tensor]:
+    if dtype is None:
+      return self.dtype
+    from .nn.functional import cast
+    return cast(self, dtype=dtype)
 
   def to(self, opt):
     return self  # ignore

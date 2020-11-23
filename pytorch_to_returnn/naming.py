@@ -612,6 +612,8 @@ class Naming:
     if not self.wrap_to_returnn_enabled:
       return
     for x in call.inputs:
+      if x is None:
+        continue
       assert isinstance(x, TensorEntry)
       if not x.names:
         if x.is_param:
@@ -756,6 +758,8 @@ class Naming:
     return self.tensors[tensor]
 
   def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> Optional[TensorEntry]:
+    if x is None:
+      return None
     if not self.wrap_to_returnn_enabled:
       if x in self.tensors:
         return self.tensors[x]
