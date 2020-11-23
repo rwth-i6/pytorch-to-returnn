@@ -116,7 +116,7 @@ def verify_torch(
     y_ = y_.transpose(*[returnn_axis_to_torch_axis[i] for i in range(y_.ndim)])
     print("Output shape (converted to Torch):", y_.shape)
     print("Output seq lens:", y_size)
-    numpy.testing.assert_allclose(out_ref_np, y_, rtol=1e-4)
+    numpy.testing.assert_allclose(out_ref_np, y_, atol=1e-4, rtol=0)
 
   # TODO now build RETURNN model again
   # TODO now forward through RETURNN model

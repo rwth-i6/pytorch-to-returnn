@@ -414,6 +414,9 @@ class Module:
             f"[{','.join(layer.output.get_batch_axes_short_description())}]")
           self.check_returnn_layer(layer)
           res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
+          res_entry = naming.tensors[res]
+          assert isinstance(res_entry, TensorEntry)
+          res_entry.returnn_data = layer.output
         assert isinstance(res, Tensor)
         call_entry.set_returnn_layer(layer)
         call_entry.set_outputs([res])
@@ -517,10 +520,25 @@ class Module:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
   def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
-    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
-    tensor = Tensor(*shape)
     naming = Naming.get_instance()
+    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    is_const = False
+    numpy_array = None
+    inputs_entries = [naming.tensors[x] if x is not None else None for x in inputs]  # type: List[Optional[TensorEntry]]
+    if all([x.is_const if x else True for x in inputs_entries]):
+      # Only have const input.
+      # Evaluate layer, because this const might be used in certain operation (e.g. predefined filter for conv).
+      session = tf.compat.v1.get_default_session()
+      feed_dict = {}
+      for x in inputs_entries:
+        if not x:
+          continue
+        feed_dict[x.returnn_data.placeholder] = x.tensor().numpy()
+      numpy_array = session.run(layer.output.placeholder, feed_dict=feed_dict)
+      is_const = True
+    tensor = Tensor(*shape, numpy_array=numpy_array, dtype=layer.output.dtype)
     tensor_entry = naming.register_tensor(tensor)
+    tensor_entry.is_const = is_const
     tensor_entry.returnn_data = layer.output
     tensor_entry.returnn_axis_to_torch_axis = axis_mapping
     return tensor

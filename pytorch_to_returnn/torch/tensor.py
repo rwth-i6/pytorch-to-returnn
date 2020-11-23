@@ -80,7 +80,7 @@ class Tensor:
         assert dim > 0 and num % dim == 0
         num //= dim
       shape = [dim if dim >= 0 else num for dim in shape]
-    return Tensor(*shape)
+    return Tensor(*shape, numpy_array=self._numpy_buffer.reshape(shape))
 
   def unsqueeze(self, dim: int):
     if dim < 0:
@@ -88,8 +88,8 @@ class Tensor:
       assert dim >= 0
     return self.view(*(self._shape[:dim] + (-1,) + self._shape[dim:]))
 
-  def copy_(self, source: "Tensor"):
-    pass  # TODO ...
+  def copy_(self, source: Tensor):
+    self._numpy_buffer = source.view(*self._shape).type(self.dtype)._numpy_buffer.copy()
 
   def normal_(self, mean=0, std=1):
     from .nn.init import normal_
@@ -102,7 +102,8 @@ class Tensor:
     return self._numpy_buffer
 
   def float(self):
-    return Tensor(self)  # TODO
+    from .nn.functional import cast
+    return cast(self, "float32")
 
   def __getitem__(self, item):
     assert isinstance(item, int)  # not implemented otherwise

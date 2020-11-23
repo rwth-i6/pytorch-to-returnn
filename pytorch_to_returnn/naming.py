@@ -631,6 +631,7 @@ class Naming:
           res_tensor = self.tensors[res]
           assert isinstance(res_tensor, TensorEntry)
           assert len(res_tensor.names) == 1
+          assert res_tensor.returnn_data.placeholder is not None
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
         elif not x.output_from_calls or x.is_const:
           # Assume this is a constant.
@@ -650,6 +651,7 @@ class Naming:
           res_tensor = self.tensors[res]
           assert isinstance(res_tensor, TensorEntry)
           assert len(res_tensor.names) == 1
+          assert res_tensor.returnn_data.placeholder is not None
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
           x.is_const = True
         else:
