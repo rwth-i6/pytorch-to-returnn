@@ -8,80 +8,92 @@ Also the order of dict items are kept as-is
 
 from typing import Any
 import sys
-from collections import deque
 import numpy
 
 
-def pprint(o: Any, file=sys.stdout, line_prefix="", prefix="", postfix="") -> None:
-  if _type_simplicity_score(o) <= _type_simplicity_limit:
-    if isinstance(o, numpy.ndarray):
-      print(f"{line_prefix}{prefix}numpy.array({o.tolist()!r}, dtype=numpy.{o.dtype}){postfix}", file=file)
-      return
-    print(f"{line_prefix}{prefix}{o!r}{postfix}", file=file)
-    return
+def pprint(o: Any, *, file=sys.stdout,
+           prefix="", postfix="",
+           line_prefix="", line_postfix="\n") -> None:
+  if "\n" in line_postfix and _type_simplicity_score(o) <= _type_simplicity_limit:
+    prefix = f"{line_prefix}{prefix}"
+    line_prefix = ""
+    postfix = postfix + line_postfix
+    line_postfix = ""
+
+  def _sub_pprint(o: Any, prefix="", postfix=""):
+    multi_line = "\n" in line_postfix
+    if not multi_line and postfix.endswith(","):
+      postfix += " "
+    pprint(
+      o, file=file, prefix=prefix, postfix=postfix,
+      line_prefix=(line_prefix + "  ") if multi_line else "",
+      line_postfix=line_postfix)
+
+  def _print(s: str, is_end: bool = False):
+    nonlocal prefix  # no need for is_begin, just reset prefix
+    file.write(line_prefix)
+    file.write(prefix)
+    file.write(s)
+    if is_end:
+      file.write(postfix)
+    file.write(line_postfix)
+    if "\n" in line_postfix:
+      file.flush()
+    prefix = ""
 
   def _print_list():
     for i, v in enumerate(o):
-      pprint(v, file=file, line_prefix=line_prefix + "  ", postfix="," if i < len(o) - 1 else "")
+      _sub_pprint(v, postfix="," if i < len(o) - 1 else "")
 
   if isinstance(o, list):
     if len(o) == 0:
-      print(f"{line_prefix}{prefix}[]{postfix}", file=file)
+      _print("[]", is_end=True)
       return
-    print(f"{line_prefix}{prefix}[", file=file)
+    _print("[")
     _print_list()
-    print(f"{line_prefix}]{postfix}", file=file)
-    return
-
-  if isinstance(o, deque):
-    print(f"{line_prefix}{prefix}deque([", file=file)
-    _print_list()
-    print(f"{line_prefix}]){postfix}", file=file)
+    _print("]", is_end=True)
     return
 
   if isinstance(o, tuple):
     if len(o) == 0:
-      print(f"{line_prefix}{prefix}(){postfix}", file=file)
+      _print("()", is_end=True)
       return
     if len(o) == 1:
-      pprint(o[0], file=file, line_prefix=line_prefix, prefix=f"{prefix}(", postfix=f",){postfix}")
+      _sub_pprint(o[0], prefix=f"{prefix}(", postfix=f",){postfix}")
       return
-    print(f"{line_prefix}{prefix}(", file=file)
+    _print("(")
     _print_list()
-    print(f"{line_prefix}){postfix}", file=file)
+    _print(")", is_end=True)
     return
 
   if isinstance(o, set):
     if len(o) == 0:
-      print(f"{line_prefix}{prefix}set(){postfix}", file=file)
+      _print("set()", is_end=True)
       return
-    print(f"{line_prefix}{prefix}{'{'}", file=file)
+    _print("{")
     _print_list()
-    print(f"{line_prefix}{'}'}{postfix}", file=file)
+    _print("}", is_end=True)
     return
 
   if isinstance(o, dict):
     if len(o) == 0:
-      print(f"{line_prefix}{prefix}{'{}'}{postfix}", file=file)
+      _print("{}", is_end=True)
       return
-    print(f"{line_prefix}{prefix}{'{'}", file=file)
+    _print("{")
     for i, (k, v) in enumerate(o.items()):
-      pprint(
-        v, file=file, line_prefix=line_prefix + "  ",
-        prefix=f"{k!r}: ",
-        postfix="," if i < len(o) - 1 else "")
-    print(f"{line_prefix}{'}'}{postfix}", file=file)
+      _sub_pprint(v, prefix=f"{k!r}: ", postfix="," if i < len(o) - 1 else "")
+    _print("}", is_end=True)
     return
 
   if isinstance(o, numpy.ndarray):
-    pprint(
-      o.tolist(), file=file, line_prefix=line_prefix,
+    _sub_pprint(
+      o.tolist(),
       prefix=f"{prefix}numpy.array(",
       postfix=f", dtype=numpy.{o.dtype}){postfix}")
     return
 
   # fallback
-  print(f"{line_prefix}{prefix}{o!r}{postfix}", file=file)
+  _print(repr(o), is_end=True)
 
 
 def pformat(o: Any) -> str:
@@ -111,7 +123,7 @@ def _type_simplicity_score(o: Any, _offset=0.) -> float:
     return 2. + len(o) + _offset
   if isinstance(o, (float, complex, numpy.number)):
     return len(repr(o)) + _offset
-  if isinstance(o, (tuple, list, set, deque)):
+  if isinstance(o, (tuple, list, set)):
     for x in o:
       _offset = _type_simplicity_score(x, _offset=_offset + _spacing)
       if _offset > _type_simplicity_limit:
