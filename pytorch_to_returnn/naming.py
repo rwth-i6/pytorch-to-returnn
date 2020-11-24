@@ -203,7 +203,7 @@ class CallEntry:
       layer_name = self.namespace.name
       returnn_net = parent_namespace.returnn_ctx.network
       assert layer_name not in returnn_net.layers
-      print(f"{returnn_net.name}/{layer_name!r} dict: {layer_dict}")
+      print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
       with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
         layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
       module.check_returnn_layer(layer)
@@ -221,7 +221,7 @@ class CallEntry:
     if layer:  # might not exist in the root namespace
       layer_abs_repr_name = f"{layer.network.name}/{layer.name!r}"
       print(
-        f"*** {layer.__class__.__name__} {layer_abs_repr_name} output: "
+        f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: "
         f"[{','.join(layer.output.get_batch_axes_short_description())}]")
 
       if naming.import_params_from_torch_namespace and layer:
@@ -231,12 +231,12 @@ class CallEntry:
               mod_abs_name = naming.get_module_abs_name(module)
               torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
               print(
-                f"*** {layer.__class__.__name__} {layer_abs_repr_name}, "
+                f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
                 f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...)")
               module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
 
             print(
-              f"*** {layer.__class__.__name__} {layer_abs_repr_name}, "
+              f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
               f"check RETURNN outputs given Torch inputs/outputs ...")
             module.check_call_returnn_outputs_to_prev_torch(self)
 
