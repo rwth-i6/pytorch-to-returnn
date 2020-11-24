@@ -4,6 +4,7 @@ import tensorflow as tf
 import torch
 import numpy
 import types
+import tempfile
 from pprint import pprint
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
@@ -16,7 +17,7 @@ from .naming import Naming
 _InputsType = numpy.ndarray
 
 
-def verify_torch(
+def verify_torch_and_convert_to_returnn(
       model_func: Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor],
       inputs: _InputsType):
   """
@@ -94,7 +95,8 @@ def verify_torch(
       in_returnn = torch_returnn.from_numpy(inputs)
       assert isinstance(in_returnn, torch_returnn.Tensor)
       n_batch, n_feature, n_time = in_returnn.shape  # currently assumed...
-      x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
+      returnn_in_data_dict = dict(shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2)
+      x = naming.register_input(in_returnn, Data("data", **returnn_in_data_dict))
       out_returnn = model_func(wrapped_import_demo, in_returnn)
       assert isinstance(out_returnn, torch_returnn.Tensor)
       out_returnn_ = naming.register_output(out_returnn)
@@ -103,8 +105,8 @@ def verify_torch(
       print(">>>> Module naming hierarchy:")
       naming.root_namespace.dump()
       print(">>>> RETURNN net dict:")
-      net_dict = naming.root_namespace.dump_as_returnn_net_dict()
-      pprint(net_dict)  # TODO nicer pprint..., better indent, better numpy repr
+      returnn_net_dict = naming.root_namespace.dump_as_returnn_net_dict()
+      pprint(returnn_net_dict)  # TODO nicer pprint..., better indent, better numpy repr
       print(">>>> Root module calls:")
       pprint(dict(naming.get_root_module_calls()))
       torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
@@ -121,9 +123,30 @@ def verify_torch(
     print("Output shape (converted to Torch):", y_.shape)
     print("Output seq lens:", y_size)
     numpy.testing.assert_allclose(out_ref_np, y_, atol=1e-4, rtol=0)
+    print(">>>> Looks good!")
 
-  # TODO now build RETURNN model again
-  # TODO now forward through RETURNN model
-  # TODO check output
-  print(">>>> Looks good!")
-  print()
+    returnn_net = naming.root_namespace.returnn_ctx.network
+    returnn_net.print_network_info(name="RETURNN network")
+    print("Saving TF checkpoint...")
+    returnn_model_tmp_dir = tempfile.mkdtemp("tmp-checkpoint")
+    returnn_model_filename = returnn_model_tmp_dir + "/model"
+    returnn_net.global_train_step.load(0, session=session)
+    returnn_net.save_params_to_file(filename=returnn_model_filename, session=session)
+    print()
+
+  with tf.compat.v1.Session() as session:
+    from returnn.config import Config
+    from returnn.tf.network import TFNetwork
+    config = Config({
+      "extern_data": {"data": returnn_in_data_dict},
+      "debug_print_layer_output_template": True,
+    })
+    network = TFNetwork(config=config, train_flag=True)
+    network.construct_from_dict(returnn_net_dict)
+    network.load_params_from_file(filename=returnn_model_filename, session=session)
+
+    # TODO now forward through RETURNN model
+    # TODO check output
+
+    print(">>>> Looks good!")
+    print()

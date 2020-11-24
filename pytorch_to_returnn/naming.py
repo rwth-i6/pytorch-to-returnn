@@ -204,11 +204,23 @@ class CallEntry:
       returnn_net = parent_namespace.returnn_ctx.network
       assert layer_name not in returnn_net.layers
       print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
+
+      # Now the main construction of the layer itself.
       with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
         layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+
+      # Update params in parents.
+      parent_layer = layer.network.parent_layer
+      parent_layer_param_prefix = f"{layer.name}/"
+      while parent_layer:
+        if parent_layer.name.startswith("."):
+          break  # stop if hidden
+        parent_layer.params.update({parent_layer_param_prefix + k: v for (k, v) in layer.params.items()})
+        parent_layer_param_prefix = f"{parent_layer.name}/{parent_layer_param_prefix}"
+        parent_layer = parent_layer.network.parent_layer
+
       module.check_returnn_layer(layer)
       res = module.make_output_tensor_from_returnn(inputs=input, layer=layer)
-
       res_entry = naming.tensors[res]
       assert isinstance(res_entry, TensorEntry)
       res_entry.returnn_data = layer.output

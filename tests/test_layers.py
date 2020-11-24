@@ -5,7 +5,7 @@ import unittest
 import typing
 import numpy
 from pytorch_to_returnn import torch
-from pytorch_to_returnn.verify import verify_torch
+from pytorch_to_returnn.verify import verify_torch_and_convert_to_returnn
 
 
 def test_conv_transposed():
@@ -30,7 +30,7 @@ def test_conv_transposed():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  verify_torch(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
 def test_functional_conv():
@@ -57,7 +57,7 @@ def test_functional_conv():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  verify_torch(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
 def test_functional_conv_no_bias():
@@ -79,7 +79,7 @@ def test_functional_conv_no_bias():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  verify_torch(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
 def test_functional_conv_transposed():
@@ -101,7 +101,7 @@ def test_functional_conv_transposed():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  verify_torch(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
 if __name__ == "__main__":
