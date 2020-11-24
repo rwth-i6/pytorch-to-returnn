@@ -152,7 +152,7 @@ class CallEntry:
     """
     return self.module.get_canonical_name(parent_namespace=self.namespace.parent)
 
-  def set_returnn_layer(self, layer: LayerBase, layer_dict: Optional[Dict[str, Any]]):
+  def set_returnn_layer(self, layer: Optional[LayerBase], layer_dict: Optional[Dict[str, Any]]):
     self.returnn_layer = layer
     self.returnn_layer_dict = layer_dict
 
@@ -161,7 +161,7 @@ class CallEntry:
     naming = Naming.get_instance()
     if naming.keep_orig_module_io_tensors:
       self.orig_outputs = outputs
-    if naming.wrap_to_returnn_enabled:
+    if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
       if not isinstance(outputs, (list, tuple)):
         outputs = [outputs]
       entry_outputs = [naming.tensors[x] for x in outputs]
@@ -173,6 +173,74 @@ class CallEntry:
       if entry_outputs:
         if self.namespace not in entry_outputs[0].names:
           entry_outputs[0].names.append(self.namespace)
+
+  def apply_call(self) -> Tensor:
+    from pytorch_to_returnn.torch.nn import Module
+    from pytorch_to_returnn.torch import Tensor
+    from returnn.tf.util.basic import reuse_name_scope
+    naming = Naming.get_instance()
+    module = self.module.module
+    assert self.namespace
+    input = tuple([x.tensor() if x else None for x in self.inputs])  # make sure all are tensors
+
+    if module.has_torch_forward():
+      assert len(input) == 1  # TODO ...
+      self.namespace.register_input(tensor=naming.tensors[input[0]])
+      res = module.forward(*input)
+      assert isinstance(res, Tensor)  # TODO only single output supported currently...
+      res_entry = naming.tensors[res]
+      if self.namespace.returnn_ctx.sub_net_layer:
+        self.namespace.register_returnn_subnet_output(res_entry)
+      layer = self.namespace.returnn_ctx.sub_net_layer
+      layer_dict = None  # will be constructed later lazily when needed
+
+    else:  # no module.forward, direct RETURNN layer call
+      assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
+      assert self.namespace and self.namespace.parent
+      parent_namespace = self.namespace.parent
+      input = tuple([x.tensor() if x else None for x in self.inputs])  # make sure all are tensors
+      layer_dict = module.create_returnn_layer_dict(*input)
+      layer_name = self.namespace.name
+      returnn_net = parent_namespace.returnn_ctx.network
+      assert layer_name not in returnn_net.layers
+      print(f"{returnn_net.name}/{layer_name!r} dict: {layer_dict}")
+      with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
+        layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      module.check_returnn_layer(layer)
+      res = module.make_output_tensor_from_returnn(inputs=input, layer=layer)
+
+      res_entry = naming.tensors[res]
+      assert isinstance(res_entry, TensorEntry)
+      res_entry.returnn_data = layer.output
+      self.namespace.assign_tensor(res_entry)
+
+    assert isinstance(res, Tensor)
+    self.set_returnn_layer(layer=layer, layer_dict=layer_dict)
+    self.set_outputs([res])
+
+    if layer:  # might not exist in the root namespace
+      layer_abs_repr_name = f"{layer.network.name}/{layer.name!r}"
+      print(
+        f"*** {layer.__class__.__name__} {layer_abs_repr_name} output: "
+        f"[{','.join(layer.output.get_batch_axes_short_description())}]")
+
+      if naming.import_params_from_torch_namespace and layer:
+        if not layer_abs_repr_name.startswith("."):  # temp layer
+          if module.is_original_torch_module:
+            if list(module.parameters(recurse=False)):
+              mod_abs_name = naming.get_module_abs_name(module)
+              torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
+              print(
+                f"*** {layer.__class__.__name__} {layer_abs_repr_name}, "
+                f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...)")
+              module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
+
+            print(
+              f"*** {layer.__class__.__name__} {layer_abs_repr_name}, "
+              f"check RETURNN outputs given Torch inputs/outputs ...")
+            module.check_call_returnn_outputs_to_prev_torch(self)
+
+    return res
 
   def __enter__(self):
     # Assume via push_func_call
@@ -318,12 +386,17 @@ class RegisteredName:
   calls: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
   tensor: Optional[TensorEntry] = None  # output from the call
   returnn_ctx: Optional[ReturnnContext] = None
+  is_reserved: bool = False  # e.g. input "data" or output "output"
+  ReservedInputName = "data"
+  ReservedOutputName = "output"
+  ReservedNames = {ReservedInputName, ReservedOutputName}
 
   def __init__(self, *,
                wrap_to_returnn_enabled: Optional[bool] = None,
                parent: Optional["RegisteredName"] = None, name: Optional[str] = None,
                call: Optional[CallEntry] = None,
-               tensor: Optional[TensorEntry] = None):
+               tensor: Optional[TensorEntry] = None,
+               is_reserved: bool = False):
     self.childs_by_name = OrderedDict()
     self.parent = parent
     if parent:
@@ -335,6 +408,10 @@ class RegisteredName:
       assert wrap_to_returnn_enabled is not None
     self.name = name
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
+    self.is_reserved = is_reserved
+    if not is_reserved:
+      assert name not in self.ReservedNames
+      # If reserved, we also allow other names...
     self.modules = []
     self.calls = []
     if call:
@@ -348,7 +425,28 @@ class RegisteredName:
         self._create_returnn_ctx()
 
   def __repr__(self):
-    return f"<{self.__class__.__name__} {self.get_absolute_name()!r}>"
+    return f"<{self.__class__.__name__} {self.get_absolute_name()!r} {self._repr_content()}>"
+
+  def _repr_content(self) -> str:
+    if len(self.modules) == 0:
+      mod = None
+    elif len(self.modules) == 1:
+      mod = self.modules[0]
+    else:
+      mod = self.modules
+    if len(self.calls) == 0:
+      res = None
+    elif len(self.calls) == 1:
+      res = self.calls[0].outputs
+      if res is None:
+        res = "..."
+      elif len(res) == 0:
+        res = f"<{self.calls[0]} without outputs>"
+      elif len(res) == 1:
+        res = res[0]
+    else:
+      res = f"<multiple calls {self.calls}>"
+    return f"{mod} -> {res}"
 
   def get_absolute_name(self):
     names = []
@@ -359,16 +457,19 @@ class RegisteredName:
     return "/".join(names) if names else ""
 
   def assign_tensor(self, tensor: TensorEntry):
-    assert not self.tensor
+    if self.tensor:
+      self.tensor.names.remove(self)
     self.tensor = tensor
     tensor.names.append(self)
 
   def assign_call(self, call: CallEntry):
+    if call in self.calls:
+      return
     if call.module:
       self.assign_module(call.module)
-    assert all(not c.module or c.module.module.has_torch_forward() for c in self.calls)
+    assert all(c.module.module.has_torch_forward() for c in self.calls)
     if self.calls:
-      assert not call.module or call.module.module.has_torch_forward()
+      assert call.module.module.has_torch_forward()
     assert not call.namespace
     call.namespace = self
     self.calls.append(call)
@@ -387,38 +488,71 @@ class RegisteredName:
       return
     self.modules.append(module)
     module.names.append(self)
+    assert (
+        all(m.module.has_torch_forward() for m in self.modules) or
+        all(not m.module.has_torch_forward() for m in self.modules))
+    if self.is_reserved:
+      assert not module.module.has_torch_forward()
     if self.wrap_to_returnn_enabled:
       if module.module.has_torch_forward() and not self.returnn_ctx:
         # Need our own returnn ctx / subnet.
         assert self.parent
         self._create_returnn_ctx()
-      if self.returnn_ctx:
-        assert all(m.module.has_torch_forward() for m in self.modules)
 
   def _get_unique_name(self, suggested_name: str) -> str:
-    if suggested_name not in self.childs_by_name:
+    if suggested_name not in self.childs_by_name and suggested_name not in self.ReservedNames:
       return suggested_name
     for i in itertools.count(1):
       suggested_name_ = f"{suggested_name}_{i}"
-      if suggested_name_ not in self.childs_by_name:
+      if suggested_name_ not in self.childs_by_name and suggested_name_ not in self.ReservedNames:
         return suggested_name_
 
-  def register(self, *, suggested_name: str, call: Optional[CallEntry] = None) -> RegisteredName:
+  def register(self, *, suggested_name: str) -> RegisteredName:
     name = self._get_unique_name(suggested_name)
-    name_ = RegisteredName(parent=self, name=name, call=call)
-    self.childs_by_name[name] = name_
-    return name_
+    child = RegisteredName(parent=self, name=name)
+    self.childs_by_name[name] = child
+    return child
 
-  def register_input(self, name: str, tensor: TensorEntry) -> RegisteredName:
+  def register_input(self, tensor: TensorEntry) -> RegisteredName:
+    name = self.ReservedInputName
     if name in self.childs_by_name:
       assert self.childs_by_name[name].tensor is tensor
       return self.childs_by_name[name]
     assert name not in self.childs_by_name
-    name_ = RegisteredName(parent=self, name=name, tensor=tensor)
+    name_ = RegisteredName(parent=self, name=name, tensor=tensor, is_reserved=True)
     self.childs_by_name[name] = name_
     if self.wrap_to_returnn_enabled:
       self.returnn_ctx.define_input(tensor)
     return name_
+
+  def register_returnn_subnet_output(self, tensor: TensorEntry) -> RegisteredName:
+    from pytorch_to_returnn.torch.nn import Copy
+    naming = Naming.get_instance()
+    assert naming.wrap_to_returnn_enabled
+    name_ = self.name_for_tensor(tensor)
+    potential_calls = set(tensor.output_from_calls).intersection(set(self.childs_by_name[name_].calls))
+    assert len(potential_calls) == 1, f"{tensor.output_from_calls} vs {self.childs_by_name[name_].calls}"
+    call = list(potential_calls)[0]
+    self.assign_tensor(tensor)  # for this subnet
+    name = self.ReservedOutputName
+    assert name not in self.childs_by_name
+    child = RegisteredName(parent=self, name=name, is_reserved=True)
+    self.childs_by_name[name] = child
+    copy_mod = Copy()
+    copy_call = CallEntry(module=naming.modules[copy_mod])
+    copy_call.parent_call = call
+    call.child_calls.append(copy_call)
+    copy_call.inputs = [tensor]
+    child.assign_call(copy_call)
+    naming.module_call_stack.append(copy_call)
+    try:
+      copy_call.apply_call()
+    finally:
+      assert copy_call is naming.module_call_stack[-1]
+      naming.module_call_stack.pop(-1)
+    self.returnn_ctx.define_output(copy_call.returnn_layer)
+    tensor.returnn_data = copy_call.returnn_layer.output
+    return child
 
   def name_for_tensor(self, tensor: TensorEntry) -> str:
     for name_ in tensor.names:
@@ -439,25 +573,7 @@ class RegisteredName:
       if name.startswith("."):
         print(f"{prefix}{name}: (hidden)")
         continue
-      if len(child.modules) == 0:
-        mod = None
-      elif len(child.modules) == 1:
-        mod = child.modules[0]
-      else:
-        mod = child.modules
-      if len(child.calls) == 0:
-        res = None
-      elif len(child.calls) == 1:
-        res = child.calls[0].outputs
-        if res is None:
-          res = "..."
-        elif len(res) == 0:
-          res = f"<{child.calls[0]} without outputs>"
-        elif len(res) == 1:
-          res = res[0]
-      else:
-        res = f"<multiple calls {child.calls}>"
-      print(f"{prefix}{name}: {mod} -> {res}")
+      print(f"{prefix}{name}: {child._repr_content()}")
       child.dump(prefix=f"{prefix}  ")
 
   def dump_as_returnn_layer_dict(self):
@@ -492,22 +608,22 @@ class ReturnnContext:
       self.config = parent.config
       self.tf_name_scope = parent.network.get_absolute_name_scope_prefix() + LayerBase.cls_get_tf_scope_name(name)
       assert parent.network.extern_data.data
-      self._sub_layer = (
+      self.sub_net_layer = (
         parent.network.add_layer(
           name=name, layer_class=SubnetworkLayer,
           # This is just a placeholder, will be replaced in define_output.
           sources=[parent.network.get_layer("data")],
           subnetwork={"output": {"class": "copy"}}))  # type: SubnetworkLayer
-      self._dummy_sub_output = self._sub_layer.subnetwork.layers["output"]
+      self._dummy_sub_output = self.sub_net_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
         # "debug_print_layer_output_template": True,
       })
       self.tf_name_scope = ""
-      self._sub_layer = None
+      self.sub_net_layer = None
       self._dummy_sub_output = None
-    if self._sub_layer:
-      self.network = self._sub_layer.subnetwork
+    if self.sub_net_layer:
+      self.network = self.sub_net_layer.subnetwork
     else:
       assert not parent
       self.network = TFNetwork(
@@ -530,16 +646,10 @@ class ReturnnContext:
     assert input.returnn_data
     self.network.extern_data.data[data_key] = input.returnn_data
 
-  def define_output(self, layer_name: str) -> LayerBase:
-    assert layer_name in self.network.layers
-    if "output" in self.network.layers:
-      del self.network.layers["output"]  # just redefine...  # TODO better?
-    self.network.construct_layer({"output": {"class": "copy", "from": layer_name}}, name="output")
-    layer = self.network.layers["output"]
-    if self._sub_layer:
-      self._sub_layer.output = layer.output
-      return self._sub_layer
-    return layer
+  def define_output(self, output_layer: LayerBase):
+    assert self.network.layers["output"] is output_layer
+    if self.sub_net_layer:
+      self.sub_net_layer.output = output_layer.output
 
 
 class Naming:
@@ -816,25 +926,19 @@ class Naming:
       available_for_inference=True)
     entry.returnn_axis_to_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
     # "data" is a special layer name in RETURNN, representing input data
-    self.root_namespace.register_input(name=returnn_data.name, tensor=entry)
+    self.root_namespace.register_input(tensor=entry)
     assert entry.returnn_data
     return entry.returnn_data
 
-  @staticmethod
-  def _register_call_names(root: RegisteredName, calls: List[CallEntry]):
-    for call in calls:
-      child = root.register(suggested_name=call.get_canonical_name(), call=call)
-      Naming._register_call_names(child, call.child_calls)
-
-  def register_output(self, tensor: Tensor) -> Tuple[Data, Dict[int, int]]:
+  def register_output(self, tensor: Tensor) -> TensorEntry:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
-    name = self.root_namespace.name_for_tensor(entry)
-    self.root_namespace.returnn_ctx.define_output(name)
-    return entry.returnn_data, entry.returnn_axis_to_torch_axis
+    if self.wrap_to_returnn_enabled:
+      self.root_namespace.register_returnn_subnet_output(entry)
+    return entry
 
   def get_module_abs_name(self, module: Module) -> str:
     parts = []

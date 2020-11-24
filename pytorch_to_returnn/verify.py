@@ -97,7 +97,8 @@ def verify_torch(
       x = naming.register_input(in_returnn, Data("data", shape=(n_feature, None), feature_dim_axis=1, time_dim_axis=2))
       out_returnn = model_func(wrapped_import_demo, in_returnn)
       assert isinstance(out_returnn, torch_returnn.Tensor)
-      y, returnn_axis_to_torch_axis = naming.register_output(out_returnn)
+      out_returnn_ = naming.register_output(out_returnn)
+      y, returnn_axis_to_torch_axis = out_returnn_.returnn_data, out_returnn_.returnn_axis_to_torch_axis
       print("RETURNN output:", y, "axis map RETURNN->Torch", returnn_axis_to_torch_axis)
       print(">>>> Module naming hierarchy:")
       naming.root_namespace.dump()

@@ -382,54 +382,7 @@ class Module:
             result = (result,)
           input = result
       with naming.push_module_call(module=self, inputs=list(input)) as call_entry:
-        input = tuple([x.tensor() if x else None for x in call_entry.inputs])  # make sure all are tensors
-        if self.has_torch_forward():
-          assert len(input) == 1  # TODO ...
-          call_entry.namespace.register_input(name="data", tensor=naming.tensors[input[0]])
-          res = self.forward(*input, **kwargs)
-          assert isinstance(res, Tensor)  # TODO only single output supported currently...
-          res_entry = naming.tensors[res]
-          call_entry.namespace.assign_tensor(res_entry)
-          # Note: If name_for_tensor fails, it means the tensor was not registered properly.
-          res_layer_name = call_entry.namespace.name_for_tensor(res_entry)
-          layer_dict = None  # will be constructed later lazily
-          # TODO set call_entry.namespace "output" directly as well...
-          layer = call_entry.namespace.returnn_ctx.define_output(res_layer_name)
-          print(
-            f"{layer.__class__.__name__} {layer.network.name}/{layer.name!r} output: "
-            f"[{','.join(layer.output.get_batch_axes_short_description())}]")
-        else:
-          assert self.create_returnn_layer_dict is not Module.create_returnn_layer_dict
-          assert call_entry.namespace and call_entry.namespace.parent
-          parent_namespace = call_entry.namespace.parent
-          layer_dict = self.create_returnn_layer_dict(*input)
-          layer_name = call_entry.namespace.name
-          returnn_net = parent_namespace.returnn_ctx.network
-          assert layer_name not in returnn_net.layers
-          print(f"{returnn_net.name}/{layer_name!r} dict: {layer_dict}")
-          with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
-            layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
-          print(
-            f"{layer.__class__.__name__} {returnn_net.name}/{layer_name!r} output: "
-            f"[{','.join(layer.output.get_batch_axes_short_description())}]")
-          self.check_returnn_layer(layer)
-          res = self._make_output_tensor_from_returnn(inputs=input, layer=layer)
-          res_entry = naming.tensors[res]
-          assert isinstance(res_entry, TensorEntry)
-          res_entry.returnn_data = layer.output
-        assert isinstance(res, Tensor)
-        call_entry.set_returnn_layer(layer=layer, layer_dict=layer_dict)
-        call_entry.set_outputs([res])
-
-        if naming.import_params_from_torch_namespace:
-          if not layer.get_absolute_name_scope_prefix().startswith("."):  # temp layer
-            if self.is_original_torch_module:
-              if list(self.parameters(recurse=False)):
-                mod_abs_name = naming.get_module_abs_name(self)
-                torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
-                self.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
-              self.check_call_returnn_outputs_to_prev_torch(call_entry)
-
+        res = call_entry.apply_call()
       return res
 
   def forward(self, *inputs: Tensor) -> Tensor:
@@ -507,12 +460,13 @@ class Module:
     top_call_entry = naming.module_call_stack[-1]
     assert top_call_entry.module.module is self
     parent_namespace = top_call_entry.namespace.parent
+    # Note: If name_for_tensor fails, it means the tensor was not registered properly.
     return parent_namespace.name_for_tensor(naming.tensors[input])
 
   def _get_input_axis_to_returnn(self, input: Tensor, axis: int) -> str:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
-  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
     naming = Naming.get_instance()
     shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
     is_const = False

@@ -17,7 +17,7 @@ class Variable(Module):
   def create_returnn_layer_dict(self, *inputs):  # ignore inputs
     return {"class": "variable", "add_batch_axis": False, "shape": self.param.shape}
 
-  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
     return self.param
 
 
@@ -32,7 +32,7 @@ class Constant(Module):
   def create_returnn_layer_dict(self, *inputs):  # ignore inputs
     return {"class": "constant", "value": self.value.numpy()}
 
-  def _make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
     return self.value
 
 

@@ -7,6 +7,17 @@ from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
 
 
+class Copy(Module):
+  is_original_torch_module = False
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {"class": "copy", "from": self._get_input_layer_name(input)}
+
+  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+    assert len(inputs) == 1
+    return inputs[0]
+
+
 class Cast(Module):
   is_original_torch_module = False
 
