@@ -11,6 +11,9 @@ def assert_equal(a, b):
   a = a.strip()
   b = b.strip()
   print(a)
+  if a != b:
+    print("!=")
+    print(b)
   assert a == b
 
 
@@ -57,6 +60,21 @@ def test_pprint_multi_line():
 
 def test_pprint_numpy_ndarray():
   assert_equal(pformat(numpy.array([[1, 2], [3, 4]])), "numpy.array([[1, 2], [3, 4]], dtype=numpy.int64)")
+
+
+def test_pprint_dict_numpy_ndarray():
+  assert_equal(
+    pformat({"a": 42, "b": numpy.array([[1, 2, 3, 4]] * 10)}), """
+{
+  'a': 42,
+  'b': numpy.array([
+""" +
+"""    [1, 2, 3, 4],
+""" * 9 +
+"""    [1, 2, 3, 4]
+  ], dtype=numpy.int64)
+}
+""")
 
 
 if __name__ == "__main__":

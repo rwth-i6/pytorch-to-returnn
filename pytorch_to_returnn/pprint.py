@@ -20,13 +20,13 @@ def pprint(o: Any, *, file=sys.stdout,
     postfix = postfix + line_postfix
     line_postfix = ""
 
-  def _sub_pprint(o: Any, prefix="", postfix=""):
+  def _sub_pprint(o: Any, prefix="", postfix="", inc_indent=True):
     multi_line = "\n" in line_postfix
     if not multi_line and postfix.endswith(","):
       postfix += " "
     pprint(
       o, file=file, prefix=prefix, postfix=postfix,
-      line_prefix=(line_prefix + "  ") if multi_line else "",
+      line_prefix=(line_prefix + "  " * inc_indent) if multi_line else "",
       line_postfix=line_postfix)
 
   def _print(s: str, is_end: bool = False):
@@ -59,7 +59,7 @@ def pprint(o: Any, *, file=sys.stdout,
       _print("()", is_end=True)
       return
     if len(o) == 1:
-      _sub_pprint(o[0], prefix=f"{prefix}(", postfix=f",){postfix}")
+      _sub_pprint(o[0], prefix=f"{prefix}(", postfix=f",){postfix}", inc_indent=False)
       return
     _print("(")
     _print_list()
@@ -89,7 +89,8 @@ def pprint(o: Any, *, file=sys.stdout,
     _sub_pprint(
       o.tolist(),
       prefix=f"{prefix}numpy.array(",
-      postfix=f", dtype=numpy.{o.dtype}){postfix}")
+      postfix=f", dtype=numpy.{o.dtype}){postfix}",
+      inc_indent=False)
     return
 
   # fallback
