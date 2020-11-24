@@ -311,8 +311,9 @@ class ModuleEntry:
     if _visited is None:
       _visited = set()
     _visited.add(self)
+    naming = Naming.get_instance()
     if parent_namespace is None:
-      parent_namespace = Naming.get_instance().root_namespace
+      parent_namespace = naming.root_namespace
     if self.parent_owning_modules:
       mod, name = self.parent_owning_modules[0]
       if parent_namespace and mod in parent_namespace.modules:
@@ -328,6 +329,10 @@ class ModuleEntry:
       return self.module.get_returnn_name()
     if set(self.parent_context_modules).intersection(_visited):
       return self.module.get_returnn_name()
+    if parent_namespace and parent_namespace is not naming.root_namespace:
+      for mod in self.parent_context_modules:
+        if mod in parent_namespace.modules:
+          return self.module.get_returnn_name()
     prefix = ""
     for mod in reversed(self.parent_context_modules):
       prefix = mod.get_canonical_name(_visited=_visited, parent_namespace=parent_namespace) + "_"
