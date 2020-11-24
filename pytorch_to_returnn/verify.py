@@ -119,10 +119,10 @@ def verify_torch_and_convert_to_returnn(
     y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
     assert isinstance(y_, numpy.ndarray)
     print("Output shape:", y_.shape)
-    y_ = y_.transpose(*[returnn_axis_to_torch_axis[i] for i in range(y_.ndim)])
-    print("Output shape (converted to Torch):", y_.shape)
     print("Output seq lens:", y_size)
-    numpy.testing.assert_allclose(out_ref_np, y_, atol=1e-4, rtol=0)
+    y_torch = y_.transpose(*[returnn_axis_to_torch_axis[i] for i in range(y_.ndim)])
+    print("Output shape (converted to Torch):", y_torch.shape)
+    numpy.testing.assert_allclose(out_ref_np, y_torch, atol=1e-4, rtol=0)
     print(">>>> Looks good!")
 
     returnn_net = naming.root_namespace.returnn_ctx.network
@@ -134,6 +134,7 @@ def verify_torch_and_convert_to_returnn(
     returnn_net.save_params_to_file(filename=returnn_model_filename, session=session)
     print()
 
+  print(">>> Constructing RETURNN model, load TF checkpoint, run...")
   with tf.compat.v1.Session() as session:
     from returnn.config import Config
     from returnn.tf.network import TFNetwork
@@ -145,8 +146,14 @@ def verify_torch_and_convert_to_returnn(
     network.construct_from_dict(returnn_net_dict)
     network.load_params_from_file(filename=returnn_model_filename, session=session)
 
-    # TODO now forward through RETURNN model
-    # TODO check output
-
+    x = network.extern_data.get_default_input_data()
+    y = network.get_default_output_layer().output
+    feed_dict = {
+      x.placeholder: inputs,
+      x.get_sequence_lengths(): [n_time] * n_batch}
+    y__, y_size_ = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
+    assert isinstance(y__, numpy.ndarray)
+    print("Output shape:", y__.shape)
+    numpy.testing.assert_allclose(y_, y__, atol=1e-4, rtol=0)
     print(">>>> Looks good!")
     print()
