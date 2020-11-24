@@ -5,7 +5,7 @@ import torch
 import numpy
 import types
 import tempfile
-from pprint import pprint
+from .pprint import pprint
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
 from .wrapped_import import wrapped_import, wrapped_import_demo
