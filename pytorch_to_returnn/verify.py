@@ -60,7 +60,6 @@ def verify_torch_and_convert_to_returnn(
   # except that the wrapped classes can collect additional information.
   # However, we still will check that we got the same output,
   # just to check that there is no subtle bug due to the wrapping logic.
-  # TODO collect information about model?
   print(">>> Running with wrapped imports, wrapping original PyTorch...")
   torch.manual_seed(42)
   with torch.no_grad():

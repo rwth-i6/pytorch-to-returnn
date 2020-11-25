@@ -10,10 +10,25 @@ class Model(torch.nn.Module):
 ```
 Would become:
 ```
-from pytorch_to_returnn import torch
+from pytorch_to_returnn import torch as torch_returnn
 
-class Model(torch.nn.Module):
+class Model(torch_returnn.nn.Module):
  ...
 ```
 
 Somewhat related is also the `torch.fx` module.
+
+See the [documentation of the `pytorch_to_returnn.torch` package](pytorch_to_returnn/torch)
+for details about how this works,
+and what can be done with it.
+
+We also support to transform external PyTorch code
+on-the-fly
+(without the need to rewrite the code;
+it translates the code on AST level in the way above on-the-fly).
+This is via our [`pytorch_to_returnn.import_wrapper`](pytorch_to_returnn/import_wrapper).
+
+For the process of converting a model from PyTorch to RETURNN,
+including a PyTorch model checkpoint,
+we provide some utilities to automate this,
+and verify whether all outputs match.

@@ -58,7 +58,7 @@ or just create the RETURNN layer definition.
   and then write sth like:
   
   ```
-  from pytorch_to_returnn import torch_returnn
+  from pytorch_to_returnn import torch as torch_returnn
   
   class MyTorchModel(torch_returnn.nn.Module):
     ...
