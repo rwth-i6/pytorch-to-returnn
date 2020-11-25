@@ -96,6 +96,8 @@ where all operations wrap to specific Torch `Module`s.
 
 ## `Module`
 
+Also see our [`Module` base class](nn/modules/module.py). 
+
 ### Endpoints
 
 Directly wrapped modules like `Conv1d`
