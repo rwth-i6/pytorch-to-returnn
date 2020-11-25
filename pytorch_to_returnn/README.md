@@ -12,7 +12,7 @@ Sub modules / packages:
 * [`naming`](naming.py): (*To be renamed.*)
   Naming logic, and keeping track of context.
 
-* [`verify`](verify.py) (*To be renamed...*)
+* [`converter`](converter)
   PyTorch -> RETURNN conversion (model def and params),
   and verification, whether we get the same outputs.
 

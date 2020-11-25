@@ -32,3 +32,4 @@ For the process of converting a model from PyTorch to RETURNN,
 including a PyTorch model checkpoint,
 we provide some utilities to automate this,
 and verify whether all outputs match.
+This is in [`pytorch_to_returnn.converter`](pytorch_to_returnn/converter).
