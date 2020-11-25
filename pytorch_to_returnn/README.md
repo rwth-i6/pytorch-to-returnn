@@ -9,7 +9,7 @@ Sub modules / packages:
 * [`torch`](torch):
   Our drop-in replacement for the PyTorch `torch` package.
 
-* [`naming`](naming.py): (*To be renamed.*)
+* [`naming`](naming):
   Naming logic, and keeping track of context.
 
 * [`converter`](converter)

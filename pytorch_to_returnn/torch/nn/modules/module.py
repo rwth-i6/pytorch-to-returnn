@@ -12,8 +12,7 @@ from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming, CallEntry, TensorEntry
 from returnn.tf.layers.basic import LayerBase
-from returnn.tf.util.basic import reuse_name_scope
-from returnn.tf.util.data import DimensionTag, Data
+from returnn.tf.util.data import Data
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
 # of `T` to annotate `self`. Many methods of `Module` return `self` and we want those return values to be
