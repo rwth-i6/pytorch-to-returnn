@@ -9,7 +9,7 @@ class Parameter(Tensor):
   """
   def __init__(self, *args, **kwargs):
     super(Parameter, self).__init__(*args, **kwargs)
-    from ...dimensions import Data
+    from returnn.tf.util.data import Data
     naming = Naming.get_instance()
     tensor_entry = naming.register_tensor(self)
     tensor_entry.is_param = True
