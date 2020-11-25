@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, List, Tuple
 from . import _types
 from . import call as _call
-from . import namescope as _namescope
+from . import namespace as _namespace
 from . import naming as _naming
 
 
@@ -11,7 +11,7 @@ class ModuleEntry:
   module: _types.Module
   level: Optional[int] = None
   calls: List[_call.CallEntry]
-  names: List[_namescope.RegisteredName]
+  names: List[_namespace.RegisteredName]
   canonical_name: Optional[str] = None
   parent_owning_modules: List[Tuple[ModuleEntry, str]]
   parent_context_modules: List[ModuleEntry]
@@ -50,7 +50,7 @@ class ModuleEntry:
       mod = mod.parent_owning_modules[0][0]
     return mod
 
-  def get_canonical_name(self, parent_namespace: Optional[_namescope.RegisteredName] = None, *, _visited=None) -> str:
+  def get_canonical_name(self, parent_namespace: Optional[_namespace.RegisteredName] = None, *, _visited=None) -> str:
     if self.canonical_name:
       return self.canonical_name
     if _visited is None:

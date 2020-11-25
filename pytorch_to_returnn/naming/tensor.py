@@ -4,7 +4,7 @@ from typing import Optional, List, Tuple, Dict
 from weakref import ref
 from returnn.tf.util.data import Data, DimensionTag
 from . import _types
-from . import namescope as _namescope
+from . import namespace as _namespace
 from . import module as _module
 from . import call as _call
 
@@ -21,7 +21,7 @@ class TensorEntry:
   parent_owning_modules: List[Tuple[_module.ModuleEntry, str]]  # e.g. param or buffer
   creation_stack_call: Optional[_call.CallEntry]
   module_context_stack: List[_module.ModuleEntry]
-  names: List[_namescope.RegisteredName]
+  names: List[_namespace.RegisteredName]
 
   def __init__(self, tensor: ref[_types.Tensor],
                creation_stack_call: Optional[_call.CallEntry],
@@ -57,7 +57,7 @@ class TensorEntry:
       f">")
 
   def get_canonical_parent_module(self,
-                                  parent_namespace: Optional[_namescope.RegisteredName] = None
+                                  parent_namespace: Optional[_namespace.RegisteredName] = None
                                   ) -> Optional[_module.ModuleEntry]:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][0]

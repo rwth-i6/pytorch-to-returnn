@@ -6,7 +6,7 @@ from . import _types
 from . import module as _module
 from . import naming as _naming
 from . import tensor as _tensor
-from . import namescope as _namescope
+from . import namespace as _namespace
 
 
 class CallEntry:
@@ -22,7 +22,7 @@ class CallEntry:
   parent_call: Optional[CallEntry] = None  # parent in the call stack
   child_calls: List[CallEntry]
   level: Optional[int] = None
-  namespace: Optional[_namescope.RegisteredName] = None
+  namespace: Optional[_namespace.RegisteredName] = None
   returnn_layer: Optional[LayerBase] = None
   returnn_layer_dict: Optional[Dict[str, Any]] = None
 

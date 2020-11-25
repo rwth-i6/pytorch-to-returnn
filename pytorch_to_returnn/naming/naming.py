@@ -11,7 +11,7 @@ from . import _types
 from . import tensor as _tensor
 from . import module as _module
 from . import call as _call
-from . import namescope as _namescope
+from . import namespace as _namespace
 
 
 class Naming:
@@ -66,7 +66,7 @@ class Naming:
     self.module_apply_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
-    self.root_namespace = _namescope.RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
+    self.root_namespace = _namespace.RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
     self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
 
   @contextmanager
@@ -352,7 +352,7 @@ class Naming:
     d = OrderedDict()
     _visited = set()
 
-    def visit(namespace: _namescope.RegisteredName, prefix: str):
+    def visit(namespace: _namespace.RegisteredName, prefix: str):
       for mod in namespace.modules:
         if mod.module in _visited:
           return
