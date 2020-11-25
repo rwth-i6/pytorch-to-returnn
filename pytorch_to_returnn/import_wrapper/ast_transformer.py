@@ -88,29 +88,29 @@ class AstImportTransformer(ast.NodeTransformer):
 
 
 def _ast_get_source_segment(src_filename: str, node: ast.AST) -> Optional[str]:
-    """Get source code segment of the *source* that generated *node*.
+  """Get source code segment of the *source* that generated *node*.
 
-    If some location information (`lineno`, `end_lineno`, `col_offset`,
-    or `end_col_offset`) is missing, return None.
+  If some location information (`lineno`, `end_lineno`, `col_offset`,
+  or `end_col_offset`) is missing, return None.
 
-    Original ast.get_source_segment is very inefficient. This is faster.
-    """
-    try:
-        lineno = node.lineno - 1
-        end_lineno = getattr(node, "end_lineno", node.lineno) - 1
-        col_offset = getattr(node, "col_offset", 0)
-        end_col_offset = getattr(node, "end_col_offset", -1)
-    except AttributeError:
-        return None
+  Original ast.get_source_segment is very inefficient. This is faster.
+  """
+  try:
+    lineno = node.lineno - 1
+    end_lineno = getattr(node, "end_lineno", node.lineno) - 1
+    col_offset = getattr(node, "col_offset", 0)
+    end_col_offset = getattr(node, "end_col_offset", -1)
+  except AttributeError:
+    return None
 
-    lines = linecache.getlines(src_filename)
-    if end_lineno == lineno:
-        return lines[lineno].encode()[col_offset:end_col_offset].decode()
+  lines = linecache.getlines(src_filename)
+  if end_lineno == lineno:
+    return lines[lineno].encode()[col_offset:end_col_offset].decode()
 
-    first = lines[lineno].encode()[col_offset:].decode()
-    last = lines[end_lineno].encode()[:end_col_offset].decode()
-    lines = lines[lineno+1:end_lineno]
+  first = lines[lineno].encode()[col_offset:].decode()
+  last = lines[end_lineno].encode()[:end_col_offset].decode()
+  lines = lines[lineno + 1:end_lineno]
 
-    lines.insert(0, first)
-    lines.append(last)
-    return ''.join(lines)
+  lines.insert(0, first)
+  lines.append(last)
+  return ''.join(lines)

@@ -9,7 +9,7 @@ from pytorch_to_returnn.pprint import pprint
 from typing import Callable, Optional, Dict, Any
 from returnn.tf.util.data import Data
 from pytorch_to_returnn import torch as torch_returnn
-from pytorch_to_returnn.import_wrapper import wrapped_import, wrapped_import_demo
+from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
 from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
 from pytorch_to_returnn.naming import Naming
 
@@ -122,8 +122,8 @@ class Converter:
       with Naming.make_instance(
             wrap_to_returnn_enabled=False,
             keep_orig_module_io_tensors=self.verify_individual_model_io) as naming:
-        wrapped_torch = wrapped_import("torch")
-        out_wrapped = self._model_func(wrapped_import, wrapped_torch.from_numpy(self._inputs_np))
+        wrapped_torch = wrapped_import_torch_traced("torch")
+        out_wrapped = self._model_func(wrapped_import_torch_traced, wrapped_torch.from_numpy(self._inputs_np))
         assert isinstance(out_wrapped, WrappedTorchTensor)
         out_wrapped_np = out_wrapped.cpu().numpy()
         print(">>>> Module naming hierarchy:")
@@ -154,7 +154,7 @@ class Converter:
         in_returnn = torch_returnn.from_numpy(self._inputs_np)
         assert isinstance(in_returnn, torch_returnn.Tensor)
         x = naming.register_input(in_returnn, Data("data", **self._returnn_in_data_dict))
-        out_returnn = self._model_func(wrapped_import_demo, in_returnn)
+        out_returnn = self._model_func(wrapped_import_torch_returnn, in_returnn)
         assert isinstance(out_returnn, torch_returnn.Tensor)
         out_returnn_ = naming.register_output(out_returnn)
         y, returnn_axis_to_torch_axis = out_returnn_.returnn_data, out_returnn_.returnn_axis_to_torch_axis

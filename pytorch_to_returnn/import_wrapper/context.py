@@ -88,7 +88,12 @@ class ExplicitWrappedType:
     return self.new_type(orig_obj=obj, name=name, ctx=ctx)
 
 
-def make_torch_default_ctx(wrapped_mod_prefix: str) -> WrapCtx:
+def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
+  """
+  This wraps `torch` imports to use mostly the original `torch` module
+  but installs some tracing wrappers,
+  which keep track of the tensors, and create names using the :class:`Naming` logic.
+  """
   import torch
   from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase
 
@@ -159,8 +164,11 @@ _TorchExplicitDirectModList = {
 }
 
 
-def make_torch_demo_ctx(wrapped_mod_prefix: str) -> WrapCtx:
-  from .. import torch
+def make_torch_returnn_ctx(wrapped_mod_prefix: str) -> WrapCtx:
+  """
+  This wraps `torch` imports to use our `python_to_returnn.torch` module instead.
+  """
+  from pytorch_to_returnn import torch as torch_returnn
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
-    wrap_mods_alternatives={"torch": torch.__package__})
+    wrap_mods_alternatives={"torch": torch_returnn.__package__})
