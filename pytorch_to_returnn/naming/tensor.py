@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import Optional, List, Tuple, Dict
 from weakref import ref
 from returnn.tf.util.data import Data, DimensionTag
-from ._types import Tensor
+from . import _types
 from . import namescope as _namescope
 from . import module as _module
 from . import call as _call
 
 
 class TensorEntry:
-  tensor: ref[Tensor]
+  tensor: ref[_types.Tensor]
   returnn_data: Optional[Data] = None
   returnn_axis_to_torch_axis: Optional[Dict[int, int]] = None
   is_param: bool = False
@@ -23,8 +23,9 @@ class TensorEntry:
   module_context_stack: List[_module.ModuleEntry]
   names: List[_namescope.RegisteredName]
 
-  def __init__(self, tensor: ref[Tensor],
-               creation_stack_call: Optional[_call.CallEntry], module_context_stack: List[_module.ModuleEntry]):
+  def __init__(self, tensor: ref[_types.Tensor],
+               creation_stack_call: Optional[_call.CallEntry],
+               module_context_stack: List[_module.ModuleEntry]):
     self.tensor = tensor
     self.creation_stack_call = creation_stack_call
     self.module_context_stack = module_context_stack

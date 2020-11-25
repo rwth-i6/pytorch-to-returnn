@@ -7,7 +7,7 @@ from weakref import ref, WeakKeyDictionary
 import numpy
 from returnn.tf.util.data import Data
 from returnn.tf.layers.basic import LayerBase
-from ._types import Tensor, Module
+from . import _types
 from . import tensor as _tensor
 from . import module as _module
 from . import call as _call
@@ -15,11 +15,11 @@ from . import namescope as _namescope
 
 
 class Naming:
-  tensors: WeakKeyDictionary[Tensor, _tensor.TensorEntry]
-  const_tensor_cache: List[Tensor]
-  modules: OrderedDict[Module, _module.ModuleEntry]
-  inputs: List[Tensor]
-  outputs: List[Tensor]
+  tensors: WeakKeyDictionary[_types.Tensor, _tensor.TensorEntry]
+  const_tensor_cache: List[_types.Tensor]
+  modules: OrderedDict[_types.Module, _module.ModuleEntry]
+  inputs: List[_types.Tensor]
+  outputs: List[_types.Tensor]
   module_creation_stack: List[_module.ModuleEntry]
   module_apply_stack: List[_module.ModuleEntry]
   module_context_stack: List[_module.ModuleEntry]
@@ -70,7 +70,7 @@ class Naming:
     self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
 
   @contextmanager
-  def push_module_creation(self, module: Module) -> _module.ModuleEntry:
+  def push_module_creation(self, module: _types.Module) -> _module.ModuleEntry:
     assert module not in self.modules
     entry = _module.ModuleEntry(module=module)
     self.modules[module] = entry
@@ -81,7 +81,7 @@ class Naming:
     self.module_creation_stack.pop(-1)
 
   @contextmanager
-  def push_module_apply(self, module: Module) -> _module.ModuleEntry:
+  def push_module_apply(self, module: _types.Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     self.module_apply_stack.append(entry)
     with self.push_module_context(module):
@@ -89,7 +89,7 @@ class Naming:
     assert self.module_apply_stack[-1] is entry
     self.module_apply_stack.pop(-1)
 
-  def push_module_context(self, module: Module) -> _module.ModuleEntry:
+  def push_module_context(self, module: _types.Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     if self.module_context_stack:
       prev_top = self.module_context_stack[-1]
@@ -98,7 +98,7 @@ class Naming:
     self.module_context_stack.append(entry)
     return entry
 
-  def pop_module_context(self, module: Module):
+  def pop_module_context(self, module: _types.Module):
     entry = self.modules[module]
     assert self.module_context_stack[-1] is entry
     self.module_context_stack.pop(-1)
@@ -157,7 +157,7 @@ class Naming:
         else:
           raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
-  def push_module_call(self, *, module: Module, inputs: List[Tensor]) -> _call.CallEntry:
+  def push_module_call(self, *, module: _types.Module, inputs: List[_types.Tensor]) -> _call.CallEntry:
     module_entry = self.modules[module]
     entry = _call.CallEntry(module=module_entry)
     if self.keep_orig_module_io_tensors:
@@ -233,7 +233,7 @@ class Naming:
     assert self.module_call_stack[-1] is call
     self.module_call_stack.pop(-1)
 
-  def register_module_child_attr(self, parent: Module, attr: str, child: Union[Module, Tensor]):
+  def register_module_child_attr(self, parent: _types.Module, attr: str, child: Union[_types.Module, _types.Tensor]):
     assert getattr(parent, attr) is child
     parent_entry = self.modules[parent]
     if child in self.modules:
@@ -250,7 +250,7 @@ class Naming:
     if (parent_entry, attr) not in child_entry.parent_owning_modules:
       child_entry.parent_owning_modules.append((parent_entry, attr))
 
-  def register_tensor(self, tensor: Tensor) -> _tensor.TensorEntry:
+  def register_tensor(self, tensor: _types.Tensor) -> _tensor.TensorEntry:
     if tensor not in self.tensors:
       self.tensors[tensor] = _tensor.TensorEntry(
         tensor=ref(tensor),
@@ -258,7 +258,8 @@ class Naming:
         module_context_stack=list(self.module_context_stack))
     return self.tensors[tensor]
 
-  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> Optional[_tensor.TensorEntry]:
+  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray]
+                   ) -> Optional[_tensor.TensorEntry]:
     if x is None:
       return None
     if not self.wrap_to_returnn_enabled:
@@ -272,7 +273,7 @@ class Naming:
     assert isinstance(x, Tensor)
     return self.tensors[x]
 
-  def register_input(self, tensor: Tensor, returnn_data: Data) -> Data:
+  def register_input(self, tensor: _types.Tensor, returnn_data: Data) -> Data:
     entry = self.register_tensor(tensor)
     entry.is_input = True
     self.inputs.append(tensor)
@@ -292,7 +293,7 @@ class Naming:
     assert entry.returnn_data
     return entry.returnn_data
 
-  def register_output(self, tensor: Tensor) -> _tensor.TensorEntry:
+  def register_output(self, tensor: _types.Tensor) -> _tensor.TensorEntry:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, _tensor.TensorEntry)
@@ -302,7 +303,7 @@ class Naming:
       self.root_namespace.register_returnn_subnet_output(entry)
     return entry
 
-  def get_module_abs_name(self, module: Module) -> str:
+  def get_module_abs_name(self, module: _types.Module) -> str:
     parts = []
     mod_entry = self.modules[module]
     while True:
@@ -322,7 +323,7 @@ class Naming:
     assert checked_mod is module
     return abs_name
 
-  def get_module_by_abs_name(self, name: str) -> Module:
+  def get_module_by_abs_name(self, name: str) -> _types.Module:
     namespace = self.root_namespace
     if name:
       for part_name in name.split("."):
@@ -332,12 +333,12 @@ class Naming:
     assert namespace.modules
     return namespace.modules[0].module
 
-  def get_module_call_idx(self, *, module: Module, call: _call.CallEntry) -> int:
+  def get_module_call_idx(self, *, module: _types.Module, call: _call.CallEntry) -> int:
     mod_entry = self.modules[module]
     assert call in mod_entry.calls
     return mod_entry.calls.index(call)
 
-  def get_module_calls(self, module: Module) -> List[_call.CallEntry]:
+  def get_module_calls(self, module: _types.Module) -> List[_call.CallEntry]:
     return self.modules[module].calls
 
   def get_root_module_calls(self) -> OrderedDict[str, _call.CallEntry]:
@@ -347,7 +348,7 @@ class Naming:
         d[name] = sub.calls[0]
     return d
 
-  def get_modules_with_params_by_abs_name(self) -> OrderedDict[str, Module]:
+  def get_modules_with_params_by_abs_name(self) -> OrderedDict[str, _types.Module]:
     d = OrderedDict()
     _visited = set()
 
@@ -368,7 +369,7 @@ class Naming:
     visit(namespace=self.root_namespace, prefix="")
     return d
 
-  def get_returnn_layer_from_module(self, module: Module) -> LayerBase:
+  def get_returnn_layer_from_module(self, module: _types.Module) -> LayerBase:
     assert self.wrap_to_returnn_enabled
     entry = self.modules[module]
     assert entry.calls

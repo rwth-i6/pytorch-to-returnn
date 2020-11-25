@@ -1,14 +1,14 @@
 
 from __future__ import annotations
 from typing import Optional, List, Tuple
-from ._types import Module
+from . import _types
 from . import call as _call
 from . import namescope as _namescope
 from . import naming as _naming
 
 
 class ModuleEntry:
-  module: Module
+  module: _types.Module
   level: Optional[int] = None
   calls: List[_call.CallEntry]
   names: List[_namescope.RegisteredName]
@@ -16,7 +16,7 @@ class ModuleEntry:
   parent_owning_modules: List[Tuple[ModuleEntry, str]]
   parent_context_modules: List[ModuleEntry]
 
-  def __init__(self, module: Module):
+  def __init__(self, module: _types.Module):
     self.module = module
     self.calls = []
     self.names = []

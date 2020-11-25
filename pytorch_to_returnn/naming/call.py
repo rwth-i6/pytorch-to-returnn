@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional, List, Tuple, Union, Any, Dict
 from returnn.tf.layers.basic import LayerBase
-from ._types import Tensor
+from . import _types
 from . import module as _module
 from . import naming as _naming
 from . import tensor as _tensor
@@ -15,8 +15,8 @@ class CallEntry:
   Note that a module can be called multiple times.
   """
   module: _module.ModuleEntry
-  orig_inputs: Optional[Tuple[Union[Tensor, Any]]] = None
-  orig_outputs: Optional[Union[Tensor, Tuple[Tensor]]] = None
+  orig_inputs: Optional[Tuple[Union[_types.Tensor, Any]]] = None
+  orig_outputs: Optional[Union[_types.Tensor, Tuple[_types.Tensor]]] = None
   inputs: Optional[List[_tensor.TensorEntry]] = None
   outputs: Optional[List[_tensor.TensorEntry]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack
@@ -51,7 +51,7 @@ class CallEntry:
     self.returnn_layer = layer
     self.returnn_layer_dict = layer_dict
 
-  def set_outputs(self, outputs: Union[Tensor, Tuple[Tensor], List[Tensor]]):
+  def set_outputs(self, outputs: Union[_types.Tensor, Tuple[_types.Tensor], List[_types.Tensor]]):
     assert self.outputs is None
     naming = _naming.Naming.get_instance()
     if naming.keep_orig_module_io_tensors:
@@ -69,7 +69,7 @@ class CallEntry:
         if self.namespace not in entry_outputs[0].names:
           entry_outputs[0].names.append(self.namespace)
 
-  def apply_call(self) -> Tensor:
+  def apply_call(self) -> _types.Tensor:
     from pytorch_to_returnn.torch.nn import Module
     from pytorch_to_returnn.torch import Tensor
     from returnn.tf.util.basic import reuse_name_scope
