@@ -8,8 +8,7 @@ import tempfile
 from .pprint import pprint
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
-from .wrapped_import import wrapped_import, wrapped_import_demo
-from .import_wrapper.torch_wrappers.module import WrappedModuleBase
+from .import_wrapper import wrapped_import, wrapped_import_demo
 from .import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
 from .naming import Naming
 

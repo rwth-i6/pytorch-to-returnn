@@ -1,30 +1,9 @@
-"""
-Utility to import a module with automatic Torch import wrapping, which replaces all::
 
-  import torch
-
-To::
-
-  from pytorch_to_returnn import torch
-
-In your user code, you would replace::
-
-  import custom_torch_code
-
-By::
-
-  custom_torch_code = pytorch_to_returnn.wrapped_import.wrapped_import("custom_torch_code")
-
-Both the wrapped and original module can be imported at the same time.
-The wrapped module will internally get the full mod name ``pytorch_to_returnn._wrapped_mods.custom_torch_code``.
-See :class:`_AstImportTransformer`.
-
-"""
 
 from typing import Union, Any
-from .import_wrapper.base_wrappers.module import WrappedModule
-from .import_wrapper.context import make_torch_default_ctx, make_torch_demo_ctx
-from .import_wrapper.import_ import import_module
+from .base_wrappers.module import WrappedModule
+from .context import make_torch_default_ctx, make_torch_demo_ctx
+from .import_ import import_module
 
 
 _ModPrefix = "%s._traced_torch." % __package__
