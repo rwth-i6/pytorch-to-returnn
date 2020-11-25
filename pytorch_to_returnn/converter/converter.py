@@ -13,14 +13,13 @@ from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorch
 from pytorch_to_returnn.naming import Naming
 
 
-_InputsType = numpy.ndarray
-
-
 def verify_torch_and_convert_to_returnn(
       model_func: Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor],
-      inputs: _InputsType):
+      inputs: numpy.ndarray):
   """
-  :param model_func: gets one argument wrapped_import(str) -> module, or None. If None, should import as is.
+  :param model_func:
+    Gets an argument wrapped_import(str) -> module, or None. If None, should import as is.
+    It also gets the inputs, converted to the right PyTorch `Tensor` object (either original or wrapped).
   :param inputs:
 
   Example code for model func::
@@ -38,13 +37,26 @@ def verify_torch_and_convert_to_returnn(
             pwg_models = wrapped_import("parallel_wavegan.models")
             pwg_layers = wrapped_import("parallel_wavegan.layers")
 
+        # Initialize PWG
+        pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
+        pyt_device = torch.device("cpu")
+        generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
+        generator.load_state_dict(
+            torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
+        generator.remove_weight_norm()
+        pwg_model = generator.eval().to(pyt_device)
+        assert pwg_config["generator_params"].get("aux_context_window", 0) == 0  # not implemented otherwise
+        pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"]).to(pyt_device)
+
+        with torch.no_grad():
+            return pwg_pqmf.synthesis(pwg_model(inputs))
+
   model_func will get called multiple times, with different wrapped_import functions.
   wrapped_import would import some user model code.
   wrapped_import expects that the user model code is still unmodified,
   using the original `import torch` statements.
 
-  It will first evaluate model_func with the original imports, i.e. wrapped_import=None.
-  Then it will evaluate using ...
+  See the `readme <..>`_ for further details.
   """
   # The reference, using the original import.
   print(">>> Running with standard reference imports...")
