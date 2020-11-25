@@ -21,7 +21,14 @@ Somewhat related is also the `torch.fx` module.
 See the [documentation of the `pytorch_to_returnn.torch` package](pytorch_to_returnn/torch)
 for details about how this works,
 and what can be done with it.
-
+Obviously, this is incomplete.
+For some status of what is not supported currently,
+see [the unsupported document](Unsupported.md).
+Otherwise, when you hit some `Module`
+or `functional` function, or Tensor function
+which is not implemented,
+it just means that no-one has implemented it yet.
+ 
 We also support to transform external PyTorch code
 on-the-fly
 (without the need to rewrite the code;

@@ -200,3 +200,19 @@ and will be used as constants later on (in `Module.forward`).
 
 All the logic for the naming
 is in [`naming`](../naming).
+
+
+# Status
+
+Obviously, this is incomplete.
+
+For some status of what is not supported currently,
+see [the unsupported document](../../Unsupported.md).
+
+Otherwise, when you hit some `Module`
+or `functional` function, or Tensor function
+which is not implemented,
+it just means that no-one has implemented it yet.
+
+It already works fine for parts of [Parallel WaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN).
+See the [`converter` documentation](../converter) for a full example.
