@@ -59,22 +59,20 @@ pwg_layers = wrapped_import_torch_returnn("parallel_wavegan.layers")
 
 with Naming.make_instance(wrap_to_returnn_enabled=True) as naming:
     inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Feature), e.g. (1,80,80)
-    x = naming.register_input(inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
+    x = naming.register_input(
+        inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
     assert isinstance(x, Data)
 
     # Initialize PWG
     pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
-    pyt_device = torch.device("cpu")
     generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
     generator.load_state_dict(
         torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
     generator.remove_weight_norm()
-    pwg_model = generator.eval().to(pyt_device)
-    assert pwg_config["generator_params"].get("aux_context_window", 0) == 0  # not implemented otherwise
-    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"]).to(pyt_device)
+    pwg_model = generator.eval()
+    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
     
-    with torch.no_grad():
-        outputs = pwg_pqmf.synthesis(pwg_model(inputs))
+    outputs = pwg_pqmf.synthesis(pwg_model(inputs))
 
     outputs = naming.register_output(outputs)
     y = outputs.returnn_data
@@ -107,17 +105,14 @@ def model_func(wrapped_import, inputs: torch.Tensor):
 
     # Initialize PWG
     pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
-    pyt_device = torch.device("cpu")
     generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
     generator.load_state_dict(
         torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
     generator.remove_weight_norm()
-    pwg_model = generator.eval().to(pyt_device)
-    assert pwg_config["generator_params"].get("aux_context_window", 0) == 0  # not implemented otherwise
-    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"]).to(pyt_device)
+    pwg_model = generator.eval()
+    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
 
-    with torch.no_grad():
-        return pwg_pqmf.synthesis(pwg_model(inputs))
+    return pwg_pqmf.synthesis(pwg_model(inputs))
 
 
 feature_data = numpy.load(args.features)  # shape (Batch,Channel,Time) (1,80,80)
