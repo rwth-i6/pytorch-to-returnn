@@ -5,12 +5,12 @@ import torch
 import numpy
 import types
 import tempfile
-from .pprint import pprint
+from pytorch_to_returnn.pprint import pprint
 from typing import Callable, Optional
 from returnn.tf.util.data import Data
-from .import_wrapper import wrapped_import, wrapped_import_demo
-from .import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
-from .naming import Naming
+from pytorch_to_returnn.import_wrapper import wrapped_import, wrapped_import_demo
+from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
+from pytorch_to_returnn.naming import Naming
 
 
 _InputsType = numpy.ndarray

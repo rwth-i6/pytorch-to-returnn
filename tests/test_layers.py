@@ -5,7 +5,7 @@ import unittest
 import typing
 import numpy
 from pytorch_to_returnn import torch
-from pytorch_to_returnn.verify import verify_torch_and_convert_to_returnn
+from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
 
 
 def test_conv_transposed():
