@@ -42,6 +42,9 @@ or just create the RETURNN layer definition.
     You would copy & paste this into your RETURNN config,
     either directly as the `network`,
     or as a subnetwork.
+    [Example constructed RETURNN net dict](https://gist.github.com/albertz/01264cfbd2dfd73a19c1e2ac40bdb16b),
+    created from
+    [this PyTorch code](https://github.com/albertz/import-parallel-wavegan/blob/main/pytorch_to_returnn.py).
 
 * Convert a PyTorch parameters / model checkpoint
   into an equivalent RETURNN/TF model checkpoint.
