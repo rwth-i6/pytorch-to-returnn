@@ -4,6 +4,80 @@ Alternative to the original pprint module.
 This one has different behavior for indentation, specifically for dicts.
 Also the order of dict items are kept as-is
 (which is fine for newer Python versions, which will be the insertion order).
+
+Compare (via our ``pprint``)::
+
+  {
+    'melgan': {
+      'class': 'subnetwork',
+      'from': 'data',
+      'subnetwork': {
+        'l0': {'class': 'pad', 'mode': 'reflect', 'axes': 'spatial', 'padding': (3, 3), 'from': 'data'},
+        'la1': {
+          'class': 'conv',
+          'from': 'l0',
+          'activation': None,
+          'with_bias': True,
+          'n_out': 384,
+          'filter_size': (7,),
+          'padding': 'valid',
+          'strides': (1,),
+          'dilation_rate': (1,)
+        },
+        'lay2': {'class': 'eval', 'eval': 'tf.nn.leaky_relu(source(0), alpha=0.2)', 'from': 'la1'},
+        'layer3_xxx': {
+          'class': 'transposed_conv',
+          'from': 'lay2',
+          'activation': None,
+          'with_bias': True,
+          'n_out': 192,
+          'filter_size': (10,),
+          'strides': (5,),
+          'padding': 'valid',
+          'output_padding': (1,),
+          'remove_padding': (3,)
+        },
+        'output': {'class': 'copy', 'from': 'layer3_xxx'}
+      }
+    },
+    'output': {'class': 'copy', 'from': 'melgan'}
+  }
+
+Vs (via original ``pprint``)::
+
+  {'melgan': {'class': 'subnetwork',
+              'from': 'data',
+              'subnetwork': {'l0': {'axes': 'spatial',
+                                    'class': 'pad',
+                                    'from': 'data',
+                                    'mode': 'reflect',
+                                    'padding': (3, 3)},
+                             'la1': {'activation': None,
+                                     'class': 'conv',
+                                     'dilation_rate': (1,),
+                                     'filter_size': (7,),
+                                     'from': 'l0',
+                                     'n_out': 384,
+                                     'padding': 'valid',
+                                     'strides': (1,),
+                                     'with_bias': True},
+                             'lay2': {'class': 'eval',
+                                      'eval': 'tf.nn.leaky_relu(source(0), '
+                                              'alpha=0.2)',
+                                      'from': 'la1'},
+                             'layer3_xxx': {'activation': None,
+                                            'class': 'transposed_conv',
+                                            'filter_size': (10,),
+                                            'from': 'lay2',
+                                            'n_out': 192,
+                                            'output_padding': (1,),
+                                            'padding': 'valid',
+                                            'remove_padding': (3,),
+                                            'strides': (5,),
+                                            'with_bias': True},
+                             'output': {'class': 'copy', 'from': 'layer3_xxx'}}},
+   'output': {'class': 'copy', 'from': 'melgan'}}
+
 """
 
 from typing import Any
