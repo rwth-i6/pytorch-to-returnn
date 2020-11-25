@@ -4,7 +4,7 @@ from typing import Optional
 from returnn.config import Config
 from returnn.tf.network import TFNetwork, ExternData
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
-from .tensor import TensorEntry
+from . import tensor as _tensor
 
 
 class ReturnnContext:
@@ -40,7 +40,7 @@ class ReturnnContext:
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.network.get_absolute_name_prefix()!r}>"
 
-  def define_input(self, input: TensorEntry):
+  def define_input(self, input: _tensor.TensorEntry):
     if self._dummy_sub_output:
       assert self.network.layers["output"] is self._dummy_sub_output
       self._dummy_sub_output = None

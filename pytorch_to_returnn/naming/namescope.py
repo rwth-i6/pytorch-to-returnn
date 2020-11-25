@@ -3,22 +3,22 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any
 from collections import OrderedDict
 import itertools
-from .call import CallEntry
-from .module import ModuleEntry
-from .tensor import TensorEntry
-from .returnn_ctx import ReturnnContext
-from .naming import Naming
+from . import call as _call
+from . import module as _module
+from . import tensor as _tensor
+from . import returnn_ctx as _returnn_ctx
+from . import naming as _naming
 
 
 class RegisteredName:
-  childs_by_name: OrderedDict[str, "RegisteredName"]
-  parent: Optional["RegisteredName"]
+  childs_by_name: OrderedDict[str, RegisteredName]
+  parent: Optional[RegisteredName]
   name: Optional[str]  # if parent
   level: int = 0
-  modules: List[ModuleEntry]  # can be multiple merged together
-  calls: List[CallEntry]  # can be multiple merged together. can be empty if this is some input
-  tensor: Optional[TensorEntry] = None  # output from the call
-  returnn_ctx: Optional[ReturnnContext] = None
+  modules: List[_module.ModuleEntry]  # can be multiple merged together
+  calls: List[_call.CallEntry]  # can be multiple merged together. can be empty if this is some input
+  tensor: Optional[_tensor.TensorEntry] = None  # output from the call
+  returnn_ctx: Optional[_returnn_ctx.ReturnnContext] = None
   is_reserved: bool = False  # e.g. input "data" or output "output"
   ReservedInputName = "data"
   ReservedOutputName = "output"
@@ -26,9 +26,9 @@ class RegisteredName:
 
   def __init__(self, *,
                wrap_to_returnn_enabled: Optional[bool] = None,
-               parent: Optional["RegisteredName"] = None, name: Optional[str] = None,
-               call: Optional[CallEntry] = None,
-               tensor: Optional[TensorEntry] = None,
+               parent: Optional[RegisteredName] = None, name: Optional[str] = None,
+               call: Optional[_call.CallEntry] = None,
+               tensor: Optional[_tensor.TensorEntry] = None,
                is_reserved: bool = False):
     self.childs_by_name = OrderedDict()
     self.parent = parent
@@ -89,13 +89,13 @@ class RegisteredName:
       name_ = name_.parent
     return "/".join(names) if names else ""
 
-  def assign_tensor(self, tensor: TensorEntry):
+  def assign_tensor(self, tensor: _tensor.TensorEntry):
     if self.tensor:
       self.tensor.names.remove(self)
     self.tensor = tensor
     tensor.names.append(self)
 
-  def assign_call(self, call: CallEntry):
+  def assign_call(self, call: _call.CallEntry):
     if call in self.calls:
       return
     if call.module:
@@ -112,11 +112,11 @@ class RegisteredName:
       if not self.parent.returnn_ctx:
         self.parent._create_returnn_ctx()
       assert self.parent.returnn_ctx
-    self.returnn_ctx = ReturnnContext(
+    self.returnn_ctx = _returnn_ctx.ReturnnContext(
       parent=self.parent.returnn_ctx if self.parent else None,
       name=self.name)
 
-  def assign_module(self, module: ModuleEntry):
+  def assign_module(self, module: _module.ModuleEntry):
     if module in self.modules:
       return
     self.modules.append(module)
@@ -146,7 +146,7 @@ class RegisteredName:
     self.childs_by_name[name] = child
     return child
 
-  def register_input(self, tensor: TensorEntry) -> RegisteredName:
+  def register_input(self, tensor: _tensor.TensorEntry) -> RegisteredName:
     name = self.ReservedInputName
     if name in self.childs_by_name:
       assert self.childs_by_name[name].tensor is tensor
@@ -158,9 +158,9 @@ class RegisteredName:
       self.returnn_ctx.define_input(tensor)
     return name_
 
-  def register_returnn_subnet_output(self, tensor: TensorEntry) -> RegisteredName:
+  def register_returnn_subnet_output(self, tensor: _tensor.TensorEntry) -> RegisteredName:
     from pytorch_to_returnn.torch.nn import Copy
-    naming = Naming.get_instance()
+    naming = _naming.Naming.get_instance()
     assert naming.wrap_to_returnn_enabled
     name_ = self.name_for_tensor(tensor)
     potential_calls = set(tensor.output_from_calls).intersection(set(self.childs_by_name[name_].calls))
@@ -172,7 +172,7 @@ class RegisteredName:
     child = RegisteredName(parent=self, name=name, is_reserved=True)
     self.childs_by_name[name] = child
     copy_mod = Copy()
-    copy_call = CallEntry(module=naming.modules[copy_mod])
+    copy_call = _call.CallEntry(module=naming.modules[copy_mod])
     copy_call.parent_call = call
     call.child_calls.append(copy_call)
     copy_call.inputs = [tensor]
@@ -187,7 +187,7 @@ class RegisteredName:
     tensor.returnn_data = copy_call.returnn_layer.output
     return child
 
-  def name_for_tensor(self, tensor: TensorEntry) -> str:
+  def name_for_tensor(self, tensor: _tensor.TensorEntry) -> str:
     for name_ in tensor.names:
       if name_.parent is self:
         assert self.childs_by_name[name_.name] is name_
@@ -195,7 +195,7 @@ class RegisteredName:
     # If you get here, check the logic in Module.__call__, Naming.push_module_call.
     raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
 
-  def find_name_for_module(self, module: ModuleEntry) -> Optional[str]:
+  def find_name_for_module(self, module: _module.ModuleEntry) -> Optional[str]:
     for name, child in self.childs_by_name.items():
       if module in child.modules:
         return name
@@ -231,4 +231,3 @@ class RegisteredName:
         continue  # e.g. input "data"
       net_dict[name] = child.dump_as_returnn_layer_dict()
     return net_dict
-

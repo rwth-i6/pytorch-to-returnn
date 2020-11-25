@@ -4,9 +4,9 @@ from typing import Optional, List, Tuple, Dict
 from weakref import ref
 from returnn.tf.util.data import Data, DimensionTag
 from ._types import Tensor
-from .namescope import RegisteredName
-from .module import ModuleEntry
-from .call import CallEntry
+from . import namescope as _namescope
+from . import module as _module
+from . import call as _call
 
 
 class TensorEntry:
@@ -16,15 +16,15 @@ class TensorEntry:
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
-  output_from_modules: List["ModuleEntry"]
-  output_from_calls: List["CallEntry"]
-  parent_owning_modules: List[Tuple["ModuleEntry", str]]  # e.g. param or buffer
-  creation_stack_call: Optional[CallEntry]
-  module_context_stack: List[ModuleEntry]
-  names: List["RegisteredName"]
+  output_from_modules: List[_module.ModuleEntry]
+  output_from_calls: List[_call.CallEntry]
+  parent_owning_modules: List[Tuple[_module.ModuleEntry, str]]  # e.g. param or buffer
+  creation_stack_call: Optional[_call.CallEntry]
+  module_context_stack: List[_module.ModuleEntry]
+  names: List[_namescope.RegisteredName]
 
   def __init__(self, tensor: ref[Tensor],
-               creation_stack_call: Optional[CallEntry], module_context_stack: List[ModuleEntry]):
+               creation_stack_call: Optional[_call.CallEntry], module_context_stack: List[_module.ModuleEntry]):
     self.tensor = tensor
     self.creation_stack_call = creation_stack_call
     self.module_context_stack = module_context_stack
@@ -55,7 +55,9 @@ class TensorEntry:
       f" returnn_data:{returnn_data_repr}"
       f">")
 
-  def get_canonical_parent_module(self, parent_namespace: Optional[RegisteredName] = None) -> Optional[ModuleEntry]:
+  def get_canonical_parent_module(self,
+                                  parent_namespace: Optional[_namescope.RegisteredName] = None
+                                  ) -> Optional[_module.ModuleEntry]:
     if self.parent_owning_modules:
       return self.parent_owning_modules[0][0]
     if self.module_context_stack:
@@ -100,4 +102,3 @@ class TensorEntry:
     if axis in spatial_axes:
       return f"spatial:{spatial_axes.index(axis)}"
     raise Exception(f"Should not get here. Dim tag {dim_tag} for axis {axis} for data {self.returnn_data}")
-

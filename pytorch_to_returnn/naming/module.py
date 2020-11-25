@@ -2,19 +2,19 @@
 from __future__ import annotations
 from typing import Optional, List, Tuple
 from ._types import Module
-from .call import CallEntry
-from .namescope import RegisteredName
-from .naming import Naming
+from . import call as _call
+from . import namescope as _namescope
+from . import naming as _naming
 
 
 class ModuleEntry:
   module: Module
   level: Optional[int] = None
-  calls: List[CallEntry]
-  names: List[RegisteredName]
+  calls: List[_call.CallEntry]
+  names: List[_namescope.RegisteredName]
   canonical_name: Optional[str] = None
-  parent_owning_modules: List[Tuple["ModuleEntry", str]]
-  parent_context_modules: List["ModuleEntry"]
+  parent_owning_modules: List[Tuple[ModuleEntry, str]]
+  parent_context_modules: List[ModuleEntry]
 
   def __init__(self, module: Module):
     self.module = module
@@ -33,7 +33,7 @@ class ModuleEntry:
       module_repr = f"{lines[0].strip()}...{lines[-1].strip()}"
     return f"<ModuleEntry {module_repr}>"
 
-  def get_parent_calling_modules(self) -> List["ModuleEntry"]:
+  def get_parent_calling_modules(self) -> List[ModuleEntry]:
     res = []
     for call in self.calls:
       assert call.module is self
@@ -44,19 +44,19 @@ class ModuleEntry:
           break
     return res
 
-  def get_root_owning_module(self) -> "ModuleEntry":
+  def get_root_owning_module(self) -> ModuleEntry:
     mod = self
     while mod.parent_owning_modules:
       mod = mod.parent_owning_modules[0][0]
     return mod
 
-  def get_canonical_name(self, parent_namespace: Optional[RegisteredName] = None, *, _visited=None) -> str:
+  def get_canonical_name(self, parent_namespace: Optional[_namescope.RegisteredName] = None, *, _visited=None) -> str:
     if self.canonical_name:
       return self.canonical_name
     if _visited is None:
       _visited = set()
     _visited.add(self)
-    naming = Naming.get_instance()
+    naming = _naming.Naming.get_instance()
     if parent_namespace is None:
       parent_namespace = naming.root_namespace
     if self.parent_owning_modules:
@@ -89,5 +89,5 @@ class ModuleEntry:
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     if not exc_type:
-      Naming.get_instance().pop_module_context(self.module)
+      _naming.Naming.get_instance().pop_module_context(self.module)
 

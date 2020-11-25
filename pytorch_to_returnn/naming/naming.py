@@ -8,23 +8,23 @@ import numpy
 from returnn.tf.util.data import Data
 from returnn.tf.layers.basic import LayerBase
 from ._types import Tensor, Module
-from .tensor import TensorEntry
-from .module import ModuleEntry
-from .call import CallEntry
-from .namescope import RegisteredName
+from . import tensor as _tensor
+from . import module as _module
+from . import call as _call
+from . import namescope as _namescope
 
 
 class Naming:
-  tensors: WeakKeyDictionary[Tensor, TensorEntry]
+  tensors: WeakKeyDictionary[Tensor, _tensor.TensorEntry]
   const_tensor_cache: List[Tensor]
-  modules: OrderedDict[Module, ModuleEntry]
+  modules: OrderedDict[Module, _module.ModuleEntry]
   inputs: List[Tensor]
   outputs: List[Tensor]
-  module_creation_stack: List[ModuleEntry]
-  module_apply_stack: List[ModuleEntry]
-  module_context_stack: List[ModuleEntry]
-  module_call_stack: List[CallEntry]
-  root_func_calls: List[CallEntry]
+  module_creation_stack: List[_module.ModuleEntry]
+  module_apply_stack: List[_module.ModuleEntry]
+  module_context_stack: List[_module.ModuleEntry]
+  module_call_stack: List[_call.CallEntry]
+  root_func_calls: List[_call.CallEntry]
   _instance: Optional[Naming] = None
 
   @classmethod
@@ -66,13 +66,13 @@ class Naming:
     self.module_apply_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
-    self.root_namespace = RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
+    self.root_namespace = _namescope.RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
     self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
 
   @contextmanager
-  def push_module_creation(self, module: Module) -> ModuleEntry:
+  def push_module_creation(self, module: Module) -> _module.ModuleEntry:
     assert module not in self.modules
-    entry = ModuleEntry(module=module)
+    entry = _module.ModuleEntry(module=module)
     self.modules[module] = entry
     self.module_creation_stack.append(entry)
     with self.push_module_context(module):
@@ -81,7 +81,7 @@ class Naming:
     self.module_creation_stack.pop(-1)
 
   @contextmanager
-  def push_module_apply(self, module: Module) -> ModuleEntry:
+  def push_module_apply(self, module: Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     self.module_apply_stack.append(entry)
     with self.push_module_context(module):
@@ -89,7 +89,7 @@ class Naming:
     assert self.module_apply_stack[-1] is entry
     self.module_apply_stack.pop(-1)
 
-  def push_module_context(self, module: Module) -> ModuleEntry:
+  def push_module_context(self, module: Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     if self.module_context_stack:
       prev_top = self.module_context_stack[-1]
@@ -103,7 +103,7 @@ class Naming:
     assert self.module_context_stack[-1] is entry
     self.module_context_stack.pop(-1)
 
-  def _prepare_module_call_returnn_inputs(self, call: CallEntry):
+  def _prepare_module_call_returnn_inputs(self, call: _call.CallEntry):
     """
     It means this module has no forward, i.e. it is wrapped as RETURNN layer.
     We might need to make some inputs available, which are not available yet,
@@ -114,12 +114,12 @@ class Naming:
     for x in call.inputs:
       if x is None:
         continue
-      assert isinstance(x, TensorEntry)
+      assert isinstance(x, _tensor.TensorEntry)
       if not x.names:
         if x.is_param:
           assert x.returnn_data
           assert x.returnn_data.placeholder is None
-          from .torch.nn.modules import Variable
+          from pytorch_to_returnn.torch.nn.modules import Variable
           param_name = x.get_canonical_name()
           if x.returnn_data.name == "_unnamed_param":
             x.returnn_data.name = f"param:{param_name}"
@@ -129,7 +129,7 @@ class Naming:
           self.modules[mod].canonical_name = prefix + param_name
           res = mod()
           res_tensor = self.tensors[res]
-          assert isinstance(res_tensor, TensorEntry)
+          assert isinstance(res_tensor, _tensor.TensorEntry)
           assert len(res_tensor.names) == 1
           assert res_tensor.returnn_data.placeholder is not None
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
@@ -144,12 +144,12 @@ class Naming:
             x.returnn_axis_to_torch_axis = {i: i for i in range(len(tensor.shape))}
           parent_mod = x.get_canonical_parent_module()
           prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-          from .torch.nn.modules import Constant
+          from pytorch_to_returnn.torch.nn.modules import Constant
           mod = Constant(value=tensor)
           self.modules[mod].canonical_name = prefix + const_name
           res = mod()
           res_tensor = self.tensors[res]
-          assert isinstance(res_tensor, TensorEntry)
+          assert isinstance(res_tensor, _tensor.TensorEntry)
           assert len(res_tensor.names) == 1
           assert res_tensor.returnn_data.placeholder is not None
           x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
@@ -157,9 +157,9 @@ class Naming:
         else:
           raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
-  def push_module_call(self, *, module: Module, inputs: List[Tensor]) -> CallEntry:
+  def push_module_call(self, *, module: Module, inputs: List[Tensor]) -> _call.CallEntry:
     module_entry = self.modules[module]
-    entry = CallEntry(module=module_entry)
+    entry = _call.CallEntry(module=module_entry)
     if self.keep_orig_module_io_tensors:
       entry.orig_inputs = inputs
     entry.inputs = [self._make_tensor(x) for x in inputs]
@@ -229,7 +229,7 @@ class Naming:
     self._prepare_module_call_returnn_inputs(entry)
     return entry
 
-  def pop_module_call(self, call: CallEntry):
+  def pop_module_call(self, call: _call.CallEntry):
     assert self.module_call_stack[-1] is call
     self.module_call_stack.pop(-1)
 
@@ -238,11 +238,11 @@ class Naming:
     parent_entry = self.modules[parent]
     if child in self.modules:
       child_entry = self.modules[child]
-      assert isinstance(child_entry, ModuleEntry)
+      assert isinstance(child_entry, _module.ModuleEntry)
     else:
       assert child in self.tensors
       child_entry = self.tensors[child]
-      assert isinstance(child_entry, TensorEntry)
+      assert isinstance(child_entry, _tensor.TensorEntry)
       for parent_param in parent.parameters(recurse=False):
         if parent_param is child:
           child_entry.is_param = True
@@ -250,22 +250,22 @@ class Naming:
     if (parent_entry, attr) not in child_entry.parent_owning_modules:
       child_entry.parent_owning_modules.append((parent_entry, attr))
 
-  def register_tensor(self, tensor: Tensor) -> TensorEntry:
+  def register_tensor(self, tensor: Tensor) -> _tensor.TensorEntry:
     if tensor not in self.tensors:
-      self.tensors[tensor] = TensorEntry(
+      self.tensors[tensor] = _tensor.TensorEntry(
         tensor=ref(tensor),
         creation_stack_call=self.module_call_stack[-1] if self.module_call_stack else None,
         module_context_stack=list(self.module_context_stack))
     return self.tensors[tensor]
 
-  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> Optional[TensorEntry]:
+  def _make_tensor(self, x: Union[Tensor, int, float, numpy.number, numpy.ndarray]) -> Optional[_tensor.TensorEntry]:
     if x is None:
       return None
     if not self.wrap_to_returnn_enabled:
       if x in self.tensors:
         return self.tensors[x]
       return None
-    from .torch import from_numpy, Tensor
+    from pytorch_to_returnn.torch import from_numpy, Tensor
     if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
       x = from_numpy(x)
       self.const_tensor_cache.append(x)
@@ -292,10 +292,10 @@ class Naming:
     assert entry.returnn_data
     return entry.returnn_data
 
-  def register_output(self, tensor: Tensor) -> TensorEntry:
+  def register_output(self, tensor: Tensor) -> _tensor.TensorEntry:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
-    assert isinstance(entry, TensorEntry)
+    assert isinstance(entry, _tensor.TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
     self.outputs.append(tensor)
     if self.wrap_to_returnn_enabled:
@@ -332,15 +332,15 @@ class Naming:
     assert namespace.modules
     return namespace.modules[0].module
 
-  def get_module_call_idx(self, *, module: Module, call: CallEntry) -> int:
+  def get_module_call_idx(self, *, module: Module, call: _call.CallEntry) -> int:
     mod_entry = self.modules[module]
     assert call in mod_entry.calls
     return mod_entry.calls.index(call)
 
-  def get_module_calls(self, module: Module) -> List[CallEntry]:
+  def get_module_calls(self, module: Module) -> List[_call.CallEntry]:
     return self.modules[module].calls
 
-  def get_root_module_calls(self) -> OrderedDict[str, CallEntry]:
+  def get_root_module_calls(self) -> OrderedDict[str, _call.CallEntry]:
     d = OrderedDict()
     for name, sub in self.root_namespace.childs_by_name.items():
       if sub.calls:
@@ -351,7 +351,7 @@ class Naming:
     d = OrderedDict()
     _visited = set()
 
-    def visit(namespace: RegisteredName, prefix: str):
+    def visit(namespace: _namescope.RegisteredName, prefix: str):
       for mod in namespace.modules:
         if mod.module in _visited:
           return
@@ -377,7 +377,7 @@ class Naming:
     return call.returnn_layer
 
 
-def _flatten_namespace_for_mod(mod_entry: ModuleEntry) -> bool:
+def _flatten_namespace_for_mod(mod_entry: _module.ModuleEntry) -> bool:
   if mod_entry.parent_owning_modules:
     # Use the parent module.
     return False

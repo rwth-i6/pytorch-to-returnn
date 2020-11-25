@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Optional, List, Tuple, Union, Any, Dict
 from returnn.tf.layers.basic import LayerBase
 from ._types import Tensor
-from .module import ModuleEntry
-from .naming import Naming
-from .tensor import TensorEntry
-from .namescope import RegisteredName
+from . import module as _module
+from . import naming as _naming
+from . import tensor as _tensor
+from . import namescope as _namescope
 
 
 class CallEntry:
@@ -14,19 +14,19 @@ class CallEntry:
   Can be a module() call, or regular func.
   Note that a module can be called multiple times.
   """
-  module: ModuleEntry
+  module: _module.ModuleEntry
   orig_inputs: Optional[Tuple[Union[Tensor, Any]]] = None
   orig_outputs: Optional[Union[Tensor, Tuple[Tensor]]] = None
-  inputs: Optional[List["TensorEntry"]] = None
-  outputs: Optional[List["TensorEntry"]] = None
-  parent_call: Optional["CallEntry"] = None  # parent in the call stack
-  child_calls: List["CallEntry"]
+  inputs: Optional[List[_tensor.TensorEntry]] = None
+  outputs: Optional[List[_tensor.TensorEntry]] = None
+  parent_call: Optional[CallEntry] = None  # parent in the call stack
+  child_calls: List[CallEntry]
   level: Optional[int] = None
-  namespace: Optional["RegisteredName"] = None
+  namespace: Optional[_namescope.RegisteredName] = None
   returnn_layer: Optional[LayerBase] = None
   returnn_layer_dict: Optional[Dict[str, Any]] = None
 
-  def __init__(self, module: ModuleEntry):
+  def __init__(self, module: _module.ModuleEntry):
     self.module = module
     module.calls.append(self)
     self.child_calls = []
@@ -34,7 +34,7 @@ class CallEntry:
   def __repr__(self):
     return f"<{self.__class__.__name__} #{self.level} {self.module!r}>"
 
-  def get_root_call(self) -> "CallEntry":
+  def get_root_call(self) -> CallEntry:
     entry = self
     while entry.parent_call:
       entry = entry.parent_call
@@ -53,7 +53,7 @@ class CallEntry:
 
   def set_outputs(self, outputs: Union[Tensor, Tuple[Tensor], List[Tensor]]):
     assert self.outputs is None
-    naming = Naming.get_instance()
+    naming = _naming.Naming.get_instance()
     if naming.keep_orig_module_io_tensors:
       self.orig_outputs = outputs
     if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
@@ -73,7 +73,7 @@ class CallEntry:
     from pytorch_to_returnn.torch.nn import Module
     from pytorch_to_returnn.torch import Tensor
     from returnn.tf.util.basic import reuse_name_scope
-    naming = Naming.get_instance()
+    naming = _naming.Naming.get_instance()
     module = self.module.module
     assert self.namespace
     input = tuple([x.tensor() if x else None for x in self.inputs])  # make sure all are tensors
@@ -117,7 +117,7 @@ class CallEntry:
       module.check_returnn_layer(layer)
       res = module.make_output_tensor_from_returnn(inputs=input, layer=layer)
       res_entry = naming.tensors[res]
-      assert isinstance(res_entry, TensorEntry)
+      assert isinstance(res_entry, _tensor.TensorEntry)
       res_entry.returnn_data = layer.output
       self.namespace.assign_tensor(res_entry)
 
@@ -151,10 +151,9 @@ class CallEntry:
 
   def __enter__(self):
     # Assume via push_func_call
-    assert Naming.get_instance().module_call_stack[-1] is self
+    assert _naming.Naming.get_instance().module_call_stack[-1] is self
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     if not exc_type:
-      Naming.get_instance().pop_module_call(self)
-
+      _naming.Naming.get_instance().pop_module_call(self)
