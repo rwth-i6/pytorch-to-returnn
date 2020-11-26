@@ -146,6 +146,14 @@ def conv_transpose1d(
   return mod(input, weight, bias)
 
 
+def max_pool2d(input: Tensor, kernel_size, stride=None, padding=0, dilation=1,
+               ceil_mode=False, return_indices=False):
+  mod = modules.MaxPool2d(
+    kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation,
+    ceil_mode=ceil_mode, return_indices=return_indices)
+  return mod(input)
+
+
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:
   return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace)(input)
 
