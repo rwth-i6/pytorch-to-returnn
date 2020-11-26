@@ -2,7 +2,7 @@
 returnn
 better_exchook
 tensorflow-gpu>=2.3.0
-torch
+torch>=1.7
 num2words
 futures
 h5py

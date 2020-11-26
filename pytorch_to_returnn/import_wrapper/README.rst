@@ -54,6 +54,7 @@ We provide two predefined wrapped import functions:
   but install dynamic proxy wrappers,
   and trace ``torch.nn.Module`` creation and calls.
   It expects a `Naming context <../naming>`__.
+  This needs PyTorch >=1.7 to work properly.
 
 * ``wrapped_import_torch_returnn``:
   It will wrap ``torch`` imports to our ``pytorch_to_returnn.torch``
