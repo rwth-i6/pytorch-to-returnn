@@ -13,18 +13,21 @@ from .. import init
 
 
 class _ConvNd(Module):
+  nd: Optional[int] = None  # defined by subclass
+  transposed: bool = False
+
   def __init__(self,
                in_channels: int,
                out_channels: int,
-               kernel_size: _size_1_t,
-               stride: _size_1_t,
-               padding: _size_1_t,
-               dilation: _size_1_t,
-               transposed: bool,
-               output_padding: _size_1_t,
-               groups: int,
-               bias: bool,
-               padding_mode: str) -> None:
+               kernel_size: _scalar_or_tuple_any_t,
+               stride: _scalar_or_tuple_any_t = 1,
+               padding: _scalar_or_tuple_any_t = 0,
+               dilation: _scalar_or_tuple_any_t = 1,
+               transposed: Optional[bool] = None,
+               output_padding: _scalar_or_tuple_any_t = 0,
+               groups: int = 1,
+               bias: bool = True,
+               padding_mode: str = "zeros") -> None:
     super(_ConvNd, self).__init__()
     if in_channels % groups != 0:
       raise ValueError('in_channels must be divisible by groups')
@@ -36,12 +39,13 @@ class _ConvNd(Module):
         valid_padding_modes, padding_mode))
     self.in_channels = in_channels
     self.out_channels = out_channels
-    self.kernel_size = kernel_size
-    self.stride = stride
-    self.padding = padding
-    self.dilation = dilation
-    self.transposed = transposed
-    self.output_padding = output_padding
+    self.kernel_size = _ntuple(self.nd)(kernel_size)
+    self.stride = _ntuple(self.nd)(stride)
+    self.padding = _ntuple(self.nd)(padding)
+    self.dilation = _ntuple(self.nd)(dilation)
+    if transposed is not None:
+      self.transposed = transposed
+    self.output_padding = _ntuple(self.nd)(output_padding)
     self.groups = groups
     self.padding_mode = padding_mode
     # `_reversed_padding_repeated_twice` is the padding to be passed to
@@ -49,12 +53,12 @@ class _ConvNd(Module):
     # implemented as two ops: padding + conv). `F.pad` accepts paddings in
     # reverse order than the dimension.
     self._reversed_padding_repeated_twice = _reverse_repeat_tuple(self.padding, 2)
-    if transposed:
+    if self.transposed:
       self.weight = Parameter(Tensor(
-        in_channels, out_channels // groups, *kernel_size))
+        in_channels, out_channels // groups, *self.kernel_size))
     else:
       self.weight = Parameter(Tensor(
-        out_channels, in_channels // groups, *kernel_size))
+        out_channels, in_channels // groups, *self.kernel_size))
     if bias:
       self.bias = Parameter(Tensor(out_channels))
     else:
@@ -105,6 +109,8 @@ class _ConvNd(Module):
 
 
 class Conv1d(_ConvNd):
+  nd = 1
+
   def __init__(
       self,
       in_channels: int,
@@ -117,17 +123,31 @@ class Conv1d(_ConvNd):
       bias: bool = True,
       padding_mode: str = 'zeros'
   ):
-    kernel_size = _single(kernel_size)
-    stride = _single(stride)
-    padding = _single(padding)
-    dilation = _single(dilation)
     super(Conv1d, self).__init__(
-      in_channels, out_channels, kernel_size, stride, padding, dilation,
-      False, _single(0), groups, bias, padding_mode)
+      in_channels, out_channels, kernel_size, stride,
+      padding=padding, dilation=dilation,
+      groups=groups, bias=bias, padding_mode=padding_mode)
 
 
-class Conv2d(Module):
-  pass
+class Conv2d(_ConvNd):
+  nd = 2
+
+  def __init__(
+      self,
+      in_channels: int,
+      out_channels: int,
+      kernel_size: _size_2_t,
+      stride: _size_2_t = 1,
+      padding: _size_2_t = 0,
+      dilation: _size_2_t = 1,
+      groups: int = 1,
+      bias: bool = True,
+      padding_mode: str = 'zeros'
+  ):
+    super(Conv2d, self).__init__(
+      in_channels, out_channels, kernel_size, stride,
+      padding=padding, dilation=dilation,
+      groups=groups, bias=bias, padding_mode=padding_mode)
 
 
 class _ConvTransposeNd(_ConvNd):
