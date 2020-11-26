@@ -7,3 +7,5 @@ so you might want to run the given pipeline anyway,
 to create your own PyTorch model checkpoint.
 
 This example was earlier in its own repo [here](https://github.com/albertz/import-parallel-wavegan).
+
+See [pytorch_to_returnn.py](pytorch_to_returnn.py).
