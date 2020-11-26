@@ -43,6 +43,10 @@ class Tensor:
   def dim(self):
     return len(self._shape)
 
+  @property
+  def ndim(self):
+    return self.dim()
+
   def size(self, dim: Optional[int] = None):
     if dim is not None:
       return self._shape[dim]
