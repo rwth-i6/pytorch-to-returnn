@@ -43,8 +43,8 @@ class Naming:
     return cls._instance
 
   def __init__(self, *,
-               wrap_to_returnn_enabled: bool,
-               keep_orig_module_io_tensors: bool,
+               wrap_to_returnn_enabled: bool = True,
+               keep_orig_module_io_tensors: bool = True,
                import_params_from_torch_namespace: Optional[Naming] = None
                ):
     """

@@ -1,4 +1,5 @@
-Make PyTorch code runnable within RETURNN.
+Make [PyTorch](https://pytorch.org/) code
+runnable within [RETURNN](https://github.com/rwth-i6/returnn).
 This provides some wrappers (and maybe some magic) to do that.
 
 
@@ -57,7 +58,7 @@ wrapped_import_torch_returnn("parallel_wavegan")
 pwg_models = wrapped_import_torch_returnn("parallel_wavegan.models")
 pwg_layers = wrapped_import_torch_returnn("parallel_wavegan.layers")
 
-with Naming.make_instance(wrap_to_returnn_enabled=True) as naming:
+with Naming.make_instance() as naming:
     inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Feature), e.g. (1,80,80)
     x = naming.register_input(
         inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
