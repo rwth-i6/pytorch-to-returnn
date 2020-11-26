@@ -98,6 +98,8 @@ class CallEntry:
       layer_name = self.namespace.name
       returnn_net = parent_namespace.returnn_ctx.network
       assert layer_name not in returnn_net.layers
+      if len(self.module.calls) >= 2:
+        raise NotImplementedError  # would need to set reuse_params ...
       print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
 
       # Now the main construction of the layer itself.
