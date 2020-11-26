@@ -1,7 +1,6 @@
 
 from typing import Optional, Tuple, Any, List, Dict, Union
-from returnn.tf.layers.basic import LayerBase, TransposeLayer
-from returnn.tf.util.data import Data, DimensionTag
+from returnn.tf.layers.basic import LayerBase
 from .module import Module
 from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
