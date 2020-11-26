@@ -7,7 +7,7 @@ In RETURNN, every operation is a layer.
 """
 
 import numpy
-from typing import Optional, Union, List, Tuple, Dict, TypeVar
+from typing import Optional, Union, List, Tuple, Dict, TypeVar, Sequence
 from . import modules
 from ..tensor import Tensor
 from .._C import Size, dtype as _dtype
@@ -91,6 +91,14 @@ def mul(x: Tensor, y: Tensor) -> Tensor:
 def truediv(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
+
+
+def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
+  if end_dim == -1:
+    new_shape = input.shape[:start_dim] + (numpy.prod(input.shape[start_dim:]),)
+  else:
+    new_shape = input.shape[:start_dim] + (numpy.prod(input.shape[start_dim:end_dim + 1]),) + input.shape[end_dim + 1:]
+  return input.view(*new_shape)
 
 
 def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Union[int, Tuple[int, ...]]):
