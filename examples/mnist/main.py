@@ -14,7 +14,10 @@ import argparse
 
 
 def model_func(wrapped_import, inputs):
-  model = wrapped_import("model")
+  if wrapped_import:
+    model = wrapped_import("model")
+  else:
+    import model
   return model.Net()(inputs)
 
 
