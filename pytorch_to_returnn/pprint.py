@@ -78,6 +78,12 @@ Vs (via original ``pprint``)::
                              'output': {'class': 'copy', 'from': 'layer3_xxx'}}},
    'output': {'class': 'copy', 'from': 'melgan'}}
 
+This is a very simple implementation.
+There are other similar alternatives:
+
+* [Rich](https://github.com/willmcgugan/rich)
+* [pprint++](https://github.com/wolever/pprintpp)
+
 """
 
 from typing import Any
