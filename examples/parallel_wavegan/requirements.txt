@@ -1,0 +1,19 @@
+# ref: https://github.com/rwth-i6/returnn-experiments/blob/master/2020-TTS-LJSpeech/requirements.txt
+returnn
+better_exchook
+tensorflow-gpu>=2.3.0
+torch
+num2words
+futures
+h5py
+pysoundfile
+tqdm
+librosa
+numba
+tensorboardX
+PyYAML
+setuptools>=38.5.1
+kaldiio
+yq
+gdown
+matplotlib

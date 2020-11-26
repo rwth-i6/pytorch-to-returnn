@@ -1,0 +1,15 @@
+# https://github.com/rwth-i6/returnn-experiments/tree/master/2020-TTS-LJSpeech, scripts subdir
+/scripts
+
+*.log
+out*.wav
+/data
+/mb_melgan_models
+/returnn_models
+
+# Make this a symlink, or install somehow.
+# If symlink, should be directly importable.
+# https://github.com/kan-bayashi/ParallelWaveGAN, parallel_wavegan subdir
+/parallel_wavegan
+# https://github.com/rwth-i6/returnn, returnn subdir
+/returnn
