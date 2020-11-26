@@ -11,6 +11,10 @@ class _ActivationReturnn(Module):
     return {"class": "activation", "activation": self.func_name, "from": self._get_input_layer_name(input)}
 
 
+class ReLU(_ActivationReturnn):
+  func_name = "relu"
+
+
 class Tanh(_ActivationReturnn):
   func_name = "tanh"
 

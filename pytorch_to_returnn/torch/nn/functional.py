@@ -154,6 +154,10 @@ def max_pool2d(input: Tensor, kernel_size, stride=None, padding=0, dilation=1,
   return mod(input)
 
 
+def relu(input: Tensor) -> Tensor:
+  return modules.ReLU()(input)
+
+
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:
   return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace)(input)
 
