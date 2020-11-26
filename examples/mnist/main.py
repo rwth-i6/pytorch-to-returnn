@@ -14,12 +14,12 @@ def import_torch_traced():
 
 
 def def_model():
-  # import torch
-  # import torch.nn as nn
-  # import torch.nn.functional as F
   from pytorch_to_returnn import torch
   from pytorch_to_returnn.torch import nn
   from pytorch_to_returnn.torch.nn import functional as F
+  # import torch
+  # import torch.nn as nn
+  # import torch.nn.functional as F
 
   # directly from here: https://github.com/pytorch/examples/blob/master/mnist/main.py
   class Net(nn.Module):
