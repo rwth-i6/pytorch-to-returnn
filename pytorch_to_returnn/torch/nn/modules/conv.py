@@ -3,7 +3,7 @@ from __future__ import annotations
 import tensorflow as tf
 import math
 from typing import Optional, Dict, Any
-from returnn.tf.layers.basic import LayerBase
+from returnn.tf.layers.basic import LayerBase, ConvLayer
 from .module import Module
 from .utils import _single, _pair, _triple, _reverse_repeat_tuple, _ntuple
 from ..common_types import _scalar_or_tuple_any_t, _size_1_t, _size_2_t, _size_3_t
@@ -87,7 +87,7 @@ class _ConvNd(Module):
       "strides": self.stride,
       "dilation_rate": self.dilation}
 
-  def check_returnn_layer(self, layer):
+  def check_returnn_layer(self, layer: ConvLayer):
     assert layer.input_data.dim == self.in_channels
 
   def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module: _ConvNd):
