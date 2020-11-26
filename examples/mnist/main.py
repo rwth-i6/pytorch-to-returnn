@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 
+import better_exchook
 import typing
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced
 
@@ -11,23 +13,16 @@ def import_torch_traced():
   return wrapped_import_torch_traced("torch")
 
 
-def import_torch_returnn_wrapped():
-  if typing.TYPE_CHECKING:
-    from pytorch_to_returnn import torch
-    return torch
-
-  # TODO ...
-  from pytorch_to_returnn import torch
-  return torch
-
-
 def def_model():
-  torch = import_torch_returnn_wrapped()
-  nn = torch.nn
-  F = nn.functional
+  # import torch
+  # import torch.nn as nn
+  # import torch.nn.functional as F
+  from pytorch_to_returnn import torch
+  from pytorch_to_returnn.torch import nn
+  from pytorch_to_returnn.torch.nn import functional as F
 
   # directly from here: https://github.com/pytorch/examples/blob/master/mnist/main.py
-  class Net(torch.nn.Module):
+  class Net(nn.Module):
     def __init__(self):
       super(Net, self).__init__()
       self.conv1 = nn.Conv2d(1, 32, 3, 1)
@@ -54,3 +49,11 @@ def def_model():
 
   return Net()
 
+
+def main():
+  def_model()
+
+
+if __name__ == '__main__':
+  better_exchook.install()
+  main()
