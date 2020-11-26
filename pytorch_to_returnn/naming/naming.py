@@ -25,22 +25,25 @@ class Naming:
   module_context_stack: List[_module.ModuleEntry]
   module_call_stack: List[_call.CallEntry]
   root_func_calls: List[_call.CallEntry]
-  _instance: Optional[Naming] = None
+  _default_instance: Optional[Naming] = None
+  _instance_stack: List[Naming] = []
 
   @classmethod
   @contextmanager
   def make_instance(cls, **kwargs) -> Generator[Naming]:
-    assert not cls._instance
     ctx = Naming(**kwargs)
-    cls._instance = ctx
+    cls._instance_stack.append(ctx)
     yield ctx
-    assert cls._instance is ctx
-    cls._instance = None
+    assert cls._instance_stack[-1] is ctx
+    cls._instance_stack.pop(-1)
 
   @classmethod
   def get_instance(cls) -> Naming:
-    assert cls._instance
-    return cls._instance
+    if cls._instance_stack:
+      return cls._instance_stack[-1]
+    if not cls._default_instance:
+      cls._default_instance = Naming()
+    return cls._default_instance
 
   def __init__(self, *,
                wrap_to_returnn_enabled: bool = True,
