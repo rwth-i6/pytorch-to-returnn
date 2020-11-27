@@ -73,6 +73,8 @@ class _ConvNd(Module):
       init.uniform_(self.bias, -bound, bound)
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    assert len(input.shape) == 2 + self.nd
+    self._assert_spatial_axes_in_order(input)  # not implemented otherwise
     assert self.groups == 1  # not implemented otherwise
     assert all(p == 0 for p in self.padding)  # not implemented otherwise
     assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
@@ -165,6 +167,8 @@ class _ConvTransposeNd(_ConvNd):
       groups, bias, padding_mode)
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    assert len(input.shape) == 2 + self.nd
+    self._assert_spatial_axes_in_order(input)  # not implemented otherwise
     assert self.groups == 1  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     assert all(d == 1 for d in self.dilation)
@@ -183,6 +187,8 @@ class _ConvTransposeNd(_ConvNd):
 
 
 class ConvTranspose1d(_ConvTransposeNd):
+  nd = 1
+
   def __init__(
       self,
       in_channels: int,
@@ -236,6 +242,8 @@ class _FunctionalConvNd(Module):
     self._reversed_padding_repeated_twice = _reverse_repeat_tuple(self.padding, 2)
 
   def create_returnn_layer_dict(self, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Dict[str, Any]:
+    assert len(input.shape) == 2 + self.nd
+    self._assert_spatial_axes_in_order(input)  # not implemented otherwise
     assert len(weight.shape) == 2 + self.nd
     kernel_size = weight.shape[2:]
     out_channels, in_channels = weight.shape[:2]

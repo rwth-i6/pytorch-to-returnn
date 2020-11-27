@@ -495,6 +495,14 @@ class Module:
     # Note: If name_for_tensor fails, it means the tensor was not registered properly.
     return parent_namespace.name_for_tensor(naming.tensors[input])
 
+  def _assert_spatial_axes_in_order(self, input: Tensor):
+    entry = Naming.get_instance().register_tensor(input)
+    assert entry.returnn_data
+    spatial_axes = entry.returnn_data.get_spatial_batch_axes()
+    returnn_axis_to_torch_axis = {i: j for (j, i) in entry.returnn_axis_from_torch_axis.items()}
+    spatial_axes_torch = [returnn_axis_to_torch_axis[i] for i in spatial_axes]
+    assert sorted(spatial_axes_torch) == spatial_axes_torch
+
   def _get_input_axis_to_returnn(self, input: Tensor, axis: int) -> str:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
