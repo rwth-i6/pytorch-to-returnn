@@ -31,6 +31,29 @@ def test_conv():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_conv2d():
+  n_in, n_out = 11, 13
+  n_batch, n_time1, n_time2 = 3, 17, 19
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    # {'class': 'transposed_conv', 'from': 'layer2', 'activation': None, 'with_bias': True,
+    #  'n_out': 192, 'filter_size': (10,), 'strides': (5,), 'remove_padding': (3,), 'output_padding': (1,)}
+    model = torch.nn.Conv2d(
+      in_channels=n_in,
+      out_channels=n_out,
+      kernel_size=(3, 5),
+      stride=2)
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time1, n_time2)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_conv_transposed():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7

@@ -96,14 +96,16 @@ class _ConvNd(Module):
       # E.g. convert 11,13,10 -> 10,1,13,11.
       values = torch_module.weight.detach().numpy()
       assert len(self.kernel_size) in {1, 2}
-      values = values.transpose()
+      axes = list(range(values.ndim))
+      values = values.transpose(*(axes[2:] + [axes[1], axes[0]]))
       if len(self.kernel_size) == 1:
         values = values[:, None]
       layer.params["W_native_transposed_conv"].load(values, session=session)
     else:
       # E.g. 384,80,7 -> 7,80,384
       values = torch_module.weight.detach().numpy()
-      values = values.transpose()
+      axes = list(range(values.ndim))
+      values = values.transpose(*(axes[2:] + [axes[1], axes[0]]))
       layer.params["W"].load(values, session=session)
     layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
