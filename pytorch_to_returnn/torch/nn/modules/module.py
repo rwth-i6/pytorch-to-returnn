@@ -440,18 +440,41 @@ class Module:
     session = tf.compat.v1.get_default_session()
     assert len(call.outputs) == 1
     returnn_output_tensor_entry = call.outputs[0]
-    returnn_output_np = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
-    assert isinstance(returnn_output_np, numpy.ndarray)
-    returnn_output_np = returnn_output_np.transpose(*[
-      returnn_output_tensor_entry.returnn_axis_to_torch_axis[i] for i in range(returnn_output_np.ndim)])
+    returnn_output_np_ = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
+    assert isinstance(returnn_output_np_, numpy.ndarray)
+    returnn_output_np = returnn_output_np_.transpose(*[
+      returnn_output_tensor_entry.returnn_axis_to_torch_axis[i] for i in range(returnn_output_np_.ndim)])
     torch_outputs = torch_mod_call.orig_outputs
     if not isinstance(torch_mod_call.orig_outputs, (list, tuple)):
       torch_outputs = [torch_outputs]
     assert len(torch_outputs) == 1
     torch_out_np = torch_outputs[0].detach().cpu().numpy()
+    error_msg_info = [f"RETURNN layer: {call.returnn_layer}", f"Torch module: {torch_mod}"]
+    if returnn_output_np.shape != torch_out_np.shape:
+      error_msg_info += [
+        "ERROR: Output shape mismatch",
+        f"  RETURNN output data: {call.returnn_layer.output}",
+        f"  RETURNN output shape: {returnn_output_np_.shape},",
+        f"  RETURNN output shape (transposed to Torch): {returnn_output_np.shape},"
+        f" (RETURNN->Torch axis mapping {returnn_output_tensor_entry.returnn_axis_to_torch_axis})",
+        f"  Torch output shape: {torch_out_np.shape}"]
+      for i, (tensor_entry, torch_input) in enumerate(zip(call.inputs, torch_mod_call.orig_inputs)):
+        assert isinstance(tensor_entry, TensorEntry)
+        error_msg_info += [f"input {i + 1}/{len(call.inputs)}:"]
+        torch_axis_to_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_to_torch_axis.items()}
+        torch_input_np_ = torch_input.detach().cpu().numpy()
+        assert isinstance(torch_input_np_, numpy.ndarray)
+        assert len(torch_input_np_.shape) == tensor_entry.returnn_data.batch_ndim
+        torch_input_np = torch_input_np_.transpose(
+          *[torch_axis_to_returnn_axis[i] for i in range(torch_input_np_.ndim)])
+        error_msg_info += [
+          f"  RETURNN input data: {tensor_entry.returnn_data}",
+          f"  RETURNN input shape (Torch axis order): {torch_input_np_.shape}",
+          f"  RETURNN input shape (transposed to RETURNN): {torch_input_np.shape}"
+          f" (Torch->RETURNN axis mapping {torch_axis_to_returnn_axis})"]
     numpy.testing.assert_allclose(
       returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
-      err_msg=f"{call.returnn_layer} vs {torch_mod}")
+      err_msg="\n".join(error_msg_info))
 
   def _get_input_layer_name(self, input: Tensor) -> str:
     naming = Naming.get_instance()
