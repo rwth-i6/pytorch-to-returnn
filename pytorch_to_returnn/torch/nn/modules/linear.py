@@ -47,7 +47,7 @@ class Linear(Module):
       "activation": None}
 
   def check_returnn_layer(self, layer: LinearLayer):
-    assert layer.input_data.dim == self.in_channels
+    assert layer.input_data.dim == self.in_features
 
 
 __all__ = [
