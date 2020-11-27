@@ -1,6 +1,8 @@
 
+from __future__ import annotations
 import math
 from typing import Dict, Any
+import tensorflow as tf
 from returnn.tf.layers.basic import LinearLayer
 from .module import Module
 from ..parameter import Parameter
@@ -48,6 +50,14 @@ class Linear(Module):
 
   def check_returnn_layer(self, layer: LinearLayer):
     assert layer.input_data.dim == self.in_features
+
+  def import_params_torch_to_returnn(self, *, layer: LinearLayer, torch_module: Linear):
+    session = tf.compat.v1.get_default_session()
+    values = torch_module.weight.detach().numpy()
+    values = values.transpose()
+    layer.params["W"].load(values, session=session)
+    if self.bias is not None:
+      layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
 
 __all__ = [
