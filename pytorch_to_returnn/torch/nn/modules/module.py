@@ -425,11 +425,11 @@ class Module:
     feed_dict = {}
     for tensor_entry, torch_input in zip(call.inputs, torch_mod_call.orig_inputs):
       assert isinstance(tensor_entry, TensorEntry)
-      torch_axis_to_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_to_torch_axis.items()}
+      torch_axis_from_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_from_torch_axis.items()}
       torch_input_np = torch_input.detach().cpu().numpy()
       assert isinstance(torch_input_np, numpy.ndarray)
       assert len(torch_input_np.shape) == tensor_entry.returnn_data.batch_ndim
-      torch_input_np = torch_input_np.transpose(*[torch_axis_to_returnn_axis[i] for i in range(torch_input_np.ndim)])
+      torch_input_np = torch_input_np.transpose(*[torch_axis_from_returnn_axis[i] for i in range(torch_input_np.ndim)])
       feed_dict[tensor_entry.returnn_data.placeholder] = torch_input_np
       for i, size in tensor_entry.returnn_data.size_placeholder.items():
         axis = tensor_entry.returnn_data.get_batch_axis(i)
@@ -443,7 +443,7 @@ class Module:
     returnn_output_np_ = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
     assert isinstance(returnn_output_np_, numpy.ndarray)
     returnn_output_np = returnn_output_np_.transpose(*[
-      returnn_output_tensor_entry.returnn_axis_to_torch_axis[i] for i in range(returnn_output_np_.ndim)])
+      returnn_output_tensor_entry.returnn_axis_from_torch_axis[i] for i in range(returnn_output_np_.ndim)])
     torch_outputs = torch_mod_call.orig_outputs
     if not isinstance(torch_mod_call.orig_outputs, (list, tuple)):
       torch_outputs = [torch_outputs]
@@ -456,22 +456,22 @@ class Module:
         f"  RETURNN output data: {call.returnn_layer.output}",
         f"  RETURNN output shape: {returnn_output_np_.shape},",
         f"  RETURNN output shape (transposed to Torch): {returnn_output_np.shape},"
-        f" (RETURNN->Torch axis mapping {returnn_output_tensor_entry.returnn_axis_to_torch_axis})",
+        f" (RETURNN<-Torch axis mapping {returnn_output_tensor_entry.returnn_axis_from_torch_axis})",
         f"  Torch output shape: {torch_out_np.shape}"]
       for i, (tensor_entry, torch_input) in enumerate(zip(call.inputs, torch_mod_call.orig_inputs)):
         assert isinstance(tensor_entry, TensorEntry)
         error_msg_info += [f"input {i + 1}/{len(call.inputs)}:"]
-        torch_axis_to_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_to_torch_axis.items()}
+        torch_axis_from_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_from_torch_axis.items()}
         torch_input_np_ = torch_input.detach().cpu().numpy()
         assert isinstance(torch_input_np_, numpy.ndarray)
         assert len(torch_input_np_.shape) == tensor_entry.returnn_data.batch_ndim
         torch_input_np = torch_input_np_.transpose(
-          *[torch_axis_to_returnn_axis[i] for i in range(torch_input_np_.ndim)])
+          *[torch_axis_from_returnn_axis[i] for i in range(torch_input_np_.ndim)])
         error_msg_info += [
           f"  RETURNN input data: {tensor_entry.returnn_data}",
           f"  RETURNN input shape (Torch axis order): {torch_input_np_.shape}",
           f"  RETURNN input shape (transposed to RETURNN): {torch_input_np.shape}"
-          f" (Torch->RETURNN axis mapping {torch_axis_to_returnn_axis})"]
+          f" (Torch<-RETURNN axis mapping {torch_axis_from_returnn_axis})"]
     numpy.testing.assert_allclose(
       returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
       err_msg="\n".join(error_msg_info))
@@ -490,7 +490,7 @@ class Module:
 
   def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
     naming = Naming.get_instance()
-    shape, axis_mapping = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
     is_const = False
     numpy_array = None
     inputs_entries = [naming.tensors[x] if x is not None else None for x in inputs]  # type: List[Optional[TensorEntry]]
@@ -505,18 +505,18 @@ class Module:
         feed_dict[x.returnn_data.placeholder] = x.tensor().numpy()
       numpy_array = session.run(layer.output.placeholder, feed_dict=feed_dict)
       is_const = True
-    tensor = Tensor(*shape, numpy_array=numpy_array, dtype=layer.output.dtype)
+    tensor = Tensor(*torch_shape, numpy_array=numpy_array, dtype=layer.output.dtype)
     tensor_entry = naming.register_tensor(tensor)
     tensor_entry.is_const = is_const
     tensor_entry.returnn_data = layer.output
-    tensor_entry.returnn_axis_to_torch_axis = axis_mapping
+    tensor_entry.returnn_axis_from_torch_axis = returnn_axis_from_torch_axis
     return tensor
 
-  def _get_output_shape_from_returnn(self,
-                                     inputs: Tuple[Tensor, ...], layer: LayerBase
-                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+  @staticmethod
+  def _base_get_output_shape_from_returnn(inputs: Tuple[Tensor, ...], layer: LayerBase
+                                          ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
-    :return: (torch_shape, returnn_axis_to_torch_axis).
+    :return: (torch_shape, returnn_axis_from_torch_axis).
       Torch shape how it would have looked when this would be processed within Torch.
       The RETURNN layer.output shape (order of axes) might look different.
 
@@ -551,15 +551,15 @@ class Module:
     for input in inputs:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
-      assert x.returnn_data and x.returnn_axis_to_torch_axis is not None
+      assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
       if x.returnn_data.have_batch_axis():
-        batch_size = input.shape[x.returnn_axis_to_torch_axis[x.returnn_data.batch_dim_axis]]
+        batch_size = input.shape[x.returnn_axis_from_torch_axis[x.returnn_data.batch_dim_axis]]
       if x.returnn_data.get_dynamic_axes():
         i = x.returnn_data.get_dynamic_axes()[0]
-        dyn_size = input.shape[x.returnn_axis_to_torch_axis[i]]
-      shape_meta = _get_shape_meta(x.returnn_data)  # e.g. [B,T_in,D_in]
+        dyn_size = input.shape[x.returnn_axis_from_torch_axis[i]]
+      shape_meta = _get_shape_meta(x.returnn_data)  # e.g. [B,T_in,D_in], RETURNN order
       # Reorder dim tags as the input like it would look like for Torch, e.g. [B,D_in,T_in].
-      shape_meta_torch_order = [shape_meta[x.returnn_axis_to_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
+      shape_meta_torch_order = [shape_meta[x.returnn_axis_from_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
       for kind in ["B", "F"]:
         if kind in shape_meta_torch_order and kind in layer_output_shape_meta:
           if shape_meta_torch_order.index(kind) == len(shape_meta_torch_order) - 1:
@@ -591,4 +591,28 @@ class Module:
     torch_axis_to_returnn = {i: j for (j, i) in out_returnn_axis_to_torch_axis.items()}
     assert len(torch_axis_to_returnn) == layer.output.batch_ndim
     out_shape = [out_shape[torch_axis_to_returnn[i]] for i in range(layer.output.batch_ndim)]
-    return out_shape, out_returnn_axis_to_torch_axis
+    out_returnn_axis_from_torch_axis = torch_axis_to_returnn
+    return tuple(out_shape), out_returnn_axis_from_torch_axis
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs: Tuple[Tensor, ...], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    :return: (torch_shape, returnn_axis_from_torch_axis).
+      Torch shape how it would have looked when this would be processed within Torch.
+      The RETURNN layer.output shape (order of axes) might look different.
+
+    Note about returnn_axis_from_torch_axis:
+    This is when you would use `tf.transpose` or `numpy.transpose`,
+    and you can think of `returnn_axis_from_torch_axis` as the `perm` argument, as a list.
+    The dict is like {torch_axis: returnn_axis}, i.e. Torch axis -> RETURNN axis.
+    You would use this if you want to transpose RETURNN axes **to** Torch axes
+    (i.e. the other way around).
+
+    This is a bit tricky.
+    If axes got reordered (RETURNN does that for efficiency, and then returns as-is),
+    Torch code would not expect this.
+    We need a mapping of RETURNN axis -> Torch axis.
+    We can automatically infer this, but this is a bit involved.
+    """
+    return self._base_get_output_shape_from_returnn(inputs=inputs, layer=layer)

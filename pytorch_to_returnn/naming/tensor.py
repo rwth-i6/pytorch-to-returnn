@@ -12,7 +12,7 @@ from . import call as _call
 class TensorEntry:
   tensor: ref[_types.Tensor]
   returnn_data: Optional[Data] = None
-  returnn_axis_to_torch_axis: Optional[Dict[int, int]] = None
+  returnn_axis_from_torch_axis: Optional[Dict[int, int]] = None
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
@@ -37,10 +37,10 @@ class TensorEntry:
   def __repr__(self):
     if self.returnn_data:
       returnn_data_repr = f"[{','.join(self.returnn_data.get_batch_axes_short_description())}]"
-      if self.returnn_axis_to_torch_axis == {i: i for i in range(self.returnn_data.batch_ndim)}:
+      if self.returnn_axis_from_torch_axis == {i: i for i in range(self.returnn_data.batch_ndim)}:
         mapping_repr = "id"
       else:
-        mapping_repr = repr(self.returnn_axis_to_torch_axis).replace(" ", "")
+        mapping_repr = repr(self.returnn_axis_from_torch_axis).replace(" ", "")
       returnn_data_repr = f"{self.returnn_data.name!r} {returnn_data_repr} axes {mapping_repr}"
     else:
       returnn_data_repr = None
@@ -80,11 +80,11 @@ class TensorEntry:
     """
     :param torch_axis:
     :return: name such that
-      self.returnn_axis_to_torch_axis[self.returnn_data.get_axis_from_description(name)] == torch_axis
+      self.returnn_axis_from_torch_axis[self.returnn_data.get_axis_from_description(name)] == torch_axis
     """
-    assert self.returnn_data and self.returnn_axis_to_torch_axis is not None
-    torch_axis_to_returnn_axis = {i: j for (j, i) in self.returnn_axis_to_torch_axis.items()}
-    assert len(torch_axis_to_returnn_axis) == len(self.returnn_axis_to_torch_axis) == self.returnn_data.batch_ndim
+    assert self.returnn_data and self.returnn_axis_from_torch_axis is not None
+    torch_axis_to_returnn_axis = {i: j for (j, i) in self.returnn_axis_from_torch_axis.items()}
+    assert len(torch_axis_to_returnn_axis) == len(self.returnn_axis_from_torch_axis) == self.returnn_data.batch_ndim
     axis = torch_axis_to_returnn_axis[torch_axis]
     if axis == self.returnn_data.batch_dim_axis:
       return "B"

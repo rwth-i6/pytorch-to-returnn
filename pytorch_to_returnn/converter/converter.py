@@ -177,8 +177,8 @@ class Converter:
         out_returnn = self._model_func(wrapped_import_torch_returnn, in_returnn)
         assert isinstance(out_returnn, torch_returnn.Tensor)
         out_returnn_ = naming.register_output(out_returnn)
-        y, returnn_axis_to_torch_axis = out_returnn_.returnn_data, out_returnn_.returnn_axis_to_torch_axis
-        print("RETURNN output:", y, "axis map RETURNN->Torch", returnn_axis_to_torch_axis)
+        y, returnn_axis_from_torch_axis = out_returnn_.returnn_data, out_returnn_.returnn_axis_from_torch_axis
+        print("RETURNN output:", y, "axis map RETURNN<-Torch", returnn_axis_from_torch_axis)
         print(">>>> Module naming hierarchy:")
         naming.root_namespace.dump()
         print(">>>> RETURNN net dict:")
@@ -196,7 +196,7 @@ class Converter:
       self._out_returnn_np = y_
       print("Output shape:", y_.shape)
       print("Output seq lens:", y_size)
-      y_torch = y_.transpose(*[returnn_axis_to_torch_axis[i] for i in range(y_.ndim)])
+      y_torch = y_.transpose(*[returnn_axis_from_torch_axis[i] for i in range(y_.ndim)])
       print("Output shape (converted to Torch):", y_torch.shape)
       if self._out_ref_np is not None:
         numpy.testing.assert_allclose(self._out_ref_np, y_torch, atol=1e-4, rtol=0)

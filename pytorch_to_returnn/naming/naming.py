@@ -144,7 +144,7 @@ class Naming:
             x.returnn_data = Data(
               name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
               batch_dim_axis=None, time_dim_axis=None)
-            x.returnn_axis_to_torch_axis = {i: i for i in range(len(tensor.shape))}
+            x.returnn_axis_from_torch_axis = {i: i for i in range(len(tensor.shape))}
           parent_mod = x.get_canonical_parent_module()
           prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
           from pytorch_to_returnn.torch.nn.modules import Constant
@@ -290,7 +290,7 @@ class Naming:
       time_dim_axis=returnn_data.time_dim_axis,
       feature_dim_axis=returnn_data.feature_dim_axis_or_unspecified,
       available_for_inference=True)
-    entry.returnn_axis_to_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
+    entry.returnn_axis_from_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
     # "data" is a special layer name in RETURNN, representing input data
     self.root_namespace.register_input(tensor=entry)
     assert entry.returnn_data

@@ -128,7 +128,7 @@ class Transpose(Module):
                                      inputs: Tuple[Tensor, ...], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
-    :return: (torch_shape, returnn_axis_to_torch_axis).
+    :return: (torch_shape, returnn_axis_from_torch_axis).
       Torch shape how it would have looked when this would be processed within Torch.
       The RETURNN layer.output shape (order of axes) might look different.
 
@@ -149,13 +149,13 @@ class Transpose(Module):
     naming = Naming.get_instance()
     tensor_entry = naming.tensors[input]
     assert isinstance(tensor_entry, TensorEntry)
-    assert tensor_entry.returnn_data and tensor_entry.returnn_axis_to_torch_axis
+    assert tensor_entry.returnn_data and tensor_entry.returnn_axis_from_torch_axis
     assert tensor_entry.returnn_data.batch_ndim == ndim
 
     out_torch_shape = [input.shape[perm[i]] for i in range(ndim)]
-    out_returnn_axis_to_torch_axis = {
-      i: perm[j] for (i, j) in tensor_entry.returnn_axis_to_torch_axis.items()}
-    return tuple(out_torch_shape), out_returnn_axis_to_torch_axis
+    out_returnn_axis_from_torch_axis = {
+      i: perm[j] for (i, j) in tensor_entry.returnn_axis_from_torch_axis.items()}
+    return tuple(out_torch_shape), out_returnn_axis_from_torch_axis
 
 
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor]:
