@@ -204,7 +204,7 @@ class RegisteredName:
   def dump(self, prefix=""):
     for name, child in self.childs_by_name.items():
       if name.startswith("."):
-        print(f"{prefix}{name}: (hidden)")
+        print(f"{prefix}{name}: (hidden, {'non-empty' if child.childs_by_name else 'empty'})")
         continue
       print(f"{prefix}{name}: {child._repr_content()}")
       child.dump(prefix=f"{prefix}  ")
