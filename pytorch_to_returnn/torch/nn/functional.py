@@ -94,10 +94,14 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
 
 
 def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
+  def prod(ls):
+    from functools import reduce
+    import operator
+    return reduce(operator.mul, ls, 1)
   if end_dim == -1:
-    new_shape = input.shape[:start_dim] + (numpy.prod(input.shape[start_dim:]),)
+    new_shape = input.shape[:start_dim] + (prod(input.shape[start_dim:]),)
   else:
-    new_shape = input.shape[:start_dim] + (numpy.prod(input.shape[start_dim:end_dim + 1]),) + input.shape[end_dim + 1:]
+    new_shape = input.shape[:start_dim] + (prod(input.shape[start_dim:end_dim + 1]),) + input.shape[end_dim + 1:]
   return input.view(*new_shape)
 
 
