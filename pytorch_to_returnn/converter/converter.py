@@ -50,7 +50,9 @@ class Converter:
   """
 
   def __init__(self,
-               model_func: ModelFuncType, *, inputs: numpy.ndarray,
+               model_func: ModelFuncType, *,
+               inputs: numpy.ndarray,
+               inputs_data_kwargs: Optional[Dict[str, Any]] = None,
                use_non_wrapped_reference: bool = True,
                verify_with_torch: bool = True,
                verify_individual_model_io: bool = True,
@@ -62,12 +64,20 @@ class Converter:
     :param model_func:
       Gets an argument wrapped_import(str) -> module, or None. If None, should import as is.
       It also gets the inputs, converted to the right PyTorch `Tensor` object (either original or wrapped).
-    :param inputs:
+    :param inputs: example inputs
     """
     self._model_func = model_func
     self._inputs_np = inputs
-    self._in_n_batch, self._in_n_feature, self._in_n_time = inputs.shape  # currently assumed...
-    self._returnn_in_data_dict = dict(shape=(self._in_n_feature, None), feature_dim_axis=1, time_dim_axis=2)
+    inputs_data_kwargs = {} if inputs_data_kwargs is None else inputs_data_kwargs.copy()
+    if "feature_dim_axis" not in inputs_data_kwargs:
+      assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
+      inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
+    if "shape" not in inputs_data_kwargs:
+      # Assume feature is static, all other dynamic.
+      self._returnn_in_data_dict["shape"] = [
+        inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
+        for i in range(len(inputs.shape))]
+    self._returnn_in_data_dict = inputs_data_kwargs
     self.use_non_wrapped_reference = use_non_wrapped_reference
     self.verify_with_torch = verify_with_torch
     self.verify_individual_model_io = verify_individual_model_io
@@ -88,6 +98,15 @@ class Converter:
     self._run_torch_returnn_drop_in()
     if self.verify_returnn_standalone_model:
       self._run_returnn_standalone()
+
+  def _make_tf_feed_dict(self, input: Data):
+    assert input.batch_ndim == len(self._inputs_np.shape)
+    assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
+    n_batch = self._inputs_np.shape[input.batch_dim_axis]
+    d = {input.placeholder: self._inputs_np}
+    for i, size in input.size_placeholder.items():
+      d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
+    return d
 
   def _run_reference(self):
     """
@@ -170,10 +189,7 @@ class Converter:
         print(">>>> Modules with params:")
         pprint(dict(torch_mods_with_params))
 
-      feed_dict = {
-        x.placeholder: self._inputs_np,
-        x.get_sequence_lengths(): [self._in_n_time] * self._in_n_batch  # not so relevant
-      }
+      feed_dict = self._make_tf_feed_dict(x)
       y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       self._out_returnn_np = y_
@@ -213,10 +229,7 @@ class Converter:
 
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
-      feed_dict = {
-        x.placeholder: self._inputs_np,
-        x.get_sequence_lengths(): [self._in_n_time] * self._in_n_batch  # not so relevant
-      }
+      feed_dict = self._make_tf_feed_dict(x)
       y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
@@ -227,7 +240,7 @@ class Converter:
 
 def verify_torch_and_convert_to_returnn(
       model_func: ModelFuncType, *,
-      inputs: numpy.ndarray) -> Converter:
+      inputs: numpy.ndarray, **kwargs) -> Converter:
   """
   :param model_func:
     Gets an argument wrapped_import(str) -> module, or None. If None, should import as is.
@@ -241,6 +254,6 @@ def verify_torch_and_convert_to_returnn(
 
   See the `readme <..>`_ for further details.
   """
-  converter = Converter(model_func=model_func, inputs=inputs)
+  converter = Converter(model_func=model_func, inputs=inputs, **kwargs)
   converter.run()
   return converter

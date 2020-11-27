@@ -70,7 +70,8 @@ def main():
   data, target = next(iter(train_loader))
   data_np = data.numpy()
 
-  verify_torch_and_convert_to_returnn(model_func, inputs=data_np)
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=data_np, inputs_data_kwargs={"shape": (1, 28, 28)})
 
 
 if __name__ == '__main__':
