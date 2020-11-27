@@ -143,6 +143,14 @@ def conv1d(
   return mod(input, weight, bias)
 
 
+def conv2d(
+    input: Tensor, weight: Tensor, bias: Optional[Tensor] = None,
+    stride: Union[int, _size] = 1, padding: Union[int, _size] = 0,
+    dilation: Union[int, _size] = 1, groups: int = 1) -> Tensor:
+  mod = modules.FunctionalConv2d(stride=stride, padding=padding, dilation=dilation, groups=groups)
+  return mod(input, weight, bias)
+
+
 def conv_transpose1d(
     input: Tensor, weight: Tensor, bias: Optional[Tensor] = None,
     stride: Union[int, _size] = 1, padding: Union[int, _size] = 0,

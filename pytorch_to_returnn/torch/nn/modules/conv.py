@@ -282,6 +282,10 @@ class FunctionalConv1d(_FunctionalConvNd):
   nd = 1
 
 
+class FunctionalConv2d(_FunctionalConvNd):
+  nd = 2
+
+
 class FunctionalConvTransposed1d(_FunctionalConvNd):
   nd = 1
   transposed = True
