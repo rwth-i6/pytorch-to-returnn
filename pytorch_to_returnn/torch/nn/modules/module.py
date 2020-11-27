@@ -644,3 +644,13 @@ class Module:
     We can automatically infer this, but this is a bit involved.
     """
     return self._base_get_output_shape_from_returnn(inputs=inputs, layer=layer)
+
+  def as_returnn_torch_functional(self):
+    """
+    Call this to mark this module such that this would not be used when used with the original Torch.
+    Usually this is via the functional API, which calls back to standard Torch modules.
+
+    :return: self
+    """
+    self.is_original_torch_module = False
+    return self

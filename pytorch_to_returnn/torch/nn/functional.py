@@ -128,7 +128,7 @@ def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tup
 
 
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
-  return modules.GenericPadNd(padding=pad, mode=mode, value=value)(input)
+  return modules.GenericPadNd(padding=pad, mode=mode, value=value).as_returnn_torch_functional()(input)
 
 
 def max(*inputs: Tensor) -> Tensor:
@@ -167,27 +167,28 @@ def max_pool2d(input: Tensor, kernel_size, stride=None, padding=0, dilation=1,
   mod = modules.MaxPool2d(
     kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation,
     ceil_mode=ceil_mode, return_indices=return_indices)
+  mod.as_returnn_torch_functional()
   return mod(input)
 
 
 def relu(input: Tensor) -> Tensor:
-  return modules.ReLU()(input)
+  return modules.ReLU().as_returnn_torch_functional()(input)
 
 
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:
-  return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace)(input)
+  return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace).as_returnn_torch_functional()(input)
 
 
 def tanh(input: Tensor) -> Tensor:
-  return modules.Tanh()(input)
+  return modules.Tanh().as_returnn_torch_functional()(input)
 
 
 def softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
-  return modules.Softmax(dim=dim)(input)
+  return modules.Softmax(dim=dim).as_returnn_torch_functional()(input)
 
 
 def log_softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
-  return modules.LogSoftmax(dim=dim)(input)
+  return modules.LogSoftmax(dim=dim).as_returnn_torch_functional()(input)
 
 
 def normalize(input: Tensor, p=2, dim=1, eps=1e-12) -> Tensor:
