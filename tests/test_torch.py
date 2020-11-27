@@ -61,10 +61,12 @@ def test_base_get_output_shape_from_returnn_2d_reorder_dynamic():
     # E.g. softmax_over_spatial with axis="stag:time1"
     layer = InternalLayer(name="layer", network=net, output=y_data)
 
+    # We expect from all Torch modules, that they don't reorder the spatial axes.
+    # (If they do, they explicitly would overwrite the output shape logic.)
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
       inputs=(x,), layer=layer)
-    assert returnn_axis_from_torch_axis == {0: 0, 1: 1, 2: 2, 3: 3}
-    assert torch_shape == (64, 1, 13, 11)
+    assert returnn_axis_from_torch_axis == {0: 0, 1: 1, 2: 3, 3: 2}
+    assert torch_shape == (64, 1, 11, 13)
 
 
 if __name__ == "__main__":
