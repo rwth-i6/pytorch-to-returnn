@@ -472,6 +472,16 @@ class Module:
           f"  RETURNN input shape (Torch axis order): {torch_input_np_.shape}",
           f"  RETURNN input shape (transposed to RETURNN): {torch_input_np.shape}"
           f" (Torch<-RETURNN axis mapping {torch_axis_from_returnn_axis})"]
+    else:
+      is_close_arr = numpy.isclose(returnn_output_np, torch_out_np, rtol=0, atol=1e-4)
+      if not numpy.all(is_close_arr):
+        idx = numpy.argmax(numpy.abs(returnn_output_np - torch_out_np))
+        idx_ = numpy.unravel_index(idx, shape=returnn_output_np.shape)
+        error_msg_info += [
+          f"  RETURNN output min/max: {numpy.min(returnn_output_np), numpy.max(returnn_output_np)}",
+          f"  Torch output min/max: {numpy.min(torch_out_np), numpy.max(torch_out_np)}",
+          f"  Biggest mismatch at idx {idx_}, RETURNN {returnn_output_np[idx_]} vs Torch {torch_out_np[idx_]}",
+        ]
     numpy.testing.assert_allclose(
       returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
       err_msg="\n".join(error_msg_info))
