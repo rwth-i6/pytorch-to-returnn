@@ -23,7 +23,7 @@ class Tensor:
       shape = tuple(args[0])
     else:
       shape = args
-    assert isinstance(shape, tuple) and all([isinstance(dim, int) for dim in shape])
+    assert isinstance(shape, tuple) and all(isinstance(dim, int) for dim in shape)
     if numpy_array is not None:
       if dtype is not None:
         numpy_array = numpy_array.astype(dtype)
