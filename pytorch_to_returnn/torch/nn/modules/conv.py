@@ -243,7 +243,8 @@ class _FunctionalConvNd(Module):
     if self.transposed:
       out_channels, in_channels = in_channels, out_channels
     returnn_weight_axes = [self._get_input_axis_to_returnn(weight, i) for i in range(len(weight.shape))]
-    returnn_weight_transpose_perm = {i: j for (i, j) in zip(returnn_weight_axes, reversed(returnn_weight_axes))}
+    returnn_weight_axes_ = returnn_weight_axes[2:] + [returnn_weight_axes[1], returnn_weight_axes[0]]
+    returnn_weight_transpose_perm = {i: j for (i, j) in zip(returnn_weight_axes, returnn_weight_axes_)}
     if bias is not None:
       assert bias.shape == (out_channels,)
     assert self.groups == 1  # not implemented otherwise
