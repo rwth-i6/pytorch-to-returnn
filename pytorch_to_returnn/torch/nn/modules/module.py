@@ -557,16 +557,19 @@ class Module:
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
     batch_size = None
-    dyn_size = None  # currently only a single supported
+    dyn_size_dim_tag_to_torch_dim = OrderedDict()  # RETURNN dim tag -> Torch dim
     for input in inputs:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
       if x.returnn_data.have_batch_axis():
         batch_size = input.shape[x.returnn_axis_from_torch_axis[x.returnn_data.batch_dim_axis]]
-      if x.returnn_data.get_dynamic_axes():
-        i = x.returnn_data.get_dynamic_axes()[0]
-        dyn_size = input.shape[x.returnn_axis_from_torch_axis[i]]
+      for i in x.returnn_data.get_dynamic_axes():
+        dim_tag = x.returnn_data.get_dim_tag(i)
+        assert i in x.returnn_data.get_spatial_batch_axes()
+        torch_dim = input.shape[x.returnn_axis_from_torch_axis[i]]
+        if dim_tag not in dyn_size_dim_tag_to_torch_dim:
+          dyn_size_dim_tag_to_torch_dim[dim_tag] = torch_dim
       shape_meta = _get_shape_meta(x.returnn_data)  # e.g. [B,T_in,D_in], RETURNN order
       # Reorder dim tags as the input like it would look like for Torch, e.g. [B,D_in,T_in].
       shape_meta_torch_order = [shape_meta[x.returnn_axis_from_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
@@ -579,6 +582,7 @@ class Module:
       break
     assert all(0 <= d < layer.output.batch_ndim for d in out_returnn_axis_to_torch_axis.values())
     assert len(set(out_returnn_axis_to_torch_axis.values())) == len(out_returnn_axis_to_torch_axis)
+    # The remaining axes should be the spatial axes.
     rem_torch_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.values()))
     rem_returnn_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.keys()))
     assert len(rem_torch_axes) == len(rem_returnn_axes)
@@ -594,9 +598,15 @@ class Module:
       assert batch_size is not None
       out_shape[layer.output.batch_dim_axis] = batch_size
     if layer.output.get_dynamic_axes():
-      assert dyn_size is not None
-      assert len(layer.output.get_dynamic_axes()) == 1  # not implemented otherwise
-      out_shape[layer.output.get_dynamic_axes()[0]] = dyn_size
+      assert dyn_size_dim_tag_to_torch_dim
+      for i in layer.output.get_dynamic_axes():
+        dim_tag = layer.output.get_dim_tag(i)
+        if dim_tag in dyn_size_dim_tag_to_torch_dim:
+          out_shape[i] = dyn_size_dim_tag_to_torch_dim[dim_tag]
+        else:
+          # Assume same order.
+          assert len(layer.output.get_dynamic_axes()) == len(dyn_size_dim_tag_to_torch_dim)
+          out_shape[i] = list(dyn_size_dim_tag_to_torch_dim.values())[layer.output.get_dynamic_axes().index(i)]
     assert all(d for d in out_shape)
     torch_axis_to_returnn = {i: j for (j, i) in out_returnn_axis_to_torch_axis.items()}
     assert len(torch_axis_to_returnn) == layer.output.batch_ndim

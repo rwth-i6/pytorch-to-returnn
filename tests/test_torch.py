@@ -11,7 +11,7 @@ from pytorch_to_returnn import torch
 from pytorch_to_returnn.naming import Naming
 
 
-def test_base_get_output_shape_from_returnn():
+def test_base_get_output_shape_from_returnn_conv2d_static():
   with Naming.make_instance() as naming:
     assert isinstance(naming, Naming)
     x = torch.Tensor(64, 1, 11, 13)
@@ -27,6 +27,44 @@ def test_base_get_output_shape_from_returnn():
       inputs=(x,), layer=layer)
     assert returnn_axis_from_torch_axis == {0: 0, 1: 3, 2: 1, 3: 2}
     assert torch_shape == (64, 32, 9, 11)
+
+
+def test_base_get_output_shape_from_returnn_conv2d_dynamic():
+  with Naming.make_instance() as naming:
+    assert isinstance(naming, Naming)
+    x = torch.Tensor(64, 1, 11, 13)
+    x_ = naming.register_tensor(x)
+    x_.returnn_data = Data(name="x", shape=(1, None, None), feature_dim_axis=1)
+    x_.returnn_axis_from_torch_axis = {0: 0, 1: 1, 2: 2, 3: 3}
+
+    net = TFNetwork(extern_data=ExternData())
+    # E.g. conv layer, with padding "same".
+    layer = InternalLayer(name="layer", network=net, out_type={"shape": (None, None, 32)})
+
+    torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
+      inputs=(x,), layer=layer)
+    assert returnn_axis_from_torch_axis == {0: 0, 1: 3, 2: 1, 3: 2}
+    assert torch_shape == (64, 32, 11, 13)
+
+
+def test_base_get_output_shape_from_returnn_2d_reorder_dynamic():
+  with Naming.make_instance() as naming:
+    assert isinstance(naming, Naming)
+    x = torch.Tensor(64, 1, 11, 13)
+    x_ = naming.register_tensor(x)
+    x_.returnn_data = Data(name="x", shape=(1, None, None), feature_dim_axis=1, auto_create_placeholders=True)
+    x_.returnn_axis_from_torch_axis = {0: 0, 1: 1, 2: 2, 3: 3}
+    y_data = x_.returnn_data.copy_move_axis(2, 3)
+    assert y_data.get_dim_tag(3) == x_.returnn_data.get_dim_tag(2)
+
+    net = TFNetwork(extern_data=ExternData())
+    # E.g. softmax_over_spatial with axis="stag:time1"
+    layer = InternalLayer(name="layer", network=net, output=y_data)
+
+    torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
+      inputs=(x,), layer=layer)
+    assert returnn_axis_from_torch_axis == {0: 0, 1: 1, 2: 2, 3: 3}
+    assert torch_shape == (64, 1, 13, 11)
 
 
 if __name__ == "__main__":
