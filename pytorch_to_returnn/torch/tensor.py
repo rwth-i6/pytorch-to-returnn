@@ -84,6 +84,7 @@ class Tensor:
         assert dim > 0 and num % dim == 0
         num //= dim
       shape = [dim if dim >= 0 else num for dim in shape]
+    # TODO I need this in functional, as a real Module ...
     return Tensor(*shape, numpy_array=self._numpy_buffer.reshape(shape))
 
   def unsqueeze(self, dim: int):
