@@ -141,7 +141,7 @@ class CallEntry:
               torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
               print(
                 f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
-                f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...)")
+                f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...")
               module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
 
             print(
