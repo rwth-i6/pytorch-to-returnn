@@ -74,9 +74,10 @@ class Converter:
       inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
     if "shape" not in inputs_data_kwargs:
       # Assume feature is static, all other dynamic.
-      self._returnn_in_data_dict["shape"] = [
+      # Assume batch-major.
+      inputs_data_kwargs["shape"] = [
         inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
-        for i in range(len(inputs.shape))]
+        for i in range(1, len(inputs.shape))]
     self._returnn_in_data_dict = inputs_data_kwargs
     self.use_non_wrapped_reference = use_non_wrapped_reference
     self.verify_with_torch = verify_with_torch
