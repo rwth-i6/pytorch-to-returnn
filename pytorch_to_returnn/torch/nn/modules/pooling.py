@@ -34,9 +34,6 @@ class _MaxPoolNd(Module):
       "strides": self.stride,
       "padding": "valid"}
 
-  def check_returnn_layer(self, layer: PoolLayer):
-    assert layer.input_data.dim == self.in_channels
-
 
 class MaxPool1d(_MaxPoolNd):
   nd = 1
