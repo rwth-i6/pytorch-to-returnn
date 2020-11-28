@@ -178,6 +178,7 @@ class Converter:
         assert isinstance(out_returnn, torch_returnn.Tensor)
         out_returnn_ = naming.register_output(out_returnn)
         y, returnn_axis_from_torch_axis = out_returnn_.returnn_data, out_returnn_.returnn_axis_from_torch_axis
+        assert isinstance(y, Data)
         print("RETURNN output:", y, "axis map RETURNN<-Torch", returnn_axis_from_torch_axis)
         print(">>>> Module naming hierarchy:")
         naming.root_namespace.dump()
@@ -191,7 +192,7 @@ class Converter:
         pprint(dict(torch_mods_with_params))
 
       feed_dict = self._make_tf_feed_dict(x)
-      y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
+      y_, y_size = session.run((y.placeholder, y.size_placeholder), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       self._out_returnn_np = y_
       print("Output shape:", y_.shape)
@@ -231,7 +232,7 @@ class Converter:
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
       feed_dict = self._make_tf_feed_dict(x)
-      y_, y_size = session.run((y.placeholder, y.get_sequence_lengths()), feed_dict=feed_dict)
+      y_, y_size = session.run((y.placeholder, y.size_placeholder), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
       numpy.testing.assert_allclose(self._out_returnn_np, y_, atol=1e-4, rtol=0)
