@@ -225,7 +225,7 @@ class Converter:
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
       })
-      network = TFNetwork(config=config, train_flag=True)
+      network = TFNetwork(config=config, name="root")
       network.construct_from_dict(self._returnn_net_dict)
       network.load_params_from_file(filename=self._tf_checkpoint_save_path, session=session)
 
