@@ -57,7 +57,7 @@ class Linear(Module):
     values = values.transpose()
     layer.params["W"].load(values, session=session)
     if self.bias is not None:
-      layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
+      layer.params["b"].load(torch_module.bias.detach().numpy(), session=session)
 
 
 __all__ = [
