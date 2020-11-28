@@ -53,7 +53,7 @@ def test_mnist():
   N, C, H, W = 64, 1, 28, 28
   x = rnd.normal(0., 1., (N, C, H, W)).astype("float32")
   verify_torch_and_convert_to_returnn(
-    model_func, inputs=x, inputs_data_kwargs={"shape": (1, 28, 28)})
+    model_func, inputs=x, inputs_data_kwargs={"shape": (C, H, W)})
 
 
 if __name__ == "__main__":
