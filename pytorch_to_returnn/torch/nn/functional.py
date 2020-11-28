@@ -94,15 +94,56 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
 
 
 def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
-  def prod(ls):
-    from functools import reduce
-    import operator
-    return reduce(operator.mul, ls, 1)
-  if end_dim == -1:
-    new_shape = input.shape[:start_dim] + (prod(input.shape[start_dim:]),)
-  else:
-    new_shape = input.shape[:start_dim] + (prod(input.shape[start_dim:end_dim + 1]),) + input.shape[end_dim + 1:]
-  return input.view(*new_shape)
+  return modules.Flatten(start_dim=start_dim, end_dim=end_dim).as_returnn_torch_functional()(input)
+
+
+def reshape(input: Tensor, shape: Tuple[int, ...]) -> Tensor:
+  if any(dim == -1 for dim in shape):
+    num = input.numel()
+    for dim in shape:
+      if dim == -1:
+        continue
+      assert dim > 0 and num % dim == 0
+      num //= dim
+    shape = [dim if dim >= 0 else num for dim in shape]
+
+  # Use Flatten, Unflatten, Squeeze.
+  # (Other reshapes are disallowed.)
+  axis1, axis2 = 0, 0
+  while axis1 < len(input.shape) and axis2 < len(shape):
+    if input.shape[axis1] == shape[axis2]:
+      axis1 += 1
+      axis2 += 1
+      continue
+    elif input.shape[axis1] < shape[axis2]:
+      if input.shape[axis1] == 1:
+        input = modules.Squeeze(dim=axis1).as_returnn_torch_functional()(input)
+        continue
+      n = 1
+      a = axis1
+      while a < len(input.shape) and n < shape[axis2]:
+        assert shape[axis2] % n == 0 and n < shape[axis2]
+        n *= input.shape[a]
+        a += 1
+      assert n == shape[axis2]
+      input = modules.Flatten(start_dim=axis1, end_dim=a - 1).as_returnn_torch_functional()(input)
+      assert input.shape[axis1] == shape[axis2]
+      continue
+    elif input.shape[axis1] > shape[axis2]:
+      n = 1
+      a = axis2
+      while a < len(shape) and n < input.shape[axis1]:
+        assert input.shape[axis1] % n == 0 and n < input.shape[axis1]
+        n *= shape[a]
+        a += 1
+      assert n == input.shape[axis1]
+      input = modules.Unflatten(dim=axis1, unflattened_size=tuple(shape[axis2:a])).as_returnn_torch_functional()(input)
+      assert input.shape[axis1] == shape[axis2]
+      continue
+    else:
+      assert False  # cannot happen
+  assert axis1 == axis2 == len(input.shape) == len(shape) and input.shape == tuple(shape)
+  return input
 
 
 def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Union[int, Tuple[int, ...]]):

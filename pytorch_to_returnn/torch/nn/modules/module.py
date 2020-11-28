@@ -3,7 +3,7 @@ from __future__ import annotations
 import tensorflow as tf
 import numpy
 from collections import OrderedDict
-from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, overload
+from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, Collection
 import types
 import itertools
 from ..parameter import Parameter
@@ -486,16 +486,17 @@ class Module:
       returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
       err_msg="\n".join(error_msg_info))
 
-  def _get_input_layer_name(self, input: Tensor) -> str:
+  @staticmethod
+  def _get_input_layer_name(input: Tensor) -> str:
     naming = Naming.get_instance()
     assert naming.module_call_stack
     top_call_entry = naming.module_call_stack[-1]
-    assert top_call_entry.module.module is self
     parent_namespace = top_call_entry.namespace.parent
     # Note: If name_for_tensor fails, it means the tensor was not registered properly.
     return parent_namespace.name_for_tensor(naming.tensors[input])
 
-  def _assert_spatial_axes_in_order(self, input: Tensor):
+  @staticmethod
+  def _assert_spatial_axes_in_order(input: Tensor):
     entry = Naming.get_instance().register_tensor(input)
     assert entry.returnn_data
     spatial_axes = entry.returnn_data.get_spatial_batch_axes()
@@ -503,7 +504,15 @@ class Module:
     spatial_axes_torch = [returnn_axis_to_torch_axis[i] for i in spatial_axes]
     assert sorted(spatial_axes_torch) == spatial_axes_torch
 
-  def _get_input_axis_to_returnn(self, input: Tensor, axis: int) -> str:
+  @staticmethod
+  def _assert_axes_in_order(input: Tensor, *, dims: Collection[int]):
+    entry = Naming.get_instance().register_tensor(input)
+    assert entry.returnn_data
+    spatial_axes_returnn = [entry.returnn_axis_from_torch_axis[i] for i in sorted(dims)]
+    assert sorted(spatial_axes_returnn) == spatial_axes_returnn
+
+  @staticmethod
+  def _get_input_axis_to_returnn(input: Tensor, axis: int) -> str:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
   def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:

@@ -76,16 +76,8 @@ class Tensor:
     return self  # ignore
 
   def view(self, *shape):
-    if any(dim == -1 for dim in shape):
-      num = self.numel()
-      for dim in shape:
-        if dim == -1:
-          continue
-        assert dim > 0 and num % dim == 0
-        num //= dim
-      shape = [dim if dim >= 0 else num for dim in shape]
-    # TODO I need this in functional, as a real Module ...
-    return Tensor(*shape, numpy_array=self._numpy_buffer.reshape(shape))
+    from .nn.functional import reshape
+    return reshape(self, shape)
 
   def unsqueeze(self, dim: int):
     if dim < 0:
