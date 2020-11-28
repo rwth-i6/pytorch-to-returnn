@@ -35,6 +35,9 @@ class TensorEntry:
     self.names = []
 
   def __repr__(self):
+    return f"<{self.__class__.__name__} {self.repr_content()}>"
+
+  def repr_content(self):
     if self.returnn_data:
       returnn_data_repr = f"[{','.join(self.returnn_data.get_batch_axes_short_description())}]"
       if self.returnn_axis_from_torch_axis == {i: i for i in range(self.returnn_data.batch_ndim)}:
@@ -50,11 +53,9 @@ class TensorEntry:
     if name_repr != "?":
       name_repr = repr(name_repr)
     return (
-      f"<{self.__class__.__name__ }"
-      f" name:{name_repr}"
-      f" tensor:{tensor_repr}"
-      f" returnn_data:{returnn_data_repr}"
-      f">")
+      f"name:{name_repr} "
+      f"tensor:{tensor_repr} "
+      f"returnn_data:{returnn_data_repr}")
 
   def get_canonical_parent_module(self,
                                   parent_namespace: Optional[_namespace.RegisteredName] = None

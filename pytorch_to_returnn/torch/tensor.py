@@ -38,7 +38,11 @@ class Tensor:
     Naming.get_instance().register_tensor(self)
 
   def __repr__(self):
-    return f"<Symbolic PyTorch {self.__class__.__name__} {self._shape}>"
+    return f"<{self.__class__.__name__} {self.returnn_naming_entry.repr_content()}>"
+
+  @property
+  def returnn_naming_entry(self):
+    return Naming.get_instance().register_tensor(self)
 
   def dim(self):
     return len(self._shape)
