@@ -114,51 +114,53 @@ class Naming:
     """
     if not self.wrap_to_returnn_enabled:
       return
+    call_parent_namespace = call.namespace.parent or self.root_namespace
     for x in call.inputs:
       if x is None:
         continue
       assert isinstance(x, _tensor.TensorEntry)
-      if not x.names:
-        if x.is_param:
-          assert x.returnn_data
-          assert x.returnn_data.placeholder is None
-          from pytorch_to_returnn.torch.nn.modules import Variable
-          param_name = x.get_canonical_name()
-          if x.returnn_data.name == "_unnamed_param":
-            x.returnn_data.name = f"param:{param_name}"
-          parent_mod = x.get_canonical_parent_module()
-          prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-          mod = Variable(param=x.tensor())
-          self.modules[mod].canonical_name = prefix + param_name
-          res = mod()
-          res_tensor = self.tensors[res]
-          assert isinstance(res_tensor, _tensor.TensorEntry)
-          assert len(res_tensor.names) == 1
-          assert res_tensor.returnn_data.placeholder is not None
-          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-        elif not x.output_from_calls or x.is_const:
-          # Assume this is a constant.
-          const_name = x.get_canonical_name(fallback="unnamed_const")
-          tensor = x.tensor()
-          if not x.returnn_data:
-            x.returnn_data = Data(
-              name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
-              batch_dim_axis=None, time_dim_axis=None)
-            x.returnn_axis_from_torch_axis = {i: i for i in range(len(tensor.shape))}
-          parent_mod = x.get_canonical_parent_module()
-          prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-          from pytorch_to_returnn.torch.nn.modules import Constant
-          mod = Constant(value=tensor)
-          self.modules[mod].canonical_name = prefix + const_name
-          res = mod()
-          res_tensor = self.tensors[res]
-          assert isinstance(res_tensor, _tensor.TensorEntry)
-          assert len(res_tensor.names) == 1
-          assert res_tensor.returnn_data.placeholder is not None
-          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-          x.is_const = True
-        else:
-          raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
+      names = [name_ for name_ in x.names if name_.parent is call_parent_namespace]
+      if names:
+        continue
+      if x.is_param:
+        assert x.returnn_data
+        assert x.returnn_data.placeholder is None
+        from pytorch_to_returnn.torch.nn.modules import Variable
+        param_name = x.get_canonical_name()
+        if x.returnn_data.name == "_unnamed_param":
+          x.returnn_data.name = f"param:{param_name}"
+        parent_mod = x.get_canonical_parent_module()
+        prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
+        mod = Variable(param=x.tensor())
+        self.modules[mod].canonical_name = prefix + param_name
+        res = mod()
+        res_tensor = self.tensors[res]
+        assert isinstance(res_tensor, _tensor.TensorEntry)
+        assert len(res_tensor.names) == 1
+        assert res_tensor.returnn_data.placeholder is not None
+        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+      elif not x.output_from_calls or x.is_const:
+        # Assume this is a constant.
+        const_name = x.get_canonical_name(fallback="unnamed_const")
+        tensor = x.tensor()
+        if not x.returnn_data:
+          x.returnn_data = Data(
+            name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
+            batch_dim_axis=None, time_dim_axis=None)
+          x.returnn_axis_from_torch_axis = {i: i for i in range(len(tensor.shape))}
+        parent_mod = x.get_canonical_parent_module()
+        prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
+        from pytorch_to_returnn.torch.nn.modules import Constant
+        mod = Constant(value=tensor)
+        self.modules[mod].canonical_name = prefix + const_name
+        res = mod()
+        res_tensor = self.tensors[res]
+        assert isinstance(res_tensor, _tensor.TensorEntry)
+        assert res_tensor.returnn_data.placeholder is not None
+        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+        x.is_const = True
+      else:
+        raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
   def push_module_call(self, *, module: _types.Module, inputs: List[_types.Tensor]) -> _call.CallEntry:
     module_entry = self.modules[module]
@@ -279,6 +281,7 @@ class Naming:
   def register_input(self, tensor: _types.Tensor, returnn_data: Data) -> Data:
     entry = self.register_tensor(tensor)
     entry.is_input = True
+    entry.is_const = False
     self.inputs.append(tensor)
     assert tensor.dim() == returnn_data.batch_ndim
     assert all([dim in {tensor.shape[i], None} for i, dim in enumerate(returnn_data.batch_shape)])
