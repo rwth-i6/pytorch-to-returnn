@@ -25,13 +25,11 @@ class MergeDims(Module):
 
   @classmethod
   def generic_create_returnn_layer_dict(cls, input: Tensor, dims: Collection[int]) -> Dict[str, Any]:
-    # Note: The order of the axis matter, both in the input Torch tensor,
-    # as well as the RETURNN Data.
-    # RETURNN MergeDimsLayer currently merges the dims in the order the axes appear.
-    cls._assert_axes_in_order(input, dims=dims)
+    assert isinstance(dims, (tuple, list))
     return {
       "class": "merge_dims", "from": cls._get_input_layer_name(input),
-      "axes": [cls._get_input_axis_to_returnn(input, axis=axis) for axis in dims]}
+      "axes": [cls._get_input_axis_to_returnn(input, axis=axis) for axis in dims],
+      "keep_order": True}
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     return self.generic_create_returnn_layer_dict(input=input, dims=self.dims)
@@ -69,7 +67,7 @@ class Flatten(Module):
     start_dim = _dim(self.start_dim)
     end_dim = _dim(self.end_dim)
     assert start_dim <= end_dim
-    dims = range(start_dim, end_dim + 1)  # end_dim is inclusive
+    dims = list(range(start_dim, end_dim + 1))  # end_dim is inclusive
     return MergeDims.generic_create_returnn_layer_dict(input=input, dims=dims)
 
 
