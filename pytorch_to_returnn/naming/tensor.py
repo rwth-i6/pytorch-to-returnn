@@ -83,9 +83,7 @@ class TensorEntry:
       self.returnn_axis_from_torch_axis[self.returnn_data.get_axis_from_description(name)] == torch_axis
     """
     assert self.returnn_data and self.returnn_axis_from_torch_axis is not None
-    torch_axis_to_returnn_axis = {i: j for (j, i) in self.returnn_axis_from_torch_axis.items()}
-    assert len(torch_axis_to_returnn_axis) == len(self.returnn_axis_from_torch_axis) == self.returnn_data.batch_ndim
-    axis = torch_axis_to_returnn_axis[torch_axis]
+    axis = self.returnn_axis_from_torch_axis[torch_axis]
     if axis == self.returnn_data.batch_dim_axis:
       return "B"
     if axis == self.returnn_data.time_dim_axis:
