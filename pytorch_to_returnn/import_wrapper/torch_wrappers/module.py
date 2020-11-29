@@ -62,6 +62,8 @@ class WrappedModuleBase(torch.nn.Module):
     if not in_prefix:
       return True
     from pytorch_to_returnn.torch import nn as returnn_torch_nn
+    if not hasattr(returnn_torch_nn, cls.__qualname__):
+      raise NotImplementedError(f"pytorch_to_returnn.torch.nn.{cls.__qualname__} not yet implemented")
     returnn_cls = getattr(returnn_torch_nn, cls.__qualname__)
     assert issubclass(returnn_cls, returnn_torch_nn.Module)
     return returnn_cls.has_torch_forward()
