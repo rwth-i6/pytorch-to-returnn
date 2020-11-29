@@ -409,8 +409,6 @@ class Module:
 
   @staticmethod
   def _check_call_returnn_input_to_prev_torch(call: CallEntry, tensor: TensorEntry, torch_values: numpy.ndarray):
-    if tensor.validated_to_torch:
-      return
     naming = Naming.get_instance()
     # Search backward to resolve all deps -- either to const, input, or already checked.
     # We keep all sizes separate, because we keep them in all cases,
