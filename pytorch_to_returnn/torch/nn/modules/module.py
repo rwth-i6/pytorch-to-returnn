@@ -3,7 +3,7 @@ from __future__ import annotations
 import tensorflow as tf
 import numpy
 from collections import OrderedDict
-from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Union, Dict, Any, Collection
+from typing import Optional, Callable, TypeVar, Iterator, Tuple, List, Set, Union, Dict, Any, Collection
 import types
 import itertools
 from ..parameter import Parameter
@@ -336,6 +336,19 @@ class Module:
     if len(error_msgs) > 0:
       raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
         self.__class__.__name__, "\n\t".join(error_msgs)))
+
+  def named_modules(self, memo: Optional[Set[Module]] = None, prefix: str = ''):
+    if memo is None:
+      memo = set()
+    if self not in memo:
+      memo.add(self)
+      yield prefix, self
+      for name, module in self._modules.items():
+        if module is None:
+          continue
+        submodule_prefix = prefix + ('.' if prefix else '') + name
+        for m in module.named_modules(memo, submodule_prefix):
+          yield m
 
   def _named_members(self, get_members_fn, prefix='', recurse=True):
     memo = set()
