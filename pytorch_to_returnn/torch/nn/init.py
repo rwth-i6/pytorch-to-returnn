@@ -18,6 +18,10 @@ def _calculate_fan_in_and_fan_out(tensor: Tensor):
   return fan_in, fan_out
 
 
+def zeros_(tensor):
+  pass
+
+
 def uniform_(tensor, a=0., b=1.):
   pass
 
