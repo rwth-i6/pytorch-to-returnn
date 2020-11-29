@@ -200,7 +200,7 @@ class Converter:
       y_torch = y_.transpose(*[returnn_axis_from_torch_axis[i] for i in range(y_.ndim)])
       print("Output shape (converted to Torch):", y_torch.shape)
       if self._out_ref_np is not None:
-        numpy.testing.assert_allclose(self._out_ref_np, y_torch, atol=1e-4, rtol=0)
+        numpy.testing.assert_allclose(self._out_ref_np, y_torch, **naming.validate_allclose_kwargs)
         print(">>>> Looks good!")
 
       if self.export_tf_checkpoint_save_path or self.verify_returnn_standalone_model:
@@ -235,7 +235,7 @@ class Converter:
       y_, y_size = session.run((y.placeholder, y.size_placeholder), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
-      numpy.testing.assert_allclose(self._out_returnn_np, y_, atol=1e-4, rtol=0)
+      numpy.testing.assert_allclose(self._out_returnn_np, y_)
       print(">>>> Looks good!")
       print()
 

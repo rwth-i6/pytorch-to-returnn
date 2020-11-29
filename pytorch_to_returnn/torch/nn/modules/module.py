@@ -407,10 +407,92 @@ class Module:
   def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
     pass
 
-  def check_call_returnn_outputs_to_prev_torch(self, call: CallEntry):
+  @staticmethod
+  def _check_call_returnn_input_to_prev_torch(call: CallEntry, tensor: TensorEntry, torch_values: numpy.ndarray):
+    if tensor.validated_to_torch:
+      return
+    naming = Naming.get_instance()
+    # Search backward to resolve all deps -- either to const, input, or already checked.
+    # We keep all sizes separate, because we keep them in all cases,
+    # as the RETURNN size optimization might mess up the dependency order.
+    feed_dict = {}
+    sizes_feed_dict = {}
+    visited = set()
+    queue = [tensor]
+    while queue:
+      queue_ = []
+      for t in queue:
+        if t is None:
+          continue
+        assert isinstance(t, TensorEntry)
+        if t in visited:
+          continue
+        visited.add(t)
+        if t.validated_to_torch:
+          pass
+        elif t.is_const:
+          print(f"**** validate: add const tensor {t}")
+          t.validated_to_torch = True  # Skip check next time.
+          # No need to feed, this should be const.
+          t.validated_to_torch_tf_feed_dict = {}
+          t.validated_to_torch_tf_sizes_feed_dict = {}
+        elif t.is_input:
+          print(f"**** validate: add network input tensor {t}")
+          t.validated_to_torch = True
+          t.validated_to_torch_tf_feed_dict = {}
+          # Should be set via register_input.
+          t_ = t.tensor()
+          assert isinstance(t_, Tensor)
+          data = t_.numpy()
+          t.validated_to_torch_tf_feed_dict[t.returnn_data.placeholder] = data
+          t.validated_to_torch_tf_sizes_feed_dict = {}
+          for i, size in t.returnn_data.size_placeholder.items():
+            batch_dim = data.shape[t.returnn_data.batch_dim_axis]
+            size_ = data.shape[t.returnn_data.get_batch_axis(i)]
+            t.validated_to_torch_tf_sizes_feed_dict[size] = numpy.array([size_] * batch_dim, dtype=numpy.int32)
+          t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
+        else:
+          assert len(t.output_from_calls) == 1
+          call_ = t.output_from_calls[0]
+          queue_ += call_.inputs
+          continue
+
+        assert t.validated_to_torch
+        feed_dict.update(t.validated_to_torch_tf_feed_dict)
+        sizes_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
+
+      queue = queue_
+
+    print(f"**** validate: add call {call} input tensor {tensor}")
+    session = tf.compat.v1.get_default_session()
+    returnn_output_np_, output_sizes = session.run(
+      (tensor.returnn_data.placeholder,
+       tensor.returnn_data.size_placeholder),
+      feed_dict=feed_dict)
+    assert isinstance(returnn_output_np_, numpy.ndarray)
+    tensor.validated_to_torch = True
+    tensor.validated_to_torch_tf_feed_dict = {
+      tensor.returnn_data.placeholder: returnn_output_np_}
+    out_size_feed_dict = {
+      tensor.returnn_data.size_placeholder[i]: output_sizes[i]
+      for i in tensor.returnn_data.size_placeholder}
+    out_size_feed_dict.update(sizes_feed_dict)
+    tensor.validated_to_torch_tf_feed_dict.update(out_size_feed_dict)
+    tensor.validated_to_torch_tf_sizes_feed_dict = out_size_feed_dict
+
+    # Check now against Torch reference.
+    torch_axis_from_returnn_axis = {i: j for (j, i) in tensor.returnn_axis_from_torch_axis.items()}
+    assert len(torch_values.shape) == tensor.returnn_data.batch_ndim
+    torch_values_ = torch_values.transpose(*[torch_axis_from_returnn_axis[i] for i in range(torch_values.ndim)])
+    numpy.testing.assert_allclose(
+      returnn_output_np_, torch_values_,
+      err_msg=f"call {call} input tensor {tensor} check failed",
+      **naming.validate_allclose_kwargs)
+
+  @staticmethod
+  def check_call_returnn_outputs_to_prev_torch(call: CallEntry):
     naming = Naming.get_instance()
     assert naming.wrap_to_returnn_enabled and naming.import_params_from_torch_namespace and call.returnn_layer
-    assert call.module.module is self
     torch_naming = naming.import_params_from_torch_namespace
     mod_entry = call.module
     mod = mod_entry.module
@@ -423,25 +505,32 @@ class Module:
     assert torch_mod_call.orig_outputs is not None and torch_mod_call.orig_inputs is not None
     assert len(call.inputs) == len(torch_mod_call.orig_inputs)
     feed_dict = {}
+    sizes_feed_dict = {}
     for tensor_entry, torch_input in zip(call.inputs, torch_mod_call.orig_inputs):
-      assert isinstance(tensor_entry, TensorEntry)
-      torch_axis_from_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_from_torch_axis.items()}
       torch_input_np = torch_input.detach().cpu().numpy()
-      assert isinstance(torch_input_np, numpy.ndarray)
-      assert len(torch_input_np.shape) == tensor_entry.returnn_data.batch_ndim
-      torch_input_np = torch_input_np.transpose(*[torch_axis_from_returnn_axis[i] for i in range(torch_input_np.ndim)])
-      feed_dict[tensor_entry.returnn_data.placeholder] = torch_input_np
-      for i, size in tensor_entry.returnn_data.size_placeholder.items():
-        axis = tensor_entry.returnn_data.get_batch_axis(i)
-        n_batch = torch_input_np.shape[tensor_entry.returnn_data.batch_dim_axis]
-        n_time = torch_input_np.shape[axis]
-        size_np = [n_time] * n_batch  # fake, not so important
-        feed_dict[size] = size_np
+      Module._check_call_returnn_input_to_prev_torch(
+        call=call, tensor=tensor_entry, torch_values=torch_input_np)
+      feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
+      sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
     session = tf.compat.v1.get_default_session()
     assert len(call.outputs) == 1
     returnn_output_tensor_entry = call.outputs[0]
-    returnn_output_np_ = session.run(call.returnn_layer.output.placeholder, feed_dict=feed_dict)
+    print(f"**** validate: add call {call} output tensor {returnn_output_tensor_entry}")
+    assert returnn_output_tensor_entry.returnn_data.placeholder is call.returnn_layer.output.placeholder
+    returnn_output_np_, output_sizes = session.run(
+      (returnn_output_tensor_entry.returnn_data.placeholder,
+       returnn_output_tensor_entry.returnn_data.size_placeholder),
+      feed_dict=feed_dict)
     assert isinstance(returnn_output_np_, numpy.ndarray)
+    returnn_output_tensor_entry.validated_to_torch = True
+    returnn_output_tensor_entry.validated_to_torch_tf_feed_dict = {
+      returnn_output_tensor_entry.returnn_data.placeholder: returnn_output_np_}
+    out_size_feed_dict = {
+      returnn_output_tensor_entry.returnn_data.size_placeholder[i]: output_sizes[i]
+      for i in returnn_output_tensor_entry.returnn_data.size_placeholder}
+    out_size_feed_dict.update(sizes_feed_dict)
+    returnn_output_tensor_entry.validated_to_torch_tf_feed_dict.update(out_size_feed_dict)
+    returnn_output_tensor_entry.validated_to_torch_tf_sizes_feed_dict = out_size_feed_dict
     returnn_output_np = returnn_output_np_.transpose(*[
       returnn_output_tensor_entry.returnn_axis_from_torch_axis[i] for i in range(returnn_output_np_.ndim)])
     torch_outputs = torch_mod_call.orig_outputs
@@ -473,7 +562,7 @@ class Module:
           f"  RETURNN input shape (transposed to RETURNN): {torch_input_np.shape}"
           f" (Torch<-RETURNN axis mapping {torch_axis_from_returnn_axis})"]
     else:
-      is_close_arr = numpy.isclose(returnn_output_np, torch_out_np, rtol=0, atol=1e-4)
+      is_close_arr = numpy.isclose(returnn_output_np, torch_out_np, **naming.validate_allclose_kwargs)
       if not numpy.all(is_close_arr):
         idx = numpy.argmax(numpy.abs(returnn_output_np - torch_out_np))
         idx_ = numpy.unravel_index(idx, shape=returnn_output_np.shape)
@@ -483,8 +572,9 @@ class Module:
           f"  Biggest mismatch at idx {idx_}, RETURNN {returnn_output_np[idx_]} vs Torch {torch_out_np[idx_]}",
         ]
     numpy.testing.assert_allclose(
-      returnn_output_np, torch_out_np, rtol=0, atol=1e-4,
-      err_msg="\n".join(error_msg_info))
+      returnn_output_np, torch_out_np,
+      err_msg="\n".join(error_msg_info),
+      **naming.validate_allclose_kwargs)
 
   @staticmethod
   def _get_input_layer_name(input: Tensor) -> str:

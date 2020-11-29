@@ -146,7 +146,7 @@ class CallEntry:
 
             print(
               f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
-              f"check RETURNN outputs given Torch inputs/outputs ...")
+              f"check RETURNN inputs/outputs given Torch inputs/outputs ...")
             module.check_call_returnn_outputs_to_prev_torch(self)
 
     return res

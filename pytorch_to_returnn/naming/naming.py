@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, Union, Dict, Any
 from contextlib import contextmanager
 from collections import OrderedDict
 from weakref import ref, WeakKeyDictionary
@@ -48,17 +48,24 @@ class Naming:
   def __init__(self, *,
                wrap_to_returnn_enabled: bool = True,
                keep_orig_module_io_tensors: bool = True,
-               import_params_from_torch_namespace: Optional[Naming] = None
+               import_params_from_torch_namespace: Optional[Naming] = None,
+               validate_allclose_kwargs: Optional[Dict[str, Any]] = None,
                ):
     """
     :param wrap_to_returnn_enabled: Will construct corresponding RETURNN layers.
     :param keep_orig_module_io_tensors: Keeps references to the original (or wrapped) torch.Tensor instances
        for all module calls. This will need extra memory.
     :param import_params_from_torch_namespace: If given, we try to import params.
+    :param validate_allclose_kwargs: for numpy.allclose
     """
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
     self.keep_orig_module_io_tensors = keep_orig_module_io_tensors
     self.import_params_from_torch_namespace = import_params_from_torch_namespace
+    if validate_allclose_kwargs is None:
+      # PyTorch uses some different algos, e.g. different convolution,
+      # which leads to quite huge relative differences (for values close to 0.0).
+      validate_allclose_kwargs = dict(rtol=0, atol=1.5e-4)
+    self.validate_allclose_kwargs = validate_allclose_kwargs
     self.tensors = WeakKeyDictionary()
     self.const_tensor_cache = []
     self.modules = OrderedDict()

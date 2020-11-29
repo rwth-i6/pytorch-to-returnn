@@ -1,5 +1,7 @@
 
 from __future__ import annotations
+import tensorflow as tf
+import numpy
 from typing import Optional, List, Tuple, Dict
 from weakref import ref
 from returnn.tf.util.data import Data, DimensionTag
@@ -13,6 +15,9 @@ class TensorEntry:
   tensor: ref[_types.Tensor]
   returnn_data: Optional[Data] = None
   returnn_axis_from_torch_axis: Optional[Dict[int, int]] = None
+  validated_to_torch: bool = False
+  validated_to_torch_tf_feed_dict: Optional[Dict[tf.Tensor, numpy.ndarray]] = None
+  validated_to_torch_tf_sizes_feed_dict: Optional[Dict[tf.Tensor, numpy.ndarray]] = None
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
