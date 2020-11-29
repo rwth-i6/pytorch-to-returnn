@@ -171,6 +171,7 @@ class Naming:
 
   def push_module_call(self, *, module: _types.Module, inputs: List[_types.Tensor]) -> _call.CallEntry:
     module_entry = self.modules[module]
+    assert isinstance(module_entry, _module.ModuleEntry)
     entry = _call.CallEntry(module=module_entry)
     if self.keep_orig_module_io_tensors:
       entry.orig_inputs = inputs
@@ -223,6 +224,8 @@ class Naming:
         root_namespace.assign_module(parent_module)
       else:
         name = parent_namespace.find_name_for_module(parent_module)
+        if name and parent_module is module_entry and not module_entry.module.has_torch_forward():
+          name = None  # enforce to create new entry for second call
         if name:
           parent_namespace = parent_namespace.childs_by_name[name]
         else:
