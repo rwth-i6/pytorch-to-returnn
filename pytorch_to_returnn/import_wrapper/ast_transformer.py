@@ -68,7 +68,7 @@ class AstImportTransformer(ast.NodeTransformer):
     base_mod_name = self.mod_map.find_base_mod_prefix(alias.name)  # e.g. "torch"
     assert "." not in base_mod_name  # just not implemented yet
     new_alias_node = ast.ImportFrom(  # from pytorch_to_returnn._wrapped_mods import torch
-      module=self.mod_map.base_mod_map[base_mod_name], names=[ast.alias(name=base_mod_name)])
+      module=self.mod_map.base_mod_map[base_mod_name].rpartition(".")[0], names=[ast.alias(name=base_mod_name)])
     ast.copy_location(new_alias_node, node)
     return [new_import_node, new_alias_node]
 
