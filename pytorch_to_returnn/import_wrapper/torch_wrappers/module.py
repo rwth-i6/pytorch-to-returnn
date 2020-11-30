@@ -32,7 +32,7 @@ class WrappedModuleBase(torch.nn.Module):
     if log.Verbosity >= 3:
       log.unique_print(
         "*** torch module call %s.%s(...)(...)" % (self.__class__.__module__, self.__class__.__qualname__))
-    with Naming.get_instance().push_module_call(module=self, inputs=args) as call_entry:
+    with Naming.get_instance().push_module_call(module=self, inputs_args=args, inputs_kwargs=kwargs) as call_entry:
       res = super(WrappedModuleBase, self).__call__(*args, **kwargs)
       call_entry.set_outputs(res)
     return res

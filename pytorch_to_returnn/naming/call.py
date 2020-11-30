@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 from typing import Optional, List, Tuple, Union, Any, Dict
+from tensorflow.python.util import nest
 from returnn.tf.layers.basic import LayerBase
 from . import _types
 from . import module as _module
@@ -15,10 +16,16 @@ class CallEntry:
   Note that a module can be called multiple times.
   """
   module: _module.ModuleEntry
-  orig_inputs: Optional[Tuple[Union[_types.Tensor, Any]]] = None
+  orig_inputs_args: Optional[Tuple[Union[_types.Tensor, Any]]] = None
+  orig_inputs_kwargs: Optional[Dict[str, Tuple[_types.Tensor, Any]]] = None
+  orig_inputs_flat: Optional[List[Tuple[_types.Tensor, Any]]] = None
   orig_outputs: Optional[Union[_types.Tensor, Tuple[_types.Tensor]]] = None
-  inputs: Optional[List[_tensor.TensorEntry]] = None
+  orig_outputs_flat: Optional[List[Union[_types.Tensor, Any]]] = None
+  inputs_args: Optional[Tuple[Optional[_tensor.TensorEntry]]] = None
+  inputs_kwargs: Optional[Dict[str, Optional[Tuple[_tensor.TensorEntry, Any]]]] = None
+  inputs_flat: Optional[List[_tensor.TensorEntry]] = None
   outputs: Optional[List[_tensor.TensorEntry]] = None
+  outputs_flat: Optional[List[_tensor.TensorEntry]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack
   child_calls: List[CallEntry]
   level: Optional[int] = None
@@ -76,12 +83,14 @@ class CallEntry:
     naming = _naming.Naming.get_instance()
     module = self.module.module
     assert self.namespace
-    input = tuple([x.tensor() if x else None for x in self.inputs])  # make sure all are tensors
+    inputs_flat = [x.tensor() if x else None for x in self.inputs_flat]  # make sure all are tensors
+    inputs_args, inputs_kwargs = nest.pack_sequence_as(
+      structure=(self.inputs_args, self.inputs_kwargs), flat_sequence=inputs_flat)
 
     if module.has_torch_forward():
-      assert len(input) == 1  # TODO ...
-      self.namespace.register_input(tensor=naming.tensors[input[0]])
-      res = module.forward(*input)
+      assert len(inputs_args) == 1 and not inputs_kwargs  # TODO ... need register_input for multiple inputs...
+      self.namespace.register_input(tensor=naming.tensors[inputs_args[0]])
+      res = module.forward(*inputs_args)
       assert isinstance(res, Tensor)  # TODO only single output supported currently...
       res_entry = naming.tensors[res]
       if self.namespace.returnn_ctx.sub_net_layer:
@@ -93,8 +102,7 @@ class CallEntry:
       assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
       assert self.namespace and self.namespace.parent
       parent_namespace = self.namespace.parent
-      input = tuple([x.tensor() if x else None for x in self.inputs])  # make sure all are tensors
-      layer_dict = module.create_returnn_layer_dict(*input)
+      layer_dict = module.create_returnn_layer_dict(*inputs_args, **inputs_kwargs)
       layer_name = self.namespace.name
       returnn_net = parent_namespace.returnn_ctx.network
       assert layer_name not in returnn_net.layers
@@ -117,7 +125,7 @@ class CallEntry:
         parent_layer = parent_layer.network.parent_layer
 
       module.check_returnn_layer(layer)
-      res = module.make_output_tensor_from_returnn(inputs=input, layer=layer)
+      res = module.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
       res_entry = naming.tensors[res]
       assert isinstance(res_entry, _tensor.TensorEntry)
       res_entry.returnn_data = layer.output

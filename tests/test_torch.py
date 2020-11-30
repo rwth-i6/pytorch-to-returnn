@@ -24,7 +24,7 @@ def test_base_get_output_shape_from_returnn_conv2d_static():
     layer = InternalLayer(name="layer", network=net, out_type={"shape": (9, 11, 32)})
 
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
-      inputs=(x,), layer=layer)
+      inputs_flat=[x], layer=layer)
     assert returnn_axis_from_torch_axis == {0: 0, 1: 3, 2: 1, 3: 2}
     assert torch_shape == (64, 32, 9, 11)
 
@@ -42,7 +42,7 @@ def test_base_get_output_shape_from_returnn_conv2d_dynamic():
     layer = InternalLayer(name="layer", network=net, out_type={"shape": (None, None, 32)})
 
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
-      inputs=(x,), layer=layer)
+      inputs_flat=[x], layer=layer)
     assert returnn_axis_from_torch_axis == {0: 0, 1: 3, 2: 1, 3: 2}
     assert torch_shape == (64, 32, 11, 13)
 
@@ -64,7 +64,7 @@ def test_base_get_output_shape_from_returnn_2d_reorder_dynamic():
     # We expect from all Torch modules, that they don't reorder the spatial axes.
     # (If they do, they explicitly would overwrite the output shape logic.)
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
-      inputs=(x,), layer=layer)
+      inputs_flat=[x], layer=layer)
     assert returnn_axis_from_torch_axis == {0: 0, 1: 1, 2: 3, 3: 2}
     assert torch_shape == (64, 1, 11, 13)
 

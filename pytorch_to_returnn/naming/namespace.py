@@ -175,7 +175,9 @@ class RegisteredName:
     copy_call = _call.CallEntry(module=naming.modules[copy_mod])
     copy_call.parent_call = call
     call.child_calls.append(copy_call)
-    copy_call.inputs = [tensor]
+    copy_call.inputs_args = (tensor,)
+    copy_call.inputs_flat = [tensor]
+    copy_call.inputs_kwargs = {}
     child.assign_call(copy_call)
     naming.module_call_stack.append(copy_call)
     try:

@@ -12,9 +12,9 @@ class Copy(Module):
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     return {"class": "copy", "from": self._get_input_layer_name(input)}
 
-  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
-    assert len(inputs) == 1
-    return inputs[0]
+  def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    assert len(inputs_flat) == 1
+    return inputs_flat[0]
 
 
 class Cast(Module):

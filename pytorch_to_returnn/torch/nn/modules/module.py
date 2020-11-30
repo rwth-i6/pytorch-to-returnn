@@ -393,14 +393,14 @@ class Module:
           if not isinstance(result, tuple):
             result = (result,)
           input = result
-      with naming.push_module_call(module=self, inputs=list(input)) as call_entry:
+      with naming.push_module_call(module=self, inputs_args=input, inputs_kwargs=kwargs) as call_entry:
         res = call_entry.apply_call()
       return res
 
   def forward(self, *inputs: Tensor) -> Tensor:
     raise Exception("should not get here")
 
-  def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     raise Exception("should not get here")
 
   @classmethod
@@ -465,7 +465,7 @@ class Module:
         else:
           assert len(t.output_from_calls) == 1
           call_ = t.output_from_calls[0]
-          queue_ += call_.inputs
+          queue_ += call_.inputs_flat
           continue
 
         assert t.validated_to_torch
@@ -513,11 +513,11 @@ class Module:
     torch_mod_calls = torch_naming.get_module_calls(torch_mod)
     assert call_idx < len(torch_mod_calls)
     torch_mod_call = torch_mod_calls[call_idx]
-    assert torch_mod_call.orig_outputs is not None and torch_mod_call.orig_inputs is not None
-    assert len(call.inputs) == len(torch_mod_call.orig_inputs)
+    assert torch_mod_call.orig_outputs is not None and torch_mod_call.orig_inputs_flat is not None
+    assert len(call.inputs_flat) == len(torch_mod_call.orig_inputs_flat)
     feed_dict = {}
     sizes_feed_dict = {}
-    for tensor_entry, torch_input in zip(call.inputs, torch_mod_call.orig_inputs):
+    for tensor_entry, torch_input in zip(call.inputs_flat, torch_mod_call.orig_inputs_flat):
       torch_input_np = torch_input.detach().cpu().numpy()
       Module._check_call_returnn_input_to_prev_torch(
         call=call, tensor=tensor_entry, torch_values=torch_input_np)
@@ -558,9 +558,9 @@ class Module:
         f"  RETURNN output shape (transposed to Torch): {returnn_output_np.shape},"
         f" (RETURNN<-Torch axis mapping {returnn_output_tensor_entry.returnn_axis_from_torch_axis})",
         f"  Torch output shape: {torch_out_np.shape}"]
-      for i, (tensor_entry, torch_input) in enumerate(zip(call.inputs, torch_mod_call.orig_inputs)):
+      for i, (tensor_entry, torch_input) in enumerate(zip(call.inputs_flat, torch_mod_call.orig_inputs_flat)):
         assert isinstance(tensor_entry, TensorEntry)
-        error_msg_info += [f"input {i + 1}/{len(call.inputs)}:"]
+        error_msg_info += [f"input {i + 1}/{len(call.inputs_flat)}:"]
         torch_axis_from_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_from_torch_axis.items()}
         torch_input_np_ = torch_input.detach().cpu().numpy()
         assert isinstance(torch_input_np_, numpy.ndarray)
@@ -616,12 +616,14 @@ class Module:
   def _get_input_axis_to_returnn(input: Tensor, axis: int) -> str:
     return Naming.get_instance().register_tensor(input).get_returnn_axis_description(axis)
 
-  def make_output_tensor_from_returnn(self, inputs: Tuple[Tensor, ...], layer: LayerBase) -> Tensor:
+  def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
     naming = Naming.get_instance()
-    torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(
+      inputs_flat=inputs_flat, layer=layer)
     is_const = False
     numpy_array = None
-    inputs_entries = [naming.tensors[x] if x is not None else None for x in inputs]  # type: List[Optional[TensorEntry]]
+    inputs_entries = [
+      naming.tensors[x] if x is not None else None for x in inputs_flat]  # type: List[Optional[TensorEntry]]
     if all([x.is_const if x else True for x in inputs_entries]):
       # Only have const input.
       # Evaluate layer, because this const might be used in certain operation (e.g. predefined filter for conv).
@@ -641,7 +643,7 @@ class Module:
     return tensor
 
   @staticmethod
-  def _base_get_output_shape_from_returnn(inputs: Tuple[Tensor, ...], layer: LayerBase
+  def _base_get_output_shape_from_returnn(inputs_flat: List[Tensor], layer: LayerBase
                                           ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
     :return: (torch_shape, returnn_axis_from_torch_axis).
@@ -676,7 +678,7 @@ class Module:
     naming = Naming.get_instance()
     batch_size = None
     dyn_size_dim_tag_to_spatial_idx_and_torch_dim = OrderedDict()  # RETURNN dim tag -> in spatial idx, Torch dim
-    for input in inputs:
+    for input in inputs_flat:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
@@ -744,7 +746,7 @@ class Module:
     return tuple(out_shape), out_returnn_axis_from_torch_axis
 
   def _get_output_shape_from_returnn(self,
-                                     inputs: Tuple[Tensor, ...], layer: LayerBase
+                                     inputs_flat: List[Tensor], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
     :return: (torch_shape, returnn_axis_from_torch_axis).
@@ -764,7 +766,7 @@ class Module:
     We need a mapping of RETURNN axis -> Torch axis.
     We can automatically infer this, but this is a bit involved.
     """
-    return self._base_get_output_shape_from_returnn(inputs=inputs, layer=layer)
+    return self._base_get_output_shape_from_returnn(inputs_flat=inputs_flat, layer=layer)
 
   def as_returnn_torch_functional(self):
     """

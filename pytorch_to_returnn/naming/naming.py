@@ -1,6 +1,7 @@
 
 from __future__ import annotations
-from typing import Generator, List, Optional, Union, Dict, Any
+from tensorflow.python.util import nest
+from typing import Generator, List, Optional, Union, Dict, Any, Tuple
 from contextlib import contextmanager
 from collections import OrderedDict
 from weakref import ref, WeakKeyDictionary
@@ -122,7 +123,7 @@ class Naming:
     if not self.wrap_to_returnn_enabled:
       return
     call_parent_namespace = call.namespace.parent or self.root_namespace
-    for x in call.inputs:
+    for x in call.inputs_flat:
       if x is None:
         continue
       assert isinstance(x, _tensor.TensorEntry)
@@ -169,13 +170,20 @@ class Naming:
       else:
         raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 
-  def push_module_call(self, *, module: _types.Module, inputs: List[_types.Tensor]) -> _call.CallEntry:
+  def push_module_call(self, *, module: _types.Module,
+                       inputs_args: Tuple[Union[_types.Tensor, Any], ...],
+                       inputs_kwargs: Dict[str, Union[_types.Tensor, Any]]) -> _call.CallEntry:
     module_entry = self.modules[module]
     assert isinstance(module_entry, _module.ModuleEntry)
     entry = _call.CallEntry(module=module_entry)
+    inputs_flat = nest.flatten((inputs_args, inputs_kwargs))
     if self.keep_orig_module_io_tensors:
-      entry.orig_inputs = inputs
-    entry.inputs = [self._make_tensor(x) for x in inputs]
+      entry.orig_inputs_args = inputs_args
+      entry.orig_inputs_kwargs = inputs_kwargs
+      entry.orig_inputs_flat = inputs_flat
+    entry.inputs_flat = [self._make_tensor(x) for x in inputs_flat]
+    entry.inputs_args, entry.inputs_kwargs = nest.pack_sequence_as(
+      structure=(inputs_args, inputs_kwargs), flat_sequence=entry.inputs_flat)
     entry.level = len(self.module_call_stack)
     if self.module_call_stack:
       recent_entry = self.module_call_stack[-1]
