@@ -305,6 +305,7 @@ class Naming:
     assert all([dim in {tensor.shape[i], None} for i, dim in enumerate(returnn_data.batch_shape)])
     entry.returnn_data = Data(
       name=returnn_data.name, auto_create_placeholders=True,
+      sparse=returnn_data.sparse,
       dim=returnn_data.dim,
       shape=returnn_data.shape,
       batch_dim_axis=returnn_data.batch_dim_axis,
