@@ -14,8 +14,8 @@ from .shape import *
 from .norm import *
 from .operator import *
 from .variable import *
-from .conv import __all__ as _conv_all
 from .container import __all__ as _container_all
+from .conv import __all__ as _conv_all
 from .pooling import __all__ as _pooling_all
 from .padding import __all__ as _padding_all
 from .activation import __all__ as _activation_all
