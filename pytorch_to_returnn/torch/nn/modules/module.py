@@ -11,7 +11,7 @@ from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming, CallEntry, TensorEntry
-from returnn.tf.layers.basic import LayerBase
+from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from returnn.tf.util.data import Data
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
@@ -421,21 +421,27 @@ class Module:
     But now we want to get the behavior of the original Torch module.
     """
     self_ = self
+    orig_import_params_torch_to_returnn = self.import_params_torch_to_returnn
 
-    class WrappedBaseClass(Module):
+    def import_params_torch_to_returnn(*, layer: SubnetworkLayer, torch_module):
+      assert isinstance(layer, SubnetworkLayer)
+      sub_layer = layer.subnetwork.layers[self_.get_returnn_name()]
+      orig_import_params_torch_to_returnn(layer=sub_layer, torch_module=torch_module)
+
+    setattr(self, "import_params_torch_to_returnn", import_params_torch_to_returnn)
+
+    class _WrappedBaseClass(Module):
+      is_original_torch_module = False
+
       def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
         return self_.create_returnn_layer_dict(*inputs, **kwargs)
 
-      def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
-        self_.import_params_torch_to_returnn(layer=layer, torch_module=torch_module)
+      def get_returnn_name(self) -> str:
+        return self_.get_returnn_name()
 
-      def check_returnn_layer(self, layer: LayerBase):
-        self_.check_returnn_layer(layer=layer)
-
-      def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
-        return self_.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
-
-    wrapped_mod = WrappedBaseClass()
+    _WrappedBaseClass.__qualname__ = f"_{self.__class__.__qualname__}_WrappedBaseClass"  # doesn't matter, but nicer
+    _WrappedBaseClass.__name__ = f"_{self.__class__.__name__}_WrappedBaseClass"  # doesn't matter, but nicer
+    wrapped_mod = _WrappedBaseClass()
     return wrapped_mod(*inputs)
 
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
