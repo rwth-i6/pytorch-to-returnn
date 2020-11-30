@@ -89,6 +89,16 @@ class Tensor:
       assert dim >= 0
     return self.view(*(self._shape[:dim] + (-1,) + self._shape[dim:]))
 
+  def new_zeros(self, *size, dtype=None, device=None, requires_grad=False):
+    if len(size) == 1 and isinstance(size[0], (list, tuple)):
+      size = size[0]
+    if dtype is None:
+      dtype = self.dtype
+    else:
+      dtype = _dtype(dtype)
+    from ._C import from_numpy
+    return from_numpy(numpy.zeros(size, dtype=dtype.name))
+
   def copy_(self, source: Tensor):
     self._numpy_buffer = source.view(*self._shape).type(self.dtype)._numpy_buffer.copy()
 
