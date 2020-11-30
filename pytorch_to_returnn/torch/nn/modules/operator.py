@@ -125,7 +125,7 @@ class Transpose(Module):
     return {"class": "copy", "from": self._get_input_layer_name(input)}
 
   def _get_output_shape_from_returnn(self,
-                                     inputs: Tuple[Tensor, ...], layer: LayerBase
+                                     inputs_flat: List[Tensor], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
     :return: (torch_shape, returnn_axis_from_torch_axis).
@@ -135,7 +135,7 @@ class Transpose(Module):
     On RETURNN side, this is a no-op.
     But on Torch side, we transpose as expected.
     """
-    input, = inputs
+    input, = inputs_flat
     perm = self._get_perm(input)
     target_axes = set(perm)
     source_axes = set(perm.values())
