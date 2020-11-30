@@ -398,13 +398,55 @@ class Module:
       return res
 
   def forward(self, *inputs: Tensor) -> Tensor:
-    raise Exception("should not get here")
+    """
+    Note:
+
+    Normally we should never get here.
+
+    However, there is one exception:
+    We can still get here, in case some user code overrides some of the Torch modules, e.g. as in::
+
+      class LayerNorm(torch.nn.LayerNorm):
+          def __init__(self, nout, dim=-1):
+              super(LayerNorm, self).__init__(nout, eps=1e-12)
+              self.dim = dim
+          def forward(self, x):
+              if self.dim == -1:
+                  return super(LayerNorm, self).forward(x)
+              return super(LayerNorm, self).forward(x.transpose(1, -1)).transpose(1, -1)
+
+    In that case, has_torch_forward() will return True (which is correct and expected),
+    and then the forward() will be called, and that will lead to a call here.
+    So we are expected to be in a subnetwork.
+    But now we want to get the behavior of the original Torch module.
+    """
+    self_ = self
+
+    class WrappedBaseClass(Module):
+      def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
+        return self_.create_returnn_layer_dict(*inputs, **kwargs)
+
+      def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
+        self_.import_params_torch_to_returnn(layer=layer, torch_module=torch_module)
+
+      def check_returnn_layer(self, layer: LayerBase):
+        self_.check_returnn_layer(layer=layer)
+
+      def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+        return self_.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
+
+    wrapped_mod = WrappedBaseClass()
+    return wrapped_mod(*inputs)
 
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     raise Exception("should not get here")
 
   @classmethod
   def has_torch_forward(cls) -> bool:
+    """
+    When we return True here, it implies that this module has a `forward` function,
+    which would be wrapped via a RETURNN subnetwork.
+    """
     if cls.create_returnn_layer_dict is Module.create_returnn_layer_dict:
       return True  # always assume that the user module has custom forward code, even if not cls.forward
     return cls.forward is not Module.forward
