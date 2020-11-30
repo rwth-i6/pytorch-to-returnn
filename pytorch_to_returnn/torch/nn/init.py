@@ -22,6 +22,10 @@ def zeros_(tensor):
   pass
 
 
+def ones_(tensor):
+  pass
+
+
 def uniform_(tensor, a=0., b=1.):
   pass
 
