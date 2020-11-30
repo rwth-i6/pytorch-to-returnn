@@ -460,7 +460,11 @@ class Module:
     """
 
   def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
-    pass
+    """
+    Override this function to import parameters from PyTorch.
+    This only makes sense for modules available in PyTorch itself,
+    with flag ``is_original_torch_module=True``.
+    """
 
   @staticmethod
   def _check_call_returnn_input_to_prev_torch(call: CallEntry, tensor: TensorEntry, torch_values: numpy.ndarray):
