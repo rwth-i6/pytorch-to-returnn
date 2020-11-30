@@ -72,7 +72,6 @@ class Embedding(Module):
   def import_params_torch_to_returnn(self, *, layer: LinearLayer, torch_module: Embedding):
     session = tf.compat.v1.get_default_session()
     values = torch_module.weight.detach().numpy()
-    values = values.transpose()
     layer.params["W"].load(values, session=session)
 
 
