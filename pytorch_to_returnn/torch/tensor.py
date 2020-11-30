@@ -89,6 +89,10 @@ class Tensor:
       assert dim >= 0
     return self.view(*(self._shape[:dim] + (-1,) + self._shape[dim:]))
 
+  def transpose(self, dim0: int, dim1: int):
+    from .nn.functional import transpose
+    return transpose(self, dim0=dim0, dim1=dim1)
+
   def new_zeros(self, *size, dtype=None, device=None, requires_grad=False):
     if len(size) == 1 and isinstance(size[0], (list, tuple)):
       size = size[0]

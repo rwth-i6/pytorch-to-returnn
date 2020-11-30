@@ -56,6 +56,42 @@ def test_mnist():
     model_func, inputs=x, inputs_data_kwargs={"shape": (C, H, W)})
 
 
+def test_custom_layer_norm():
+  N, F, T = 64, 11, 28
+
+  def model_func(wrapped_import, inputs):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    class LayerNorm(torch.nn.LayerNorm):
+      def __init__(self, nout, dim=-1):
+        """Construct an LayerNorm object."""
+        super(LayerNorm, self).__init__(nout, eps=1e-12)
+        self.dim = dim
+
+      def forward(self, x):
+        if self.dim == -1:
+          return super(LayerNorm, self).forward(x)
+        return super(LayerNorm, self).forward(x.transpose(1, -1)).transpose(1, -1)
+
+    class Net(torch.nn.Module):
+      def __init__(self):
+        super(Net, self).__init__()
+        self.norm = LayerNorm(nout=F, dim=1)
+
+      def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.norm(x)
+
+    net = Net()
+    return net(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (N, F, T)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
