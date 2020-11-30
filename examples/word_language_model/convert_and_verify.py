@@ -100,6 +100,8 @@ def main():
     target = source[ i +1: i + 1 +seq_len].view(-1)
     return data, target
 
+  ntokens = len(corpus.dictionary)
+
   def model_func(wrapped_import, inputs):
     ###############################################################################
     # Build the model
@@ -111,12 +113,12 @@ def main():
       from torch import nn
       import model
 
-    ntokens = len(corpus.dictionary)
     if args.model == 'Transformer':
       net = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid, args.nlayers, args.dropout)
     else:
       net = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
 
+    net.eval()  # for verification, need no random elements (e.g. dropout)
     # criterion = nn.NLLLoss()
 
     if args.model != 'Transformer':
@@ -135,7 +137,10 @@ def main():
   data_, targets = get_batch(train_data, i=0)
 
   from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
-  verify_torch_and_convert_to_returnn(model_func, inputs=data_.detach().cpu().numpy())
+  verify_torch_and_convert_to_returnn(
+    model_func,
+    inputs=data_.detach().cpu().numpy(),
+    inputs_data_kwargs={"shape": (None,), "sparse": True, "dim": ntokens})
 
 
 if __name__ == '__main__':
