@@ -88,8 +88,8 @@ class CallEntry:
       structure=(self.inputs_args, self.inputs_kwargs), flat_sequence=inputs_flat)
 
     if module.has_torch_forward():
-      assert len(inputs_args) == 1 and not inputs_kwargs  # TODO ... need register_input for multiple inputs...
-      self.namespace.register_input(tensor=naming.tensors[inputs_args[0]])
+      for x in inputs_flat:
+        self.namespace.register_input(tensor=naming.tensors[x])
       res = module.forward(*inputs_args)
       assert isinstance(res, Tensor)  # TODO only single output supported currently...
       res_entry = naming.tensors[res]

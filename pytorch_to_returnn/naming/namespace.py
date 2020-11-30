@@ -23,6 +23,7 @@ class RegisteredName:
   ReservedInputName = "data"
   ReservedOutputName = "output"
   ReservedNames = {ReservedInputName, ReservedOutputName}
+  _inputs: List[RegisteredName]
 
   def __init__(self, *,
                wrap_to_returnn_enabled: Optional[bool] = None,
@@ -31,6 +32,7 @@ class RegisteredName:
                tensor: Optional[_tensor.TensorEntry] = None,
                is_reserved: bool = False):
     self.childs_by_name = OrderedDict()
+    self._inputs = []
     self.parent = parent
     if parent:
       assert name
@@ -148,14 +150,16 @@ class RegisteredName:
 
   def register_input(self, tensor: _tensor.TensorEntry) -> RegisteredName:
     name = self.ReservedInputName
-    if name in self.childs_by_name:
-      assert self.childs_by_name[name].tensor is tensor
-      return self.childs_by_name[name]
+    assert tensor not in self._inputs
+    idx = len(self._inputs)
+    if idx != 0:
+      name += f":{idx}"  # should be consistent with RETURNN SubnetworkLayer concat_sources=False input naming logic
     assert name not in self.childs_by_name
     name_ = RegisteredName(parent=self, name=name, tensor=tensor, is_reserved=True)
     self.childs_by_name[name] = name_
+    self._inputs.append(name_)
     if self.wrap_to_returnn_enabled:
-      self.returnn_ctx.define_input(tensor)
+      self.returnn_ctx.define_input(tensor, data_key=str(idx) if idx else None)
     return name_
 
   def register_returnn_subnet_output(self, tensor: _tensor.TensorEntry) -> RegisteredName:
@@ -217,14 +221,19 @@ class RegisteredName:
       call = self.calls[0]
       return call.returnn_layer_dict
     # Subnetwork
-    input_child = self.childs_by_name["data"]
-    input_tensor = input_child.tensor
-    assert input_tensor
-    assert self.parent
-    parent_namespace = self.parent
-    input_layer_name = parent_namespace.name_for_tensor(input_tensor)
+    inputs = []
+    for input_child in self._inputs:
+      input_tensor = input_child.tensor
+      assert input_tensor
+      assert self.parent
+      parent_namespace = self.parent
+      input_layer_name = parent_namespace.name_for_tensor(input_tensor)
+      inputs.append(input_layer_name)
     subnet_dict = self.dump_as_returnn_net_dict()
-    return {"class": "subnetwork", "from": input_layer_name, "subnetwork": subnet_dict}
+    if len(inputs) <= 1:
+      return {"class": "subnetwork", "from": inputs[0] if inputs else [], "subnetwork": subnet_dict}
+    return {
+      "class": "subnetwork", "from": inputs, "subnetwork": subnet_dict, "concat_sources": False}
 
   def dump_as_returnn_net_dict(self) -> Dict[str, Dict[str, Any]]:
     net_dict = {}

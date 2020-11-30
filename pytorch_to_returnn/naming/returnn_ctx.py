@@ -40,15 +40,15 @@ class ReturnnContext:
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.network.get_absolute_name_prefix()!r}>"
 
-  def define_input(self, input: _tensor.TensorEntry):
+  def define_input(self, input: _tensor.TensorEntry, *, data_key: Optional[str] = None):
     if self._dummy_sub_output:
       assert self.network.layers["output"] is self._dummy_sub_output
       self._dummy_sub_output = None
       # Reset both, as we refill them. They contain dummy data.
       self.network.layers.clear()
       self.network.extern_data.data.clear()
-    # TODO hardcoded defaults
-    data_key = "data"
+    if data_key is None:
+      data_key = self.network.extern_data.default_input
     assert data_key not in self.network.extern_data.data
     assert input.returnn_data
     self.network.extern_data.data[data_key] = input.returnn_data
