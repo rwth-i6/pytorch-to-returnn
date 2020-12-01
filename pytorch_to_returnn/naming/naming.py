@@ -65,7 +65,7 @@ class Naming:
     if validate_allclose_kwargs is None:
       # PyTorch uses some different algos, e.g. different convolution,
       # which leads to quite huge relative differences (for values close to 0.0).
-      validate_allclose_kwargs = dict(rtol=0, atol=1.5e-4)
+      validate_allclose_kwargs = dict(rtol=0, atol=5e-4)
     self.validate_allclose_kwargs = validate_allclose_kwargs
     self.tensors = WeakKeyDictionary()
     self.const_tensor_cache = []
