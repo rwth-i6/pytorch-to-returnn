@@ -212,6 +212,32 @@ class ConvTranspose1d(_ConvTransposeNd):
       True, output_padding, groups, bias, padding_mode)
 
 
+class ConvTranspose2d(_ConvTransposeNd):
+  nd = 2
+
+  def __init__(
+      self,
+      in_channels: int,
+      out_channels: int,
+      kernel_size: _size_2_t,
+      stride: _size_2_t = 1,
+      padding: _size_2_t = 0,
+      output_padding: _size_2_t = 0,
+      groups: int = 1,
+      bias: bool = True,
+      dilation: _size_2_t = 1,
+      padding_mode: str = 'zeros'
+  ):
+    kernel_size = _single(kernel_size)
+    stride = _single(stride)
+    padding = _single(padding)
+    dilation = _single(dilation)
+    output_padding = _single(output_padding)
+    super(ConvTranspose2d, self).__init__(
+      in_channels, out_channels, kernel_size, stride, padding, dilation,
+      True, output_padding, groups, bias, padding_mode)
+
+
 class _FunctionalConvNd(Module):
   is_original_torch_module = False
   nd: Optional[int] = None
