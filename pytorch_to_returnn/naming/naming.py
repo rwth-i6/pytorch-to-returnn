@@ -210,12 +210,11 @@ class Naming:
     assert parent_namespace.is_subnetwork()
     if parent_namespace is root_namespace and _flatten_namespace_for_mod(module_entry):
       # Special case, somewhat nicer to flatten the namespace for this case.
-      root_namespace.assign_module(module_entry)
+      root_namespace.assign_call(entry)
       namespace = root_namespace
     else:
       namespace = parent_namespace.register_sub_call(entry)
     assert module_entry in namespace.modules
-    namespace.assign_call(entry)
     self.module_call_stack.append(entry)
     assert entry.namespace
     self._prepare_module_call_returnn_inputs(entry)
