@@ -452,6 +452,9 @@ class Module:
     """
     When we return True here, it implies that this module has a `forward` function,
     which would be wrapped via a RETURNN subnetwork.
+
+    When we return False, it implies that this module has a `create_returnn_layer_dict` function,
+    and would be wrapped directly via the corresponding RETURNN layer.
     """
     if cls.create_returnn_layer_dict is Module.create_returnn_layer_dict:
       return True  # always assume that the user module has custom forward code, even if not cls.forward
