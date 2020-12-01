@@ -77,8 +77,9 @@ class Naming:
     self.module_apply_stack = []
     self.module_call_stack = []
     self.root_func_calls = []
-    self.root_namespace = _namespace.RegisteredName(parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled)
-    self.tmp_eager_root_namespace = self.root_namespace.register(suggested_name=".tmp_root")
+    self.root_namespace = _namespace.RegisteredName(
+      parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled, is_subnet=True)
+    self.tmp_eager_root_namespace = self.root_namespace.register_sub_net(suggested_name=".tmp_root")
 
   @contextmanager
   def push_module_creation(self, module: _types.Module) -> _module.ModuleEntry:
@@ -200,51 +201,19 @@ class Naming:
     if entry.parent_call:
       assert entry.parent_call.namespace
       parent_namespace = entry.parent_call.namespace
-      if self.wrap_to_returnn_enabled:
-        while not parent_namespace.returnn_ctx:  # e.g. if call within another module non-forward call
-          assert parent_namespace.parent
-          parent_namespace = parent_namespace.parent
+      # Get the parent namespace, which is a subnetwork.
+      while not parent_namespace.is_subnetwork():
+        assert parent_namespace.parent
+        parent_namespace = parent_namespace.parent
     else:
       parent_namespace = root_namespace
-    # Find right parent namespace.
-    parents_hierarchy = []
-    parent_module = module_entry
-    while parent_module not in parent_namespace.modules and parent_module not in parents_hierarchy:
-      parents_hierarchy.append(parent_module)
-      if not parent_module.parent_owning_modules:
-        if parent_module not in self.module_context_stack and self.module_context_stack:
-          parent_module = self.module_context_stack[-1]
-          continue  # try further
-        elif parent_module in self.module_context_stack and self.module_context_stack.index(parent_module) > 0:
-          parent_module = self.module_context_stack[self.module_context_stack.index(parent_module) - 1]
-          continue  # try further
-        # no parent anymore, so use root namespace in any case
-        parent_namespace = root_namespace
-        break
-      parent_module = parent_module.parent_owning_modules[0][0]  # could do search over all, but just use first for now
-    for parent_module in reversed(parents_hierarchy):
-      assert parent_module not in parent_namespace.modules
-      if parent_module is not module_entry and not parent_module.module.has_torch_forward():
-        # Skip.
-        parent_module = module_entry
-      if parent_namespace is root_namespace and _flatten_namespace_for_mod(parent_module):
-        # Special case, somewhat nicer to flatten the namespace for this case.
-        root_namespace.assign_module(parent_module)
-      else:
-        name = parent_namespace.find_name_for_module(parent_module)
-        if name and parent_module is module_entry and not module_entry.module.has_torch_forward():
-          name = None  # enforce to create new entry for second call
-        if name:
-          parent_namespace = parent_namespace.childs_by_name[name]
-        else:
-          parent_namespace = parent_namespace.register(
-            suggested_name=parent_module.get_canonical_name(parent_namespace=parent_namespace))
-          parent_namespace.assign_module(parent_module)
-      assert parent_module in parent_namespace.modules
-      if parent_module is module_entry:
-        break
-    assert parent_module in parent_namespace.modules and parent_module is module_entry
-    namespace = parent_namespace
+    assert parent_namespace.is_subnetwork()
+    if parent_namespace is root_namespace and _flatten_namespace_for_mod(module_entry):
+      # Special case, somewhat nicer to flatten the namespace for this case.
+      root_namespace.assign_module(module_entry)
+      namespace = root_namespace
+    else:
+      namespace = parent_namespace.register_sub_call(entry)
     assert module_entry in namespace.modules
     namespace.assign_call(entry)
     self.module_call_stack.append(entry)

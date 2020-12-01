@@ -102,6 +102,7 @@ class CallEntry:
       assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
       assert self.namespace and self.namespace.parent
       parent_namespace = self.namespace.parent
+      parent_namespace.maybe_create_returnn_ctx()
       layer_dict = module.create_returnn_layer_dict(*inputs_args, **inputs_kwargs)
       layer_name = self.namespace.name
       returnn_net = parent_namespace.returnn_ctx.network

@@ -19,7 +19,8 @@ class RegisteredName:
   calls: List[_call.CallEntry]  # can be multiple merged together. can be empty if this is some input
   tensor: Optional[_tensor.TensorEntry] = None  # output from the call
   returnn_ctx: Optional[_returnn_ctx.ReturnnContext] = None
-  is_reserved: bool = False  # e.g. input "data" or output "output"
+  is_reserved: bool  # e.g. input "data" or output "output"
+  is_subnet: bool
   ReservedInputName = "data"
   ReservedOutputName = "output"
   ReservedNames = {ReservedInputName, ReservedOutputName}
@@ -30,7 +31,7 @@ class RegisteredName:
                parent: Optional[RegisteredName] = None, name: Optional[str] = None,
                call: Optional[_call.CallEntry] = None,
                tensor: Optional[_tensor.TensorEntry] = None,
-               is_reserved: bool = False):
+               is_reserved: bool = False, is_subnet: bool):
     self.childs_by_name = OrderedDict()
     self._inputs = []
     self.parent = parent
@@ -47,6 +48,7 @@ class RegisteredName:
     if not is_reserved:
       assert name not in self.ReservedNames
       # If reserved, we also allow other names...
+    self.is_subnet = is_subnet
     self.modules = []
     self.calls = []
     if call:
@@ -57,7 +59,7 @@ class RegisteredName:
       self.assign_tensor(tensor)
     if self.wrap_to_returnn_enabled:
       if not parent:  # with parent, returnn_ctx will be created once needed
-        self._create_returnn_ctx()
+        self.maybe_create_returnn_ctx()
 
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.get_absolute_name()!r} {self._repr_content()}>"
@@ -100,19 +102,27 @@ class RegisteredName:
   def assign_call(self, call: _call.CallEntry):
     if call in self.calls:
       return
-    if call.module:
-      self.assign_module(call.module)
-    assert all(c.module.module.has_torch_forward() for c in self.calls)
-    if self.calls:
+    self.assign_module(call.module)
+    if self.is_subnet:
       assert call.module.module.has_torch_forward()
+    else:
+      assert not self.calls  # cannot have multiple calls assigned
+      assert not call.module.module.has_torch_forward()
     assert not call.namespace
     call.namespace = self
     self.calls.append(call)
 
-  def _create_returnn_ctx(self):
+  def maybe_create_returnn_ctx(self):
+    """
+    Makes sure that returnn_ctx is created.
+    """
+    assert self.is_subnetwork()
+    assert self.wrap_to_returnn_enabled
+    if self.returnn_ctx:
+      return
     if self.parent:
       if not self.parent.returnn_ctx:
-        self.parent._create_returnn_ctx()
+        self.parent.maybe_create_returnn_ctx()
       assert self.parent.returnn_ctx
     self.returnn_ctx = _returnn_ctx.ReturnnContext(
       parent=self.parent.returnn_ctx if self.parent else None,
@@ -121,18 +131,27 @@ class RegisteredName:
   def assign_module(self, module: _module.ModuleEntry):
     if module in self.modules:
       return
+    if self.is_subnet:
+      assert module.module.has_torch_forward()
+    else:
+      assert not self.modules  # cannot have multiple modules assigned
+      assert not module.module.has_torch_forward()
     self.modules.append(module)
     module.names.append(self)
-    assert (
-        all(m.module.has_torch_forward() for m in self.modules) or
-        all(not m.module.has_torch_forward() for m in self.modules))
     if self.is_reserved:
       assert not module.module.has_torch_forward()
     if self.wrap_to_returnn_enabled:
       if module.module.has_torch_forward() and not self.returnn_ctx:
         # Need our own returnn ctx / subnet.
         assert self.parent
-        self._create_returnn_ctx()
+        self.maybe_create_returnn_ctx()
+
+  def is_subnetwork(self) -> bool:
+    """
+    If True, this would be wrapped as a subnetwork in RETURNN.
+    If False, this directly maps to a layer in RETURNN.
+    """
+    return self.is_subnet
 
   def _get_unique_name(self, suggested_name: str) -> str:
     if suggested_name not in self.childs_by_name and suggested_name not in self.ReservedNames:
@@ -142,20 +161,30 @@ class RegisteredName:
       if suggested_name_ not in self.childs_by_name and suggested_name_ not in self.ReservedNames:
         return suggested_name_
 
-  def register(self, *, suggested_name: str) -> RegisteredName:
+  def register_sub_net(self, *, suggested_name: str) -> RegisteredName:
+    assert self.is_subnetwork()
     name = self._get_unique_name(suggested_name)
-    child = RegisteredName(parent=self, name=name)
+    child = RegisteredName(parent=self, name=name, is_subnet=True)
     self.childs_by_name[name] = child
     return child
 
+  def register_sub_call(self, call: _call.CallEntry) -> RegisteredName:
+    assert self.is_subnetwork()
+    name = self._get_unique_name(call.module.get_canonical_name(parent_namespace=self))
+    child = RegisteredName(parent=self, name=name, is_subnet=call.module.module.has_torch_forward())
+    self.childs_by_name[name] = child
+    child.assign_call(call)
+    return child
+
   def register_input(self, tensor: _tensor.TensorEntry) -> RegisteredName:
+    assert self.is_subnetwork()
     name = self.ReservedInputName
     assert tensor not in self._inputs
     idx = len(self._inputs)
     if idx != 0:
       name += f":{idx}"  # should be consistent with RETURNN SubnetworkLayer concat_sources=False input naming logic
     assert name not in self.childs_by_name
-    name_ = RegisteredName(parent=self, name=name, tensor=tensor, is_reserved=True)
+    name_ = RegisteredName(parent=self, name=name, tensor=tensor, is_reserved=True, is_subnet=False)
     self.childs_by_name[name] = name_
     self._inputs.append(name_)
     if self.wrap_to_returnn_enabled:
@@ -163,6 +192,7 @@ class RegisteredName:
     return name_
 
   def register_returnn_subnet_output(self, tensor: _tensor.TensorEntry) -> RegisteredName:
+    assert self.is_subnetwork()
     from pytorch_to_returnn.torch.nn import Copy
     naming = _naming.Naming.get_instance()
     assert naming.wrap_to_returnn_enabled
@@ -173,7 +203,7 @@ class RegisteredName:
     self.assign_tensor(tensor)  # for this subnet
     name = self.ReservedOutputName
     assert name not in self.childs_by_name
-    child = RegisteredName(parent=self, name=name, is_reserved=True)
+    child = RegisteredName(parent=self, name=name, is_reserved=True, is_subnet=False)
     self.childs_by_name[name] = child
     copy_mod = Copy()
     copy_call = _call.CallEntry(module=naming.modules[copy_mod])
@@ -194,6 +224,7 @@ class RegisteredName:
     return child
 
   def name_for_tensor(self, tensor: _tensor.TensorEntry) -> str:
+    assert self.is_subnetwork()
     for name_ in tensor.names:
       if name_.parent is self:
         assert self.childs_by_name[name_.name] is name_
@@ -202,6 +233,7 @@ class RegisteredName:
     raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
 
   def find_name_for_module(self, module: _module.ModuleEntry) -> Optional[str]:
+    assert self.is_subnetwork()
     for name, child in self.childs_by_name.items():
       if module in child.modules:
         return name
