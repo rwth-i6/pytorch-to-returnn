@@ -142,7 +142,15 @@ def reshape(input: Tensor, shape: Tuple[int, ...]) -> Tensor:
       continue
     else:
       assert False  # cannot happen
-  assert axis1 == axis2 == len(input.shape) == len(shape) and input.shape == tuple(shape)
+  assert axis1 == axis2
+  if len(input.shape) < len(shape):
+    assert all(shape[i] == 1 for i in range(len(input.shape), len(shape)))
+    input = modules.Unflatten(
+      dim=-1, unflattened_size=shape[len(input.shape) - 1:]).as_returnn_torch_functional()(input)
+  elif len(input.shape) > len(shape):
+    while len(input.shape) > len(shape):
+      input = modules.Squeeze(dim=len(shape)).as_returnn_torch_functional()(input)
+  assert len(input.shape) == len(shape) and input.shape == tuple(shape)
   return input
 
 
