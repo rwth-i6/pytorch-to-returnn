@@ -84,10 +84,10 @@ class Tensor:
     return reshape(self, shape)
 
   def unsqueeze(self, dim: int):
-    assert -len(self._shape) <= dim < len(self._shape)
+    assert -len(self._shape) <= dim <= len(self._shape)
     if dim < 0:
-      dim += len(self._shape)
-    assert 0 <= dim < len(self._shape)
+      dim += len(self._shape) + 1
+    assert 0 <= dim <= len(self._shape)
     return self.view(*(self._shape[:dim] + (1,) + self._shape[dim:]))
 
   def transpose(self, dim0: int, dim1: int):
