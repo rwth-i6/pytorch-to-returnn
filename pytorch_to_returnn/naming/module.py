@@ -64,7 +64,9 @@ class ModuleEntry:
       if parent_namespace and mod in parent_namespace.modules:
         prefix = ""
       elif not mod.module.has_torch_forward() and mod not in _visited:
-        prefix = mod.get_canonical_name(_visited=_visited) + "_"
+        prefix = mod.get_canonical_name(_visited=_visited)
+        if prefix:
+          prefix += "_"
       else:
         prefix = ""
       if not prefix and name[:1].isnumeric():
@@ -80,8 +82,10 @@ class ModuleEntry:
           return self.module.get_returnn_name()
     prefix = ""
     for mod in reversed(self.parent_context_modules):
-      prefix = mod.get_canonical_name(_visited=_visited, parent_namespace=parent_namespace) + "_"
-      break
+      prefix = mod.get_canonical_name(_visited=_visited, parent_namespace=parent_namespace)
+      if prefix:
+        prefix += "_"
+        break
     return prefix + self.module.get_returnn_name()
 
   def __enter__(self):

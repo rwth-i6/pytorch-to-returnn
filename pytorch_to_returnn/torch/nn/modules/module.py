@@ -835,3 +835,38 @@ class Module:
     """
     self.is_original_torch_module = False
     return self
+
+  @classmethod
+  def _make_returnn_dummy_input(cls, data: Data) -> numpy.ndarray:
+    some_primes = (3, 5, 7, 11, 13)  # use primes for dynamic dims, just nicer to identify in logs
+    dynamic_axes = [i for i, dim in enumerate(data.batch_shape) if dim is None]
+    assert len(dynamic_axes) <= len(some_primes)  # just not implemented otherwise
+    shape = list(data.batch_shape)
+    for i, j in enumerate(dynamic_axes):
+      shape[j] = some_primes[i]
+    return numpy.zeros(shape, dtype=data.dtype)
+
+  def _returnn_dummy_call(self, *returnn_inputs: Dict[str, Any]) -> Naming:
+    from pytorch_to_returnn.torch import from_numpy
+    naming = Naming.get_instance()
+    returnn_datas = []
+    for i, kwargs in enumerate(returnn_inputs):
+      kwargs = kwargs.copy()
+      if "name" not in kwargs:
+        kwargs["name"] = "data" if i == 0 else f"data:{i}"
+      x = Data(**kwargs)
+      returnn_datas.append(x)
+    dummy_inputs_np = [self._make_returnn_dummy_input(x) for x in returnn_datas]
+    dummy_inputs_torch = [from_numpy(x) for x in dummy_inputs_np]
+    for i in range(len(returnn_inputs)):
+      naming.register_input(tensor=dummy_inputs_torch[i], returnn_data=returnn_datas[i])
+    out = self(*dummy_inputs_torch)
+    assert isinstance(out, Tensor)
+    naming.register_output(out)
+    return naming
+
+  def as_returnn_net_dict(self, *returnn_inputs: Dict[str, Any]):
+    return self._returnn_dummy_call(*returnn_inputs).root_namespace.dump_as_returnn_net_dict()
+
+  def as_returnn_layer_dict(self, *returnn_inputs: Dict[str, Any]):
+    return self._returnn_dummy_call(*returnn_inputs).root_namespace.dump_as_returnn_layer_dict()

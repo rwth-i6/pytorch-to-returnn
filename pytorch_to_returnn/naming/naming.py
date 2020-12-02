@@ -375,9 +375,8 @@ def _flatten_namespace_for_mod(mod_entry: _module.ModuleEntry) -> bool:
     # Use the parent module.
     return False
   mod = mod_entry.module
-  if not list(mod.children()):
+  if not mod.has_torch_forward():
     # For RETURNN wrapped modules, e.g. it means that it has no forward, but wraps to a RETURNN layer.
-    # But more generally, if there are no children modules, we assume this directly does some operation.
     # So, keep this as a separate item, do not flatten it.
     return False
   return True

@@ -68,14 +68,12 @@ or just create the RETURNN layer definition.
   # RETURNN network dict
   network = {
     "prenet":
-      my_torch_model.as_returnn_subnetwork_layer(input="data"),
+      my_torch_model.as_returnn_layer_dict(input="data"),
     
     # Other RETURNN layers
     ...
   }
   ```
-  
-  (*This does not work yet as expected.*)
 
 
 Note:
