@@ -8,9 +8,12 @@ Note on PyTorch vs RETURNN/TF terminology:
 *Dim(s)* in TF == *size* in PyTorch.
 """
 
-from typing import Tuple, Union, Collection, Dict, Any
+from __future__ import annotations
+from typing import Tuple, List, Union, Collection, Dict, Any
+from returnn.tf.layers.basic import LayerBase
 from .module import Module
 from ...tensor import Tensor, Size
+from ....naming import Naming
 
 
 _NamedShape = Tuple[Tuple[str, int]]
@@ -75,7 +78,9 @@ class Unflatten(Module):
   """
   Originally in flatten.py.
   """
-  def __init__(self, dim: Union[int, str], unflattened_size: Union[Size, _NamedShape]) -> None:
+  def __init__(self,
+               dim: Union[int, str],
+               unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]) -> None:
     super(Unflatten, self).__init__()
     self.dim = dim
     self.unflattened_size = unflattened_size
@@ -91,6 +96,56 @@ class Unflatten(Module):
       "class": "split_dims", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, self.dim),
       "dims": dims}
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    We can exactly infer this, so we don't need to rely on the default heuristics.
+
+    :return: (torch_shape, returnn_axis_from_torch_axis).
+    """
+    naming = Naming.get_instance()
+    assert len(inputs_flat) == 1
+    x = inputs_flat[0]
+    x_entry = naming.register_tensor(x)
+    dim = self.dim
+    assert -len(x.shape) <= dim < len(x.shape)
+    if dim < 0:
+      dim += len(x.shape)
+    assert 0 <= dim < len(x.shape)
+    unflatten_size = list(self.unflattened_size)
+    if any(d == -1 for d in unflatten_size):
+      rem_dim = x.shape[dim]
+      for d in unflatten_size:
+        if d == -1:
+          continue
+        assert rem_dim % d == 0
+        rem_dim //= d
+      unflatten_size[unflatten_size.index(-1)] = rem_dim
+    assert all(d > 0 for d in unflatten_size)
+    out_torch_shape = x.shape[:dim] + tuple(unflatten_size) + x.shape[dim + 1:]
+
+    old_returnn_split_axis = x_entry.returnn_axis_from_torch_axis[dim]
+    out_returnn_axis_from_torch_axis = {}
+    for i in range(len(out_torch_shape)):
+      unflatten_idx = None
+      if i < dim:
+        old_torch_axis = i
+      elif i > dim + len(unflatten_size):
+        old_torch_axis = i - len(unflatten_size) + 1
+      else:  # i >= dim and ..., within the unflattened dims
+        unflatten_idx = i - dim
+        old_torch_axis = dim
+      old_returnn_axis = x_entry.returnn_axis_from_torch_axis[old_torch_axis]
+      if old_returnn_axis < old_returnn_split_axis:
+        returnn_axis = old_returnn_axis
+      elif old_returnn_axis > old_returnn_split_axis:
+        returnn_axis = old_returnn_axis + len(unflatten_size) - 1
+      else:
+        returnn_axis = old_returnn_axis + unflatten_idx
+      out_returnn_axis_from_torch_axis[i] = returnn_axis
+    return out_torch_shape, out_returnn_axis_from_torch_axis
 
 
 class SplitDims(Unflatten):
