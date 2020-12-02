@@ -82,10 +82,15 @@ class Unflatten(Module):
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
+    dims = list(self.unflattened_size)
+    # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
+    non_one_dims = [d for d in dims if d != 1]
+    if len(non_one_dims) == 1:
+      dims[dims.index(non_one_dims[0])] = -1
     return {
       "class": "split_dims", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, self.dim),
-      "dims": self.unflattened_size}
+      "dims": dims}
 
 
 class SplitDims(Unflatten):
