@@ -56,7 +56,7 @@ jobs:
         chmod +x ~/nosetests
         mv ~/nosetests ~/.local/bin/nosetests
 
-    - name: Test Python/Numpy/TF/Theano versions.
+    - name: Test Python/Numpy/TF versions.
       run: |
         echo "Python env: $(type python) $(python --version)"
         python -c "import numpy; print('NumPy:', numpy.version.full_version)"
