@@ -177,6 +177,38 @@ def test_functional_conv_transposed():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_reshape():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    return torch.reshape(inputs, (n_batch, n_in, 1, n_time))
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_reshape2():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    return torch.reshape(inputs, (n_batch, n_in, n_time, 1))
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
