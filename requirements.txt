@@ -1,0 +1,6 @@
+returnn
+better_exchook
+tensorflow
+torch
+typing
+numpy

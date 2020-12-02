@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - 3.8
+        tf-version:
+          - 2.3.1
+        action:
+          # just order by name
+          - TEST=converter
+          - TEST=layers
+          - TEST=pprint
+          - TEST=torch
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cache
+          ~/.local
+        key: cache-${{ runner.os }}-py${{ matrix.python-version }}-tf${{ matrix.tf-version }}
+        restore-keys: |
+          cache-${{ runner.os }}-py${{ matrix.python-version }}-
+
+    - name: Setup dependencies
+      run: |
+        echo "PATH=$PATH:~/.local/bin" >> $GITHUB_ENV
+        echo "Python ${{matrix.python-version}}"
+        echo "pip: $(type pip)"
+
+        pip install --user --upgrade pip setuptools wheel
+        pip install --user --upgrade tensorflow==${{ matrix.tf-version }} | cat
+        pip install --user nose
+        pip install --user -r requirements.txt | cat
+
+        # Enforce the right Python interpreter for nosetests.
+        echo "#!/usr/bin/env python" > ~/nosetests
+        cat ~/.local/bin/nosetests >> ~/nosetests
+        chmod +x ~/nosetests
+        mv ~/nosetests ~/.local/bin/nosetests
+
+    - name: Test Python/Numpy/TF/Theano versions.
+      run: |
+        echo "Python env: $(type python) $(python --version)"
+        python -c "import numpy; print('NumPy:', numpy.version.full_version)"
+        python -c "import tensorflow as tf; print('TensorFlow:', tf.__git_version__, tf.__version__, tf.__file__)"
+        python -c "import tensorflow as tf; assert tf.__version__ == '${{ matrix.tf-version }}'"
+
+        echo "Nosetests env: $(type nosetests)"
+        nosetests -V
+
+    - name: Run test
+      run: |
+        export ${{ matrix.action }}
+        if [[ ! -z "$TEST" ]]; then nosetests tests/test_$TEST.py; fi
+        if [[ ! -z "$RUN" ]]; then $RUN; fi
