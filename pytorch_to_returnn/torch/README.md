@@ -68,7 +68,7 @@ or just create the RETURNN layer definition.
   # RETURNN network dict
   network = {
     "prenet":
-      my_torch_model.as_returnn_layer_dict(input="data"),
+      my_torch_model.as_returnn_layer_dict(extern_data["data"]),
     
     # Other RETURNN layers
     ...

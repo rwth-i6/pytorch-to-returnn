@@ -127,3 +127,41 @@ i.e. create a RETURNN model,
 including the [RETURNN net dict](https://gist.github.com/albertz/01264cfbd2dfd73a19c1e2ac40bdb16b)
 and TF checkpoint file,
 and do verification on several steps of all the outputs.
+
+
+# Direct use in RETURNN
+
+```
+from pytorch_to_returnn import torch as torch_returnn
+
+class MyTorchModel(torch_returnn.nn.Module):
+  ...
+
+my_torch_model = MyTorchModel() 
+
+extern_data = {...}  # as usual
+
+# RETURNN network dict
+network = {
+"prenet": my_torch_model.as_returnn_layer_dict(extern_data["data"]),
+
+# Other RETURNN layers
+...
+}
+```
+
+Or:
+
+```
+from pytorch_to_returnn import torch as torch_returnn
+
+class MyTorchModel(torch_returnn.nn.Module):
+  ...
+
+my_torch_model = MyTorchModel() 
+
+extern_data = {...}  # as usual
+
+# RETURNN network dict
+network = my_torch_model.as_returnn_net_dict(extern_data["data"])
+```
