@@ -1,7 +1,6 @@
 
 import torch
 from ... import log
-from ...naming import Naming
 
 
 # See the discussion here, which is very relevant,
@@ -18,6 +17,11 @@ class WrappedTorchTensor(torch.Tensor):
     if log.Verbosity >= 10:
       log.unique_print(f"**** torch tensor __getattribute__ {item!r}")
     return super(WrappedTorchTensor, self).__getattribute__(item)
+
+  def new(self, *args, **kwargs):
+    # For some reason, new() via __torch_function__ behaves different?
+    # This is a workaround.
+    return self.new_empty(*args, **kwargs)
 
   @classmethod
   def __torch_function__(cls, func, types, args=(), kwargs=None):
