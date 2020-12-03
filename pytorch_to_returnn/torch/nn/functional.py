@@ -161,7 +161,13 @@ def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Uni
     destination = (destination,)
   assert isinstance(source, (tuple, list)) and isinstance(destination, (tuple, list))
   assert len(source) == len(destination)
-  return tensorflow_transpose(input, perm={i: j for (i, j) in zip(destination, source)})
+  perm = {i: j for i, j in zip(destination, source)}
+  # All remaining axes stay in order.
+  rem_dest = set(range(input.ndim)).difference(destination)
+  rem_src = set(range(input.ndim)).difference(source)
+  assert len(rem_dest) == len(rem_src), f"invalid args source {source}, destination {destination}"
+  perm.update({i: j for i, j in zip(sorted(rem_dest), rem_src)})
+  return tensorflow_transpose(input, perm=perm)
 
 
 def transpose(input: Tensor, dim0: int, dim1: int):
