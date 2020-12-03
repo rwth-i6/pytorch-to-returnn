@@ -678,6 +678,8 @@ class Module:
     naming = Naming.get_instance()
     torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
+    for i in range(len(torch_shape)):
+      assert layer.output.batch_shape[returnn_axis_from_torch_axis[i]] in {None, torch_shape[i]}
     is_const = False
     numpy_array = None
     inputs_entries = [
