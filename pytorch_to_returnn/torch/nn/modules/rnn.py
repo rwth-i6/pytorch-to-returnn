@@ -183,21 +183,32 @@ class LSTM(RNNBase):
   def create_returnn_layer_dict(self, input: Tensor, hx: Optional[Tensor] = None) -> Dict[str, Any]:
     assert not self.bidirectional
     if self.num_layers > 1:
-      assert hx is None
+      subnet_dict = {}
+      for i in range(self.num_layers):
+        layer_dict = {
+          "class": "rec", "unit": "nativelstm2", "from": "data" if i == 0 else f"layer{i - 1}",
+          "n_out": self.hidden_size}
+        subnet_dict[f"layer{i}"] = layer_dict
+        if hx is not None:
+          assert isinstance(hx, (list, tuple)) and len(hx) == 2
+          h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
+          h_, c_ = h_0[i], c_0[i]  # (batch,hidden) each
+          layer_dict["initial_state"] = (
+            f"base:{self._get_input_layer_name(h_)}",
+            f"base:{self._get_input_layer_name(c_)}")
+      subnet_dict["output"] = {"class": "copy", "from": f"layer{self.num_layers - 1}"}
       return {
-        "class": "subnetwork", "from": self._get_input_layer_name(input),
-        "subnetwork": dict(**{
-          f"layer{i}": {"class": "rec", "unit": "nativelstm2", "from": "data" if i == 0 else f"layer{i - 1}"}
-          for i in range(self.num_layers)
-        }, **{
-          "output": {"class": "copy", "from": f"layer{self.num_layers - 1}"}
-        })
-      }
+        "class": "subnetwork", "from": self._get_input_layer_name(input), "subnetwork": subnet_dict}
     d = {
-      "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input)
-    }
+      "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
+      "n_out": self.hidden_size}
     if hx is not None:
-      d["initial_state"] = self._get_input_layer_name(hx)
+      assert isinstance(hx, (list, tuple)) and len(hx) == 2
+      h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
+      h_, c_ = h_0[0], c_0[0]  # (batch,hidden) each
+      d["initial_state"] = (
+        self._get_input_layer_name(h_),
+        self._get_input_layer_name(c_))
     return d
 
   def check_returnn_layer(self, layer: LayerBase):
