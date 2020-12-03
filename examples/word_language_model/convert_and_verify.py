@@ -122,6 +122,8 @@ def main():
     # criterion = nn.NLLLoss()
 
     if args.model != 'Transformer':
+      # TODO do not use args.batch_size, but dynamic.
+      #  resulting const tensor must have batch dim correctly set...
       hidden = net.init_hidden(args.batch_size)
     else:
       hidden = None
