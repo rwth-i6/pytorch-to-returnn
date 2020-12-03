@@ -124,7 +124,8 @@ class Tensor:
   def __getitem__(self, item):
     assert isinstance(item, int)  # not implemented otherwise
     assert self._shape  # cannot subscript a scalar
-    return Tensor(*self._shape[1:])
+    from .nn import Gather
+    return Gather(dim=0, pos=item)(self)
 
   def __setitem__(self, key, value):
     self._numpy_buffer[key] = value
