@@ -45,6 +45,10 @@ We also support to transform external PyTorch code
 on-the-fly
 (without the need to rewrite the code;
 it translates the code on AST level in the way above on-the-fly).
+I.e. it basically replaces
+`import torch` by `from pytorch_to_returnn import torch`
+-- that's all it does. 
+
 This is via our [generic Python import wrapper `pytorch_to_returnn.import_wrapper`](pytorch_to_returnn/import_wrapper).
 
 Example for [Parallel WaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN):
