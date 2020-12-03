@@ -158,6 +158,24 @@ class Transpose(Module):
     return tuple(out_torch_shape), out_returnn_axis_from_torch_axis
 
 
+class Gather(Module):
+  """
+  Basically x[pos] but in specific dim (axis).
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: int, pos: int):
+    super(Gather, self).__init__()
+    self.dim = dim
+    self.pos = pos
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "gather", "from": self._get_input_layer_name(input),
+      "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
+      "position": self.pos}
+
+
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),
