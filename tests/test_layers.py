@@ -212,8 +212,8 @@ def test_movedim():
     else:
       torch = wrapped_import("torch")
     x = inputs  # (B,F,T)
-    x = torch.nn.Conv1d(n_in, n_out, 3)(x)  # make it (B,T,F) in RETURNN
-    x = torch.movedim(x, 0, 1)  # stay (B,T,F) in RETURNN
+    x = torch.nn.Conv1d(n_in, n_out, 3)(x)  # make it (B,T,F) in RETURNN. (B,F,T) in Torch.
+    x = torch.movedim(x, 0, 1)  # stay (B,T,F) in RETURNN. (F,B,T) in Torch.
     return x
 
   rnd = numpy.random.RandomState(42)
