@@ -112,3 +112,8 @@ class TensorEntry:
     if axis in spatial_axes:
       return f"spatial:{spatial_axes.index(axis)}"
     raise Exception(f"Should not get here. Dim tag {dim_tag} for axis {axis} for data {self.returnn_data}")
+
+  @property
+  def torch_axis_from_returnn_axis(self) -> Dict[int, int]:
+    assert self.returnn_data and self.returnn_axis_from_torch_axis is not None
+    return {i: j for (j, i) in self.returnn_axis_from_torch_axis.items()}

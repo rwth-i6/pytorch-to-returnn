@@ -101,6 +101,11 @@ class Converter:
       self._run_returnn_standalone_net_dict()
       self._run_returnn_standalone_python()
 
+  @property
+  def returnn_net_dict(self) -> Dict[str, Dict[str, Any]]:
+    assert self._returnn_net_dict, "Call run() first."
+    return self._returnn_net_dict
+
   def _make_tf_feed_dict(self, input: Data):
     assert input.batch_ndim == len(self._inputs_np.shape)
     assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
