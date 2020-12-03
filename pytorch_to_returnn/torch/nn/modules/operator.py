@@ -158,7 +158,7 @@ class Transpose(Module):
     return tuple(out_torch_shape), out_returnn_axis_from_torch_axis
 
 
-def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor]:
+def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),
   and this would add ``reinterpret_data`` layers when needed
