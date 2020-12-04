@@ -300,7 +300,6 @@ def test_const_with_batch_and_gather():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
-@unittest.skip("not ready yet ... multiple outputs not supported")  # TODO...
 def test_lstm_2l():
   n_batch, n_time = 3, 7
   n_in, n_out = 11, 13
