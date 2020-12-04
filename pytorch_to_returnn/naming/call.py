@@ -82,6 +82,7 @@ class CallEntry:
     from returnn.tf.util.basic import reuse_name_scope
     naming = _naming.Naming.get_instance()
     module = self.module.module
+    assert isinstance(module, Module)
     assert self.namespace
     inputs_flat = [x.tensor() if x else None for x in self.inputs_flat]  # make sure all are tensors
     inputs_args, inputs_kwargs = nest.pack_sequence_as(

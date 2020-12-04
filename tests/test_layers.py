@@ -285,6 +285,21 @@ def test_slice_2d():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_const_with_batch_and_gather():
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    batch_size = inputs.shape[0]
+    x = inputs.new_zeros((2, batch_size, 13))  # const, shape (2,B,13). in RETURNN (B,2,13)
+    x = x[0]  # shape (B,13). in RETURNN (B,13).
+    x = x + inputs[:, :1]  # (B,13). just do this to have dep on inputs
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
