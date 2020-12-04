@@ -145,3 +145,8 @@ class Tensor:
   def __truediv__(self, other):
     from .nn.functional import truediv
     return truediv(self, other)
+
+
+class LongTensor(Tensor):
+  def __init__(self, **kwargs):
+    super(LongTensor, self).__init__(dtype="int64", **kwargs)
