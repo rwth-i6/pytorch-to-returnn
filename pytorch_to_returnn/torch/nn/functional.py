@@ -242,6 +242,10 @@ def softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
   return modules.Softmax(dim=dim).as_returnn_torch_functional()(input)
 
 
+def abs(input: Tensor) -> Tensor:
+  return modules.Abs().as_returnn_torch_functional()(input)
+
+
 def log_softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
   return modules.LogSoftmax(dim=dim).as_returnn_torch_functional()(input)
 
