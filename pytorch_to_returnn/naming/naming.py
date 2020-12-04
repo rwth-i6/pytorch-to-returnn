@@ -167,7 +167,6 @@ class Naming:
         assert isinstance(res_tensor, _tensor.TensorEntry)
         assert res_tensor.returnn_data.placeholder is not None
         x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-        x.is_const = True
       else:
         raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
 

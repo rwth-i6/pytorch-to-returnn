@@ -122,7 +122,6 @@ def main():
     # criterion = nn.NLLLoss()
 
     if args.model != 'Transformer':
-      # TODO must use this shape dynamic (batch size), not const int ...
       hidden = net.init_hidden(bsz=inputs.shape[1])
     else:
       hidden = None

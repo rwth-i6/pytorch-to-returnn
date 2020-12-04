@@ -692,7 +692,9 @@ class Module:
       for x in inputs_entries:
         if not x:
           continue
-        feed_dict[x.returnn_data.placeholder] = x.tensor().numpy()
+        value = x.tensor().numpy()
+        value = numpy.transpose(value, [x.torch_axis_from_returnn_axis[i] for i in range(value.ndim)])
+        feed_dict[x.returnn_data.placeholder] = value
       numpy_array = session.run(layer.output.placeholder, feed_dict=feed_dict)
       is_const = True
     tensor = Tensor(*torch_shape, numpy_array=numpy_array, dtype=layer.output.dtype)
