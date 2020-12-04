@@ -142,7 +142,7 @@ def main():
   verify_torch_and_convert_to_returnn(
     model_func,
     inputs=data_.detach().cpu().numpy(),
-    inputs_data_kwargs={"shape": (None,), "sparse": True, "dim": ntokens})
+    inputs_data_kwargs={"shape": (None,), "sparse": True, "dim": ntokens, "batch_dim_axis": 1})
 
 
 if __name__ == '__main__':
