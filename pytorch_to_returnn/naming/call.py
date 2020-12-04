@@ -24,7 +24,7 @@ class CallEntry:
   inputs_args: Optional[Tuple[Optional[_tensor.TensorEntry]]] = None
   inputs_kwargs: Optional[Dict[str, Optional[Tuple[_tensor.TensorEntry, Any]]]] = None
   inputs_flat: Optional[List[_tensor.TensorEntry]] = None
-  outputs: Optional[List[_tensor.TensorEntry]] = None
+  outputs: Optional[Union[_tensor.TensorEntry, Any]] = None
   outputs_flat: Optional[List[_tensor.TensorEntry]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack
   child_calls: List[CallEntry]
@@ -59,15 +59,15 @@ class CallEntry:
     self.returnn_layer_dict = layer_dict
 
   def set_outputs(self, outputs: Union[_types.Tensor, Tuple[_types.Tensor], List[_types.Tensor]]):
-    assert self.outputs is None
+    assert self.outputs_flat is None and self.outputs is None
     naming = _naming.Naming.get_instance()
     if naming.keep_orig_module_io_tensors:
       self.orig_outputs = outputs
     if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
-      if not isinstance(outputs, (list, tuple)):
-        outputs = [outputs]
-      entry_outputs = [naming.tensors[x] for x in outputs]
-      self.outputs = entry_outputs
+      outputs_flat = nest.flatten(outputs)
+      entry_outputs = [naming.tensors[x] for x in outputs_flat]
+      self.outputs_flat = entry_outputs
+      self.outputs = nest.pack_sequence_as(structure=outputs, flat_sequence=entry_outputs)
       for x in entry_outputs:
         x.output_from_calls.append(self)
         if self.module:
@@ -133,9 +133,8 @@ class CallEntry:
       res_entry.returnn_data = layer.output
       self.namespace.assign_tensor(res_entry)
 
-    assert isinstance(res, Tensor)
     self.set_returnn_layer(layer=layer, layer_dict=layer_dict)
-    self.set_outputs([res])
+    self.set_outputs(res)
 
     if layer:  # might not exist in the root namespace
       layer_abs_repr_name = f"{layer.network.name}/{layer.name!r}"

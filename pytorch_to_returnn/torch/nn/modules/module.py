@@ -582,8 +582,8 @@ class Module:
       feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
       sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
     session = tf.compat.v1.get_default_session()
-    assert len(call.outputs) == 1
-    returnn_output_tensor_entry = call.outputs[0]
+    assert len(call.outputs_flat) == 1
+    returnn_output_tensor_entry = call.outputs_flat[0]
     print(f"**** validate: add call {call} output tensor {returnn_output_tensor_entry}")
     assert returnn_output_tensor_entry.returnn_data.placeholder is call.returnn_layer.output.placeholder
     returnn_output_np_, output_sizes = session.run(

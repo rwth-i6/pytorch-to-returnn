@@ -74,7 +74,7 @@ class RegisteredName:
     if len(self.calls) == 0:
       res = None
     elif len(self.calls) == 1:
-      res = self.calls[0].outputs
+      res = self.calls[0].outputs_flat
       if res is None:
         res = "..."
       elif len(res) == 0:
