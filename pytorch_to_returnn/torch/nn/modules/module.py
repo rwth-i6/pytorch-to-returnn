@@ -751,15 +751,54 @@ class Module:
         torch_dim = input.shape[x.returnn_axis_from_torch_axis[i]]
         if dim_tag not in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
           dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag] = (spatial_idx, torch_dim)
-      shape_meta = _get_shape_meta(x.returnn_data)  # e.g. [B,T_in,D_in], RETURNN order
-      # Reorder dim tags as the input like it would look like for Torch, e.g. [B,D_in,T_in].
-      shape_meta_torch_order = [shape_meta[x.returnn_axis_from_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
-      for kind in ["B", "F"]:
-        if kind in shape_meta_torch_order and kind in layer_output_shape_meta:
-          if shape_meta_torch_order.index(kind) == len(shape_meta_torch_order) - 1 and kind == "F":
-            out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = layer.output.batch_ndim - 1
+
+      # Find mapping to layer_output_shape_meta.
+      mapping_out_to_in = {}
+      for out_axis in range(layer.output.batch_ndim):
+        if out_axis == layer.output.batch_dim_axis:
+          if x.returnn_data.have_batch_axis():
+            mapping_out_to_in[out_axis] = x.returnn_data.batch_dim_axis
           else:
-            out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = shape_meta_torch_order.index(kind)
+            mapping_out_to_in[out_axis] = None  # new axis
+          continue
+        if out_axis == layer.output.feature_dim_axis:
+          if x.returnn_data.have_feature_axis():
+            mapping_out_to_in[out_axis] = x.returnn_data.feature_dim_axis
+          else:
+            mapping_out_to_in[out_axis] = None  # new axis
+          continue
+        if out_axis in layer.output.get_dynamic_axes():
+          dim_tag = layer.output.get_dim_tag(out_axis)
+          if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
+            in_spatial_idx, _ = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
+            mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
+            continue
+        assert out_axis in layer.output.get_spatial_batch_axes()
+        out_spatial_idx = layer.output.get_spatial_batch_axes().index(out_axis)
+        if len(x.returnn_data.get_spatial_batch_axes()) == len(layer.output.get_spatial_batch_axes()):
+          mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[out_spatial_idx]
+          continue
+        # Just skip other cases now.
+
+      in_values = [j for (i, j) in sorted(mapping_out_to_in.items()) if j is not None]
+      if in_values != sorted(in_values):  # do we have some reordering?
+        rem_out = [i for i in range(layer.output.batch_ndim) if i not in mapping_out_to_in]
+        rem_in = [i for i in range(x.returnn_data.batch_ndim) if i not in in_values]
+        assert len(rem_out) == len(rem_in)  # assumption, otherwise no idea what to do
+        assert None not in list(mapping_out_to_in.values())  # no new axis
+        mapping_out_to_in.update({i: j for (i, j) in zip(rem_out, rem_in)})
+
+        # Assume no reordering happened on the Torch site.
+        for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
+          out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
+
+      else:  # same order, but maybe some dims added or removed
+        if layer.output.batch_ndim == x.returnn_data.batch_ndim:  # no dim added/removed
+          for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
+            out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
+
+        pass  # should be covered below
+
       break
     assert all(0 <= d < layer.output.batch_ndim for d in out_returnn_axis_to_torch_axis.values())
     assert len(set(out_returnn_axis_to_torch_axis.values())) == len(out_returnn_axis_to_torch_axis)
@@ -780,11 +819,12 @@ class Module:
         dim_tag = layer.output.get_dim_tag(i)
         if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
           in_spatial_idx, out_shape[i] = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
-          out_spatial_idx = rem_returnn_axes_.index(i)
-          if in_spatial_idx != out_spatial_idx:
-            out_returnn_axis_to_torch_axis[i] = rem_torch_axes_[in_spatial_idx]
-            rem_returnn_axes.remove(i)
-            rem_torch_axes.remove(rem_torch_axes_[in_spatial_idx])
+          if i in rem_returnn_axes:
+            out_spatial_idx = rem_returnn_axes_.index(i)
+            if in_spatial_idx != out_spatial_idx:
+              out_returnn_axis_to_torch_axis[i] = rem_torch_axes_[in_spatial_idx]
+              rem_returnn_axes.remove(i)
+              rem_torch_axes.remove(rem_torch_axes_[in_spatial_idx])
         else:
           # Assume same order.
           assert len(layer.output.get_dynamic_axes()) == len(dyn_size_dim_tag_to_spatial_idx_and_torch_dim)
