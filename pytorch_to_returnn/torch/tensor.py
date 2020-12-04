@@ -122,10 +122,25 @@ class Tensor:
     return cast(self, "float32")
 
   def __getitem__(self, item):
-    assert isinstance(item, int)  # not implemented otherwise
     assert self._shape  # cannot subscript a scalar
-    from .nn import Gather
-    return Gather(dim=0, pos=item)(self)
+    if isinstance(item, int):
+      from .nn import Gather
+      return Gather(dim=0, pos=item)(self)
+    elif isinstance(item, slice):
+      from .nn import Slice
+      return Slice(axis=0, start=item.start, stop=item.stop, step=item.step)(self)
+    elif isinstance(item, tuple):
+      assert len(item) == self.ndim
+      from .nn import Slice
+      out = self
+      for ax, ax_slice in enumerate(item):
+        assert isinstance(ax_slice, slice)
+        if not ax_slice.start and not ax_slice.stop and ax_slice.step in {1, None}:
+          continue
+        out = Slice(axis=ax, start=ax_slice.start, stop=ax_slice.stop, step=ax_slice.step)(out)
+      return out
+    else:
+      raise NotImplementedError
 
   def __setitem__(self, key, value):
     self._numpy_buffer[key] = value
