@@ -254,6 +254,10 @@ def log_softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
   return modules.LogSoftmax(dim=dim).as_returnn_torch_functional()(input)
 
 
+def log(input: Tensor):
+  return modules.Log().as_returnn_torch_functional()(input)
+
+
 def normalize(input: Tensor, p=2, dim=1, eps=1e-12) -> Tensor:
   norm_ = modules.Norm(p=p, axes=[dim], keepdims=True)(input)
   norm_f = modules.Reciprocal(eps=eps)(norm_)

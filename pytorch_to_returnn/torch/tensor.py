@@ -79,7 +79,13 @@ class Tensor:
     from .nn.functional import cast
     return cast(self, dtype=dtype)
 
+  def type_as(self, tensor) -> Tensor:
+    return self.type(tensor.type())
+
   def to(self, opt):
+    return self  # ignore
+
+  def contiguous(self):
     return self  # ignore
 
   def view(self, *shape):
@@ -107,6 +113,13 @@ class Tensor:
     from .nn.functional import zeros
     return zeros(size, dtype=dtype)
 
+  def new_empty(self, *size, dtype=None, device=None, requires_grad=False):
+    # use new_zeros here to avoid errors by uninitialized memory
+    return self.new_zeros(size, dtype, device, requires_grad)
+
+  def new(self, *size, dtype=None, device=None, requires_grad=False):
+    return self.new_empty(size, dtype, device, requires_grad)
+
   def copy_(self, source: Tensor):
     self._numpy_buffer = source.view(*self._shape).type(self.dtype)._numpy_buffer.copy()
 
@@ -123,6 +136,14 @@ class Tensor:
   def float(self):
     from .nn.functional import cast
     return cast(self, "float32")
+
+  def abs(self):
+    from .nn.functional import abs
+    return abs(self)
+
+  def log(self):
+    from .nn.functional import log
+    return log(self)
 
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
