@@ -176,6 +176,26 @@ class Gather(Module):
       "position": self.pos}
 
 
+class Slice(Module):
+  """
+  Slicing of tensors. Wraps RETURNN's SliceLayer.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, axis: int, start: Optional[int] = None, stop: Optional[int] = None, step: Optional[int] = None):
+    super(Slice, self).__init__()
+    self.axis = axis
+    self.start = start
+    self.stop = stop
+    self.step = step
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "slice", "axis": self._get_input_axis_to_returnn(input, axis=self.axis),
+      "slice_start": self.start, "slice_end": self.stop, "slice_step": self.step,
+      "from": self._get_input_layer_name(input)}
+
+
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),
