@@ -220,8 +220,46 @@ class LSTM(RNNBase):
       assert isinstance(layer, RecLayer)
       assert layer.input_data.dim == self.input_size
 
-  def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module):
-    pass  # TODO ...
+  def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module: LSTM):
+    import torch
+    import numpy
+    session = tf.compat.v1.get_default_session()
+    for i in range(self.num_layers):
+      if self.num_layers > 1:
+        assert isinstance(layer, SubnetworkLayer)
+        sub_layer = layer.subnetwork.layers[f"layer{i}"]
+        assert isinstance(sub_layer, RecLayer)
+      else:
+        assert isinstance(layer, RecLayer)
+        sub_layer = layer
+      # i = input_gate, j = new_input, f = forget_gate, o = output_gate
+      # RETURNN NativeLstm2 H order: j, i, f, o
+      # Torch H order: i, f, j, o  ("W_ii|W_if|W_ig|W_io" in their docs, g==j)
+      weight_hh = getattr(torch_module, f"weight_hh_l{i}")  # (H, out)
+      weight_ih = getattr(torch_module, f"weight_ih_l{i}")  # (H, in)
+      bias_hh = getattr(torch_module, f"bias_hh_l{i}")  # (H,)
+      bias_ih = getattr(torch_module, f"bias_ih_l{i}")  # (H,)
+      assert isinstance(weight_hh, torch.nn.Parameter)
+      assert isinstance(weight_ih, torch.nn.Parameter)
+      assert isinstance(bias_hh, torch.nn.Parameter)
+      assert isinstance(bias_ih, torch.nn.Parameter)
+      bias_np = bias_hh.detach().cpu().numpy() + bias_ih.detach().cpu().numpy()  # RETURNN has single bias
+      weight_hh_np = weight_hh.detach().cpu().numpy().transpose()  # (out, H)
+      weight_ih_np = weight_ih.detach().cpu().numpy().transpose()  # (in, H)
+
+      def _torch_to_returnn(x: numpy.ndarray, axis: int) -> numpy.ndarray:
+        x_ = numpy.split(x, 4, axis=axis)  # (i,f,j,o)
+        y = numpy.concatenate([x_[2], x_[0], x_[1], x_[3]], axis=axis)  # -> (j,i,f,o)
+        return y
+
+      bias_np = _torch_to_returnn(bias_np, axis=0)
+      weight_hh_np = _torch_to_returnn(weight_hh_np, axis=1)
+      weight_ih_np = _torch_to_returnn(weight_ih_np, axis=1)
+
+      # RETURNN sub_layer.params: W (in, X), W_re (out, X), b (X,)
+      sub_layer.params["W"].load(weight_ih_np, session=session)
+      sub_layer.params["W_re"].load(weight_hh_np, session=session)
+      sub_layer.params["b"].load(bias_np, session=session)
 
 
 __all__ = [
