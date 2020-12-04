@@ -196,6 +196,22 @@ class Slice(Module):
       "from": self._get_input_layer_name(input)}
 
 
+class Stack(Module):
+  """
+  Wraps RETURNN StackLayer.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: Optional[int] = None):
+    super(Stack, self).__init__()
+    self.dim = dim
+
+  def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "stack", "axis": self.dim,
+      "from": [self._get_input_layer_name(x) for x in inputs]}
+
+
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),
