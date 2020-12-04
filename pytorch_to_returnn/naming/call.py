@@ -60,11 +60,12 @@ class CallEntry:
 
   def set_outputs(self, outputs: Union[_types.Tensor, Tuple[_types.Tensor], List[_types.Tensor]]):
     assert self.outputs_flat is None and self.outputs is None
+    outputs_flat = nest.flatten(outputs)
     naming = _naming.Naming.get_instance()
     if naming.keep_orig_module_io_tensors:
       self.orig_outputs = outputs
+      self.orig_outputs_flat = outputs_flat
     if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
-      outputs_flat = nest.flatten(outputs)
       entry_outputs = [naming.tensors[x] for x in outputs_flat]
       self.outputs_flat = entry_outputs
       self.outputs = nest.pack_sequence_as(structure=outputs, flat_sequence=entry_outputs)
