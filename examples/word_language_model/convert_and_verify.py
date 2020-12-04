@@ -122,9 +122,8 @@ def main():
     # criterion = nn.NLLLoss()
 
     if args.model != 'Transformer':
-      # TODO do not use args.batch_size, but dynamic.
-      #  resulting const tensor must have batch dim correctly set...
-      hidden = net.init_hidden(args.batch_size)
+      # TODO must use this shape dynamic (batch size), not const int ...
+      hidden = net.init_hidden(bsz=inputs.shape[1])
     else:
       hidden = None
     with torch.no_grad():
