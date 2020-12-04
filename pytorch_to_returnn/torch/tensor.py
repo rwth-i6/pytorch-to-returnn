@@ -101,8 +101,8 @@ class Tensor:
       dtype = self.dtype
     else:
       dtype = _dtype(dtype)
-    from ._C import from_numpy
-    return from_numpy(numpy.zeros(size, dtype=dtype.name))
+    from .nn.functional import zeros
+    return zeros(size, dtype=dtype)
 
   def copy_(self, source: Tensor):
     self._numpy_buffer = source.view(*self._shape).type(self.dtype)._numpy_buffer.copy()

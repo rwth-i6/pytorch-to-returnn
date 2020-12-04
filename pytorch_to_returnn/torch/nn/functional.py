@@ -18,6 +18,10 @@ _size = Union[Size, List[int], Tuple[int, ...]]
 _T = TypeVar("_T")
 
 
+def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+  return Tensor(*size, dtype=dtype)
+
+
 def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[_T, Tensor]:
   dtype = _dtype(dtype)
   if dtype == get_dtype(input):
