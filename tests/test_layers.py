@@ -300,6 +300,31 @@ def test_const_with_batch_and_gather():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+@unittest.skip("not ready yet ... multiple outputs not supported")  # TODO...
+def test_lstm_2l():
+  n_batch, n_time = 3, 7
+  n_in, n_out = 11, 13
+  n_layers = 2
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    batch_size = inputs.shape[1]
+    hidden = inputs.new_zeros((n_layers, batch_size, n_out))  # const, shape (2,B,13). in RETURNN (B,2,13)
+    hidden = (hidden, hidden)
+    lstm = torch.nn.LSTM(n_in, n_out, n_layers)
+    out, hidden_ = lstm(inputs, hidden)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x,
+    inputs_data_kwargs={"shape": (None, n_in), "batch_dim_axis": 1})
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
