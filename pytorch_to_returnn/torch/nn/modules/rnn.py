@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 import numbers
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 import tensorflow as tf
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from returnn.tf.layers.rec import RecLayer
@@ -212,6 +212,21 @@ class LSTM(RNNBase):
         "c": self._get_input_layer_name(c_)}
     return d
 
+  def make_structured_returnn_output(self, output: Tensor) -> Union[Tensor, Tuple[Tensor], Any]:
+    assert not self.bidirectional
+    hs, cs = [], []
+    if self.num_layers > 1:
+      for i in range(self.num_layers):
+        hs.append(GetLastHiddenState(sub_layer=f"layer{i}", key="h")(output))
+        cs.append(GetLastHiddenState(sub_layer=f"layer{i}", key="c")(output))
+    else:
+      hs.append(GetLastHiddenState(key="h")(output))
+      cs.append(GetLastHiddenState(key="c")(output))
+    from .operator import Stack
+    h = Stack(dim=0)(*hs)
+    c = Stack(dim=0)(*cs)
+    return output, (h, c)
+
   def check_returnn_layer(self, layer: LayerBase):
     if self.num_layers > 1:
       assert isinstance(layer, SubnetworkLayer)
@@ -260,6 +275,26 @@ class LSTM(RNNBase):
       sub_layer.params["W"].load(weight_ih_np, session=session)
       sub_layer.params["W_re"].load(weight_hh_np, session=session)
       sub_layer.params["b"].load(bias_np, session=session)
+
+
+class GetLastHiddenState(Module):
+  is_original_torch_module = False
+
+  def __init__(self, *, sub_layer: Optional[str] = None, key: Optional[str] = None):
+    super(GetLastHiddenState, self).__init__()
+    self.sub_layer = sub_layer
+    self.key = key
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    layer = self._get_input_layer_name(input)
+    if self.sub_layer:
+      layer = f"{layer}/{self.sub_layer}"
+    d = {
+      "class": "get_last_hidden_state", "from": layer,
+      "n_out": input.shape[-1]}
+    if self.key:
+      d["key"] = self.key
+    return d
 
 
 __all__ = [
