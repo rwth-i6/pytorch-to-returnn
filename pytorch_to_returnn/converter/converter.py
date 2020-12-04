@@ -71,7 +71,8 @@ class Converter:
     inputs_data_kwargs = {} if inputs_data_kwargs is None else inputs_data_kwargs.copy()
     if "feature_dim_axis" not in inputs_data_kwargs and not inputs_data_kwargs.get("sparse", False):
       assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
-      inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
+      if inputs_data_kwargs.get("batch_dim_axis", 0) == 0:
+        inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
     if "shape" not in inputs_data_kwargs:
       # Assume feature is static, all other dynamic.
       # Assume batch-major.
