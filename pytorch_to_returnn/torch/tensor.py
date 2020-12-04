@@ -121,6 +121,10 @@ class Tensor:
     from .nn.functional import cast
     return cast(self, "float32")
 
+  def log(self):
+    from .nn.functional import log
+    return log(self)
+
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
     if isinstance(item, int):
