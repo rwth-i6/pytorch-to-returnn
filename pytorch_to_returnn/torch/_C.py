@@ -4,7 +4,7 @@ Dummies...
 """
 
 from __future__ import annotations
-from typing import Union, Any
+from typing import Union, Any, Tuple
 
 
 def device(name):
@@ -116,8 +116,21 @@ class dtype:
     raise TypeError(f"unexpected dtype {self.name}")
 
 
-class Size(tuple):
+class Size(tuple):  # type: Tuple[SizeValue, ...]
   pass
+
+
+class SizeValue(int):
+  """
+  We extend this, to store extra information, e.g. such that this reflects the batch-dim.
+  """
+  is_batch_dim: bool = False
+
+  def __repr__(self):
+    res = super(SizeValue, self).__repr__()
+    if self.is_batch_dim:
+      res = f"Batch({res})"
+    return res
 
 
 def zeros(*shape):

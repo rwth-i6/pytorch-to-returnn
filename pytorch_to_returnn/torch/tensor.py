@@ -4,7 +4,7 @@ from typing import Optional, Union
 from functools import reduce
 import operator
 import numpy
-from ._C import Size, dtype
+from ._C import Size, SizeValue, dtype
 from ..naming import Naming
 
 
@@ -16,14 +16,17 @@ class Tensor:
     if dtype is not None and isinstance(dtype, _dtype):
       dtype = dtype.name
     if args and isinstance(args[0], Tensor):
+      assert len(args) == 1
       assert numpy_array is None
       numpy_array = args[0]._numpy_buffer.copy()
       shape = args[0].shape
     elif args and isinstance(args[0], (tuple, list)):
+      assert len(args) == 1
       shape = tuple(args[0])
     else:
       shape = args
     assert isinstance(shape, tuple) and all(isinstance(dim, int) for dim in shape)
+    shape = tuple([d if isinstance(d, SizeValue) else SizeValue(d) for d in shape])
     if numpy_array is not None:
       if dtype is not None:
         numpy_array = numpy_array.astype(dtype)
@@ -51,13 +54,13 @@ class Tensor:
   def ndim(self):
     return self.dim()
 
-  def size(self, dim: Optional[int] = None):
+  def size(self, dim: Optional[int] = None) -> Size[SizeValue, ...]:
     if dim is not None:
       return self._shape[dim]
     return Size(self._shape)
 
   @property
-  def shape(self):
+  def shape(self) -> Size[SizeValue, ...]:
     return self.size()
 
   @property
