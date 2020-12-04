@@ -756,7 +756,7 @@ class Module:
       shape_meta_torch_order = [shape_meta[x.returnn_axis_from_torch_axis[i]] for i in range(x.returnn_data.batch_ndim)]
       for kind in ["B", "F"]:
         if kind in shape_meta_torch_order and kind in layer_output_shape_meta:
-          if shape_meta_torch_order.index(kind) == len(shape_meta_torch_order) - 1:
+          if shape_meta_torch_order.index(kind) == len(shape_meta_torch_order) - 1 and kind == "F":
             out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = layer.output.batch_ndim - 1
           else:
             out_returnn_axis_to_torch_axis[layer_output_shape_meta.index(kind)] = shape_meta_torch_order.index(kind)

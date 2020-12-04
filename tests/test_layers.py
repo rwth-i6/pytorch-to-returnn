@@ -9,6 +9,25 @@ from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
 from pytorch_to_returnn.pprint import pformat
 
 
+def test_embedding():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    model = torch.nn.Embedding(n_in, n_out)
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.randint(0, n_in, (n_time, n_batch), dtype="int64")
+  verify_torch_and_convert_to_returnn(
+    model_func,
+    inputs=x, inputs_data_kwargs={"shape": (None,), "sparse": True, "dim": n_in, "batch_dim_axis": 1})
+
+
 def test_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
