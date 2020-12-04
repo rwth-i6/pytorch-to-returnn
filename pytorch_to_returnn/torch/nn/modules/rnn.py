@@ -183,6 +183,7 @@ class LSTM(RNNBase):
   def create_returnn_layer_dict(self, input: Tensor, hx: Optional[Tensor] = None) -> Dict[str, Any]:
     assert not self.bidirectional
     if self.num_layers > 1:
+      input_layer_name = self._get_input_layer_name(input)  # call now, to have nicer order of "data"
       subnet_dict = {}
       for i in range(self.num_layers):
         layer_dict = {
@@ -198,7 +199,7 @@ class LSTM(RNNBase):
             "c": f"base:{self._get_input_layer_name(c_)}"}
       subnet_dict["output"] = {"class": "copy", "from": f"layer{self.num_layers - 1}"}
       return {
-        "class": "subnetwork", "from": self._get_input_layer_name(input), "subnetwork": subnet_dict}
+        "class": "subnetwork", "from": input_layer_name, "subnetwork": subnet_dict}
     d = {
       "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
       "n_out": self.hidden_size}
@@ -214,7 +215,7 @@ class LSTM(RNNBase):
   def check_returnn_layer(self, layer: LayerBase):
     if self.num_layers > 1:
       assert isinstance(layer, SubnetworkLayer)
-      assert layer.network.extern_data.data["data"].dim == self.input_size
+      assert layer.subnetwork.extern_data.data["data"].dim == self.input_size
     else:
       assert isinstance(layer, RecLayer)
       assert layer.input_data.dim == self.input_size
