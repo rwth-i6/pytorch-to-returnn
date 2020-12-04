@@ -193,9 +193,9 @@ class LSTM(RNNBase):
           assert isinstance(hx, (list, tuple)) and len(hx) == 2
           h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
           h_, c_ = h_0[i], c_0[i]  # (batch,hidden) each
-          layer_dict["initial_state"] = (
-            f"base:{self._get_input_layer_name(h_)}",
-            f"base:{self._get_input_layer_name(c_)}")
+          layer_dict["initial_state"] = {
+            "h": f"base:{self._get_input_layer_name(h_)}",
+            "c": f"base:{self._get_input_layer_name(c_)}"}
       subnet_dict["output"] = {"class": "copy", "from": f"layer{self.num_layers - 1}"}
       return {
         "class": "subnetwork", "from": self._get_input_layer_name(input), "subnetwork": subnet_dict}
@@ -206,9 +206,9 @@ class LSTM(RNNBase):
       assert isinstance(hx, (list, tuple)) and len(hx) == 2
       h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
       h_, c_ = h_0[0], c_0[0]  # (batch,hidden) each
-      d["initial_state"] = (
-        self._get_input_layer_name(h_),
-        self._get_input_layer_name(c_))
+      d["initial_state"] = {
+        "h": self._get_input_layer_name(h_),
+        "c": self._get_input_layer_name(c_)}
     return d
 
   def check_returnn_layer(self, layer: LayerBase):
