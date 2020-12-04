@@ -133,6 +133,8 @@ class CallEntry:
       res_entry.returnn_data = layer.output
       self.namespace.assign_tensor(res_entry)
 
+      res = module.make_structured_returnn_output(res)
+
     self.set_returnn_layer(layer=layer, layer_dict=layer_dict)
     self.set_outputs(res)
 

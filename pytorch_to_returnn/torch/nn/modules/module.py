@@ -33,6 +33,8 @@ class Module:
 
   Low-level modules which would wrap directly to a corresponding RETURNN layer,
   should do that, i.e. have no `forward`, but implement `create_returnn_layer_dict`.
+  (If the original `forward` returns not a single tensor, but a tuple, or some other nested structure,
+   override `make_structured_returnn_output`.)
 
   Other modules should work just as-is.
   I.e. this can be used as base class for external PyTorch code.
@@ -436,6 +438,9 @@ class Module:
       def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
         return self_.create_returnn_layer_dict(*inputs, **kwargs)
 
+      def make_structured_returnn_output(self, output):
+        return self_.make_structured_returnn_output(output)
+
       def get_returnn_name(self) -> str:
         return self_.get_returnn_name()
 
@@ -446,6 +451,14 @@ class Module:
 
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     raise Exception("should not get here")
+
+  def make_structured_returnn_output(self, output: Tensor) -> Union[Tensor, Tuple[Tensor], Any]:
+    """
+    This can be overridden alongside with `create_returnn_layer_dict`.
+    In case the original `forward` would return not a single tensor but some tuple or dict or other nested structure,
+    override this to match the original `forward` return structure.
+    """
+    return output
 
   @classmethod
   def has_torch_forward(cls) -> bool:
