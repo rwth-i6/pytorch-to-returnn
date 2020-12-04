@@ -19,8 +19,8 @@ class Naming:
   tensors: WeakKeyDictionary[_types.Tensor, _tensor.TensorEntry]
   const_tensor_cache: List[_types.Tensor]
   modules: OrderedDict[_types.Module, _module.ModuleEntry]
-  inputs: List[_types.Tensor]
-  outputs: List[_types.Tensor]
+  inputs: List[_tensor.TensorEntry]
+  outputs: List[_tensor.TensorEntry]
   module_creation_stack: List[_module.ModuleEntry]
   module_apply_stack: List[_module.ModuleEntry]
   module_context_stack: List[_module.ModuleEntry]
@@ -265,10 +265,12 @@ class Naming:
     return self.tensors[x]
 
   def register_input(self, tensor: _types.Tensor, returnn_data: Data) -> Data:
+    from pytorch_to_returnn.torch import Tensor
+    assert isinstance(tensor, Tensor)
     entry = self.register_tensor(tensor)
     entry.is_input = True
     entry.is_const = False
-    self.inputs.append(tensor)
+    self.inputs.append(entry)
     assert tensor.dim() == returnn_data.batch_ndim
     assert all([dim in {tensor.shape[i], None} for i, dim in enumerate(returnn_data.batch_shape)])
     entry.returnn_data = Data(
@@ -290,7 +292,7 @@ class Naming:
     entry = self.tensors[tensor]
     assert isinstance(entry, _tensor.TensorEntry)
     assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
-    self.outputs.append(tensor)
+    self.outputs.append(entry)
     if self.wrap_to_returnn_enabled:
       self.root_namespace.register_returnn_subnet_output(entry)
     return entry
