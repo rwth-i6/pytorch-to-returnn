@@ -16,6 +16,14 @@ class ReLU(_ActivationReturnn):
   func_name = "relu"
 
 
+class GELU(_ActivationReturnn):
+  func_name = "gelu3"
+
+
+class Abs(_ActivationReturnn):
+  func_name = "abs"
+
+
 class Tanh(_ActivationReturnn):
   func_name = "tanh"
 
