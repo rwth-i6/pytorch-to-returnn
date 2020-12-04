@@ -1,5 +1,5 @@
 
-from .tensor import Tensor
+from .tensor import *
 from ._C import *
 from .nn.functional import *
 from .serialization import load
