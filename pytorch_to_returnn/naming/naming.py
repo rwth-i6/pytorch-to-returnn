@@ -128,7 +128,7 @@ class Naming:
       if x is None:
         continue
       assert isinstance(x, _tensor.TensorEntry)
-      names = [name_ for name_ in x.names if name_.parent is call_parent_namespace]
+      names = [name_ for name_ in x.names if call_parent_namespace in name_.get_parents_hierarchy()]
       if names:
         continue
       if x.is_param:
@@ -214,9 +214,16 @@ class Naming:
     else:
       namespace = parent_namespace.register_sub_call(entry)
     assert module_entry in namespace.modules
+
+    if module.has_torch_forward():
+      # This will get an own subnet, and we might create constants,
+      # so make sure we create them in the right (parent) namespace.
+      self._prepare_module_call_returnn_inputs(entry)
+
     self.module_call_stack.append(entry)
     assert entry.namespace
-    self._prepare_module_call_returnn_inputs(entry)
+    if not module.has_torch_forward():  # no subnet, so do now, to have better namings
+      self._prepare_module_call_returnn_inputs(entry)
     return entry
 
   def pop_module_call(self, call: _call.CallEntry):

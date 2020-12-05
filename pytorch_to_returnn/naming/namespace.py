@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Tuple, Any
 from collections import OrderedDict
 import itertools
 from . import call as _call
@@ -21,6 +21,7 @@ class RegisteredName:
   returnn_ctx: Optional[_returnn_ctx.ReturnnContext] = None
   is_reserved: bool  # e.g. input "data" or output "output"
   is_subnet: bool
+  is_alternative_subnet_output: bool = False
   ReservedInputName = "data"
   ReservedOutputName = "output"
   ReservedNames = {ReservedInputName, ReservedOutputName}
@@ -92,6 +93,14 @@ class RegisteredName:
       names.insert(0, name_.name)
       name_ = name_.parent
     return "/".join(names) if names else ""
+
+  def get_parents_hierarchy(self) -> List[RegisteredName]:
+    res = []
+    x = self
+    while x.parent:
+      res.append(x.parent)
+      x = x.parent
+    return res
 
   def assign_tensor(self, tensor: _tensor.TensorEntry):
     if self.tensor:
@@ -196,9 +205,9 @@ class RegisteredName:
     from pytorch_to_returnn.torch.nn import Copy
     naming = _naming.Naming.get_instance()
     assert naming.wrap_to_returnn_enabled
-    name_ = self.name_for_tensor(tensor)
-    potential_calls = set(tensor.output_from_calls).intersection(set(self.childs_by_name[name_].calls))
-    assert len(potential_calls) == 1, f"{tensor.output_from_calls} vs {self.childs_by_name[name_].calls}"
+    _, reg_name = self.name_for_tensor(tensor)
+    potential_calls = set(tensor.output_from_calls).intersection(set(reg_name.calls))
+    assert len(potential_calls) == 1, f"{tensor.output_from_calls} vs {reg_name.calls}"
     call = list(potential_calls)[0]
     self.assign_tensor(tensor)  # for this subnet
     name = self.ReservedOutputName
@@ -223,14 +232,29 @@ class RegisteredName:
     tensor.returnn_data = copy_call.returnn_layer.output
     return child
 
-  def name_for_tensor(self, tensor: _tensor.TensorEntry) -> str:
+  def name_for_tensor(self, tensor: _tensor.TensorEntry) -> Tuple[str, RegisteredName]:
     assert self.is_subnetwork()
-    for name_ in tensor.names:
-      if name_.parent is self:
-        assert self.childs_by_name[name_.name] is name_
-        return name_.name
-    # If you get here, check the logic in Module.__call__, Naming.push_module_call.
-    raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
+    # First try to find in our direct namespace.
+    # Only if that fails, search in potential sub namespaces.
+    parent_idx = 0
+    while True:
+      parent_indices = []
+      for name_ in tensor.names:
+        parent_hierarchy = name_.get_parents_hierarchy()
+        if self not in parent_hierarchy:
+          continue
+        if parent_hierarchy[parent_idx] is self:
+          if parent_idx == 0:
+            assert self.childs_by_name[name_.name] is name_
+            return name_.name, name_
+          name_.is_alternative_subnet_output = True
+          return "/".join([parent.name for parent in reversed(parent_hierarchy[:parent_idx])] + [name_.name]), name_
+        parent_indices.append(parent_hierarchy.index(self))
+      if not parent_indices:
+        # If you get here, check the logic in Module.__call__, Naming.push_module_call.
+        raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
+      assert parent_idx == 0  # should not get here twice
+      parent_idx = min(parent_indices)
 
   def find_name_for_module(self, module: _module.ModuleEntry) -> Optional[str]:
     assert self.is_subnetwork()
@@ -247,7 +271,7 @@ class RegisteredName:
       print(f"{prefix}{name}: {child._repr_content()}")
       child.dump(prefix=f"{prefix}  ")
 
-  def dump_as_returnn_layer_dict(self):
+  def dump_as_returnn_layer_dict(self) -> Dict[str, Any]:
     if self.calls and not self.calls[0].module.module.has_torch_forward():
       assert len(self.calls) == 1
       call = self.calls[0]
@@ -259,13 +283,13 @@ class RegisteredName:
       assert input_tensor
       assert self.parent
       parent_namespace = self.parent
-      input_layer_name = parent_namespace.name_for_tensor(input_tensor)
+      input_layer_name, _ = parent_namespace.name_for_tensor(input_tensor)
       inputs.append(input_layer_name)
     subnet_dict = self.dump_as_returnn_net_dict()
     if len(inputs) <= 1:
       return {"class": "subnetwork", "from": inputs[0] if inputs else [], "subnetwork": subnet_dict}
     return {
-      "class": "subnetwork", "from": inputs, "subnetwork": subnet_dict, "concat_sources": False}
+      "class": "subnetwork", "from": inputs, "concat_sources": False, "subnetwork": subnet_dict}
 
   def dump_as_returnn_net_dict(self) -> Dict[str, Dict[str, Any]]:
     net_dict = {}
@@ -273,4 +297,6 @@ class RegisteredName:
       if not child.calls:
         continue  # e.g. input "data"
       net_dict[name] = child.dump_as_returnn_layer_dict()
+      if child.is_alternative_subnet_output:
+        net_dict[name]["is_output_layer"] = True
     return net_dict

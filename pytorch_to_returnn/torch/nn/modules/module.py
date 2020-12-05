@@ -665,7 +665,8 @@ class Module:
     top_call_entry = naming.module_call_stack[-1]
     parent_namespace = top_call_entry.namespace.parent
     # Note: If name_for_tensor fails, it means the tensor was not registered properly.
-    return parent_namespace.name_for_tensor(naming.tensors[input])
+    name, _ = parent_namespace.name_for_tensor(naming.tensors[input])
+    return name
 
   @staticmethod
   def _assert_spatial_axes_in_order(input: Tensor):

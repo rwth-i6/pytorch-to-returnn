@@ -93,10 +93,14 @@ class CallEntry:
       for x in inputs_flat:
         self.namespace.register_input(tensor=naming.tensors[x])
       res = module.forward(*inputs_args)
-      assert isinstance(res, Tensor)  # TODO only single output supported currently...
-      res_entry = naming.tensors[res]
+      res_flat = nest.flatten(res)
+      assert len(res_flat) >= 1
       if self.namespace.returnn_ctx.sub_net_layer:
+        res_entry = naming.tensors[res_flat[0]]
+        assert isinstance(res_entry, _tensor.TensorEntry)
         self.namespace.register_returnn_subnet_output(res_entry)
+        # No need to have separate register logic for the other outputs, if there are multiple.
+        # The logic in `name_for_tensor` should find the entry from the subnet.
       layer = self.namespace.returnn_ctx.sub_net_layer
       layer_dict = None  # will be constructed later lazily when needed
 
