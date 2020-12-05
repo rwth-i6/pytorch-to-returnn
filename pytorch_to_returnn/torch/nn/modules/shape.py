@@ -53,13 +53,14 @@ class MergeDims(Module):
     if in_.returnn_data.have_batch_axis() and in_.returnn_data.batch_dim_axis in returnn_axes:
       if set(in_.returnn_data.get_dynamic_axes()).intersection(returnn_axes):
         # We merge batch with some other dynamic axis.
-        assert returnn_axes[0] == in_.returnn_data.batch_dim_axis  # must be first. otherwise not impl. (or ignore?)
+        batch_major = returnn_axes[0] == in_.returnn_data.batch_dim_axis
         returnn_axes.pop(in_.returnn_data.batch_dim_axis)
         assert len(returnn_axes) == 1  # not implemented otherwise
         return {
           "class": "flatten_batch",
           "from": cls._get_input_layer_name(input),
-          "axis": cls._get_input_axis_to_returnn(input, axis=in_.torch_axis_from_returnn_axis[returnn_axes[0]])}
+          "axis": cls._get_input_axis_to_returnn(input, axis=in_.torch_axis_from_returnn_axis[returnn_axes[0]]),
+          "batch_major": batch_major}
 
     return {
       "class": "merge_dims", "from": cls._get_input_layer_name(input),
