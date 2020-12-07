@@ -197,25 +197,25 @@ wrapped_import_torch_returnn("parallel_wavegan")
 pwg_models = wrapped_import_torch_returnn("parallel_wavegan.models")
 pwg_layers = wrapped_import_torch_returnn("parallel_wavegan.layers")
 
-with Naming.make_instance() as naming:
-    inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Feature), e.g. (1,80,80)
-    x = naming.register_input(
-        inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
-    assert isinstance(x, Data)
+naming = Naming.get_instance()  # default instance
 
-    # Initialize PWG
-    pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
-    generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
-    generator.load_state_dict(
-        torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
-    generator.remove_weight_norm()
-    pwg_model = generator.eval()
-    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
-    
-    outputs = pwg_pqmf.synthesis(pwg_model(inputs))
+inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Feature), e.g. (1,80,80)
+x = naming.register_input(
+    inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
+assert isinstance(x, Data)
 
-    outputs = naming.register_output(outputs)
-    y = outputs.returnn_data
-    assert isinstance(y, Data)
+# Initialize PWG
+pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
+generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
+generator.load_state_dict(
+    torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
+generator.remove_weight_norm()
+pwg_model = generator.eval()
+pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
 
+outputs = pwg_pqmf.synthesis(pwg_model(inputs))
+
+outputs = naming.register_output(outputs)
+y = outputs.returnn_data
+assert isinstance(y, Data)
 ```
