@@ -188,6 +188,7 @@ This is via our [generic Python import wrapper `pytorch_to_returnn.import_wrappe
 
 Example for [Parallel WaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN):
 ```
+import tensorflow as tf
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_returnn
 from pytorch_to_returnn.naming import Naming
 from returnn.tf.util.data import Data
@@ -199,7 +200,7 @@ pwg_layers = wrapped_import_torch_returnn("parallel_wavegan.layers")
 
 naming = Naming.get_instance()  # default instance
 
-inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Feature), e.g. (1,80,80)
+inputs = torch.from_numpy(inputs)  # shape (Batch,Channel,Time), e.g. (1,80,80)
 x = naming.register_input(
     inputs, Data("data", shape=(80, None), feature_dim_axis=1, time_dim_axis=2))
 assert isinstance(x, Data)
@@ -218,4 +219,7 @@ outputs = pwg_pqmf.synthesis(pwg_model(inputs))
 outputs = naming.register_output(outputs)
 y = outputs.returnn_data
 assert isinstance(y, Data)
+assert isinstance(y.placeholder, tf.Tensor)
 ```
+(RETURNN `Data` encapsulates a tensor and adds a lot of meta information
+about it and its axes, such as sequence lengths, beam, vocabulary of class indices, etc.)
