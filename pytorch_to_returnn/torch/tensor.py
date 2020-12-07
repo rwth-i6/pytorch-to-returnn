@@ -107,6 +107,12 @@ class Tensor:
     from .nn.functional import expand
     return expand(self, sizes)
 
+  def resize_(self, *sizes, memory_format=None):
+    # memory format is ignored
+    assert len(self.shape) == 0  # not implemented otherwise
+    self._shape = sizes
+    self._numpy_buffer = numpy.zeros(sizes, dtype=self.dtype.canonical_name)
+
   def new_zeros(self, *size, dtype=None, device=None, requires_grad=False):
     if len(size) == 1 and isinstance(size[0], (list, tuple)):
       size = size[0]
