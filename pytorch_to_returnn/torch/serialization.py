@@ -5,3 +5,8 @@ def load(*args, **kwargs):
   # Our code in Module.load_state_dict takes care of that.
   import torch
   return torch.load(*args, **kwargs)
+
+
+def default_restore_location():
+  """Dummy function to avoid import errors"""
+  pass
