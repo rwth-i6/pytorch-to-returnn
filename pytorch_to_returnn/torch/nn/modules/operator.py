@@ -212,6 +212,26 @@ class Stack(Module):
       "from": [self._get_input_layer_name(x) for x in inputs]}
 
 
+class Tile(Module):
+  """
+  Wraps RETURNN TileLayer.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, multiples: Dict[int, int]):
+    super(Tile, self).__init__()
+    assert isinstance(multiples, dict)
+    self.multiples = multiples
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    multiples = {
+      self._get_input_axis_to_returnn(input, axis=axis): multiple
+      for axis, multiple in self.multiples.items()}
+    return {
+      "class": "tile", "multiples": multiples,
+      "from": self._get_input_layer_name(input)}
+
+
 def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),

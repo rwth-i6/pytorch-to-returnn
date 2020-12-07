@@ -308,6 +308,18 @@ def test_slice_2d():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_expand():
+  n_batch, n_feat = 5, 1
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    x = inputs.expand(3, 2, -1, 7)
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_const_with_batch_and_gather():
   n_batch, n_time = 3, 7
 

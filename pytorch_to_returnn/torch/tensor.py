@@ -103,6 +103,10 @@ class Tensor:
     from .nn.functional import transpose
     return transpose(self, dim0=dim0, dim1=dim1)
 
+  def expand(self, *sizes):
+    from .nn.functional import expand
+    return expand(self, sizes)
+
   def new_zeros(self, *size, dtype=None, device=None, requires_grad=False):
     if len(size) == 1 and isinstance(size[0], (list, tuple)):
       size = size[0]
