@@ -225,7 +225,7 @@ class Tile(Module):
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     multiples = {
-      input.returnn_naming_entry.get_returnn_axis_description(torch_axis=axis): multiple
+      self._get_input_axis_to_returnn(input, axis=axis): multiple
       for axis, multiple in self.multiples.items()}
     return {
       "class": "tile", "multiples": multiples,
