@@ -99,6 +99,29 @@ def test_conv_transposed():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_conv_transposed_2d():
+  n_in, n_out = 11, 13
+  n_batch, n_time1, n_time2 = 3, 17, 19
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    model = torch.nn.ConvTranspose2d(
+      in_channels=n_in,
+      out_channels=n_out,
+      kernel_size=(10, 3),
+      stride=5,
+      padding=(2, 3),
+      output_padding=1)
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time1, n_time2)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
