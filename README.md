@@ -83,6 +83,97 @@ it just means that no-one has implemented it yet.
 Somewhat related is also the `torch.fx` module.
 
 
+# Direct use in RETURNN
+
+A RETURNN config could be written in this way.
+
+Use some PyTorch model as a component / subnetwork:
+```
+from pytorch_to_returnn import torch as torch_returnn
+
+class MyTorchModel(torch_returnn.nn.Module):
+  ...
+
+my_torch_model = MyTorchModel() 
+
+extern_data = {...}  # as usual
+
+# RETURNN network dict
+network = {
+"prenet": my_torch_model.as_returnn_layer_dict(extern_data["data"]),
+
+# Other RETURNN layers
+...
+}
+```
+
+Or directly using a PyTorch model as-is:
+
+```
+from pytorch_to_returnn import torch as torch_returnn
+
+class MyTorchModel(torch_returnn.nn.Module):
+  ...
+
+my_torch_model = MyTorchModel() 
+
+extern_data = {...}  # as usual
+
+# RETURNN network dict
+network = my_torch_model.as_returnn_net_dict(extern_data["data"])
+```
+
+
+# Model converter
+
+For the process of converting a model from PyTorch to RETURNN,
+including a PyTorch model checkpoint,
+we provide some utilities to automate this,
+and verify whether all outputs match.
+This is in [`pytorch_to_returnn.converter`](pytorch_to_returnn/converter).
+
+Example for [Parallel WaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN):
+```
+def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+        import torch
+        from parallel_wavegan import models as pwg_models
+        from parallel_wavegan import layers as pwg_layers
+
+    else:
+        torch = wrapped_import("torch")
+        wrapped_import("parallel_wavegan")
+        pwg_models = wrapped_import("parallel_wavegan.models")
+        pwg_layers = wrapped_import("parallel_wavegan.layers")
+
+    # Initialize PWG
+    pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
+    generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
+    generator.load_state_dict(
+        torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
+    generator.remove_weight_norm()
+    pwg_model = generator.eval()
+    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
+
+    return pwg_pqmf.synthesis(pwg_model(inputs))
+
+
+feature_data = numpy.load(args.features)  # shape (Batch,Channel,Time) (1,80,80)
+
+from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
+verify_torch_and_convert_to_returnn(model_func, inputs=feature_data)
+```
+The `wrapped_import` uses some import wrappers,
+which automatically converts the `import torch` statements.
+
+This will automatically do the conversion,
+i.e. create a RETURNN model,
+including the [RETURNN net dict](https://gist.github.com/albertz/01264cfbd2dfd73a19c1e2ac40bdb16b)
+and TF checkpoint file,
+and do verification on several steps of all the outputs
+(PyTorch module outputs vs RETURNN layer outputs).
+
+
 # Import wrapper
 
 We also support to transform external PyTorch code
@@ -127,89 +218,4 @@ with Naming.make_instance() as naming:
     y = outputs.returnn_data
     assert isinstance(y, Data)
 
-```
-
-
-# Model converter
-
-For the process of converting a model from PyTorch to RETURNN,
-including a PyTorch model checkpoint,
-we provide some utilities to automate this,
-and verify whether all outputs match.
-This is in [`pytorch_to_returnn.converter`](pytorch_to_returnn/converter).
-
-Example for [Parallel WaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN):
-```
-def model_func(wrapped_import, inputs: torch.Tensor):
-    if typing.TYPE_CHECKING or not wrapped_import:
-        import torch
-        from parallel_wavegan import models as pwg_models
-        from parallel_wavegan import layers as pwg_layers
-
-    else:
-        torch = wrapped_import("torch")
-        wrapped_import("parallel_wavegan")
-        pwg_models = wrapped_import("parallel_wavegan.models")
-        pwg_layers = wrapped_import("parallel_wavegan.layers")
-
-    # Initialize PWG
-    pwg_config = yaml.load(open(args.pwg_config), Loader=yaml.Loader)
-    generator = pwg_models.MelGANGenerator(**pwg_config['generator_params'])
-    generator.load_state_dict(
-        torch.load(args.pwg_checkpoint, map_location="cpu")["model"]["generator"])
-    generator.remove_weight_norm()
-    pwg_model = generator.eval()
-    pwg_pqmf = pwg_layers.PQMF(pwg_config["generator_params"]["out_channels"])
-
-    return pwg_pqmf.synthesis(pwg_model(inputs))
-
-
-feature_data = numpy.load(args.features)  # shape (Batch,Channel,Time) (1,80,80)
-
-from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
-verify_torch_and_convert_to_returnn(model_func, inputs=feature_data)
-```
-
-This will automatically do the conversion,
-i.e. create a RETURNN model,
-including the [RETURNN net dict](https://gist.github.com/albertz/01264cfbd2dfd73a19c1e2ac40bdb16b)
-and TF checkpoint file,
-and do verification on several steps of all the outputs.
-
-
-# Direct use in RETURNN
-
-```
-from pytorch_to_returnn import torch as torch_returnn
-
-class MyTorchModel(torch_returnn.nn.Module):
-  ...
-
-my_torch_model = MyTorchModel() 
-
-extern_data = {...}  # as usual
-
-# RETURNN network dict
-network = {
-"prenet": my_torch_model.as_returnn_layer_dict(extern_data["data"]),
-
-# Other RETURNN layers
-...
-}
-```
-
-Or:
-
-```
-from pytorch_to_returnn import torch as torch_returnn
-
-class MyTorchModel(torch_returnn.nn.Module):
-  ...
-
-my_torch_model = MyTorchModel() 
-
-extern_data = {...}  # as usual
-
-# RETURNN network dict
-network = my_torch_model.as_returnn_net_dict(extern_data["data"])
 ```
