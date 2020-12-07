@@ -1,5 +1,6 @@
 Make [PyTorch](https://pytorch.org/) code
-runnable within [RETURNN](https://github.com/rwth-i6/returnn).
+runnable within [RETURNN](https://github.com/rwth-i6/returnn)
+(on TensorFlow).
 This provides some wrappers (and maybe some magic) to do that.
 
 
@@ -12,20 +13,61 @@ import torch
 class Model(torch.nn.Module):
  ...
 ```
-Would become:
+Would be changed to:
 ```
 from pytorch_to_returnn import torch as torch_returnn
 
 class Model(torch_returnn.nn.Module):
  ...
 ```
-
-Somewhat related is also the `torch.fx` module.
+And this can be used directly in RETURNN.
 
 This would convert the model to a RETURNN model.
 [Example constructed RETURNN net dict](https://gist.github.com/albertz/01264cfbd2dfd73a19c1e2ac40bdb16b),
 created from
 [this PyTorch code](https://github.com/albertz/import-parallel-wavegan/blob/main/pytorch_to_returnn.py).
+
+## Why
+
+From PyTorch perspective:
+
+- RETURNN will keep track of the meaning of tensor axes.
+I.e. it knows about the batch axis,
+and any spatial axes (width/height or time),
+including their sequence lengths.
+(This goes far beyond just named axes.)
+This can be used to verify whether the operations are on the right axes
+and to detect potential bugs.
+
+- RETURNN can do further optimizations
+and might make the model run faster.
+(If this is not the case, likely there is some bug,
+or non-optimal implementation on RETURNN side,
+which we can improve.)
+
+From RETURNN/TF perspective:
+
+- This can serve as a new way to define your RETURNN networks (TF networks),
+which might be simpler to use than the existing way.
+
+- We can reuse PyTorch code, and even trained models,
+within RETURNN,
+and combine it easily with other RETURNN models.
+
+- We might find non-optimal or buggy implementations in RETURNN
+(e.g. when there is some module which runs better/faster in PyTorch)
+and can improve upon them (the corresponding RETURNN layer).
+
+## How does this work
+
+On a high level, RETURNN layers mostly corresponds to PyTorch modules.
+So all PyTorch modules are mapped directly or indirectly to RETURNN layers.
+The same is done for all functions in `functional`.
+
+All RETURNN layers have further meta information about tensors,
+esp their axes/dimensions,
+and they might reorder axes when this is more efficient.
+We keep track of the axis mapping.
 
 See the [documentation of the `pytorch_to_returnn.torch` package](pytorch_to_returnn/torch)
 for details about how this works,
@@ -37,6 +79,8 @@ Otherwise, when you hit some `Module`
 or `functional` function, or Tensor function
 which is not implemented,
 it just means that no-one has implemented it yet.
+
+Somewhat related is also the `torch.fx` module.
 
 
 # Import wrapper
