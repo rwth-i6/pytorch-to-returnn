@@ -88,6 +88,10 @@ class Tensor:
   def contiguous(self):
     return self  # ignore
 
+  def flatten(self):
+    from .nn.functional import flatten
+    return flatten(self)
+
   def view(self, *shape):
     from .nn.functional import reshape
     return reshape(self, shape)
