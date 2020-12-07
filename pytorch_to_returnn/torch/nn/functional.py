@@ -186,6 +186,34 @@ def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tup
   return modules.Transpose(perm=perm)(input)
 
 
+def expand(input: Tensor, *sizes: _size):
+  if sizes and isinstance(sizes[0], (tuple, list)):
+    assert len(sizes) == 1
+    shape = tuple(sizes[0])
+  else:
+    shape = sizes
+  assert isinstance(shape, tuple)
+
+  # reshape to add new dims
+  if len(shape) != len(input.shape):
+    assert len(shape) >= len(input.shape), "Cannot reduce dimensions"
+    assert -1 not in [d for d in shape[:-len(input.shape)]], "Size -1 is not allowed for expanded dims"
+    exp_shape = (1,) * (len(shape) - len(input.shape)) + input.shape[-len(input.shape):]
+    input = reshape(input, shape=exp_shape)
+
+  # tile to expand to larger size
+  multiples = {}
+  for axis, multiple in enumerate(shape):
+    if input.shape[axis] > 1:
+      assert multiple == -1 or multiple == input.shape[axis], \
+        f"Expanded size ({multiple}) must match existing size ({input.shape[axis]}) at non-singleton dimension ({axis})"
+      multiple = 1
+    if multiple == -1:
+      multiple = 1  # -1 as the size for a dim means not changing the size of that dim
+    multiples[axis] = multiple
+  return modules.Tile(multiples=multiples).as_returnn_torch_functional()(input)
+
+
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value).as_returnn_torch_functional()(input)
 
