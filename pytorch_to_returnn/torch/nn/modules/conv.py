@@ -202,11 +202,6 @@ class ConvTranspose1d(_ConvTransposeNd):
       dilation: _size_1_t = 1,
       padding_mode: str = 'zeros'
   ):
-    kernel_size = _single(kernel_size)
-    stride = _single(stride)
-    padding = _single(padding)
-    dilation = _single(dilation)
-    output_padding = _single(output_padding)
     super(ConvTranspose1d, self).__init__(
       in_channels, out_channels, kernel_size, stride, padding, dilation,
       True, output_padding, groups, bias, padding_mode)
@@ -228,11 +223,6 @@ class ConvTranspose2d(_ConvTransposeNd):
       dilation: _size_2_t = 1,
       padding_mode: str = 'zeros'
   ):
-    kernel_size = _single(kernel_size)
-    stride = _single(stride)
-    padding = _single(padding)
-    dilation = _single(dilation)
-    output_padding = _single(output_padding)
     super(ConvTranspose2d, self).__init__(
       in_channels, out_channels, kernel_size, stride, padding, dilation,
       True, output_padding, groups, bias, padding_mode)
