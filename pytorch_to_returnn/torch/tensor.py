@@ -151,6 +151,10 @@ class Tensor:
     from .nn.functional import cast
     return cast(self, "float32")
 
+  def int(self):
+    from .nn.functional import cast
+    return cast(self, "int32")
+
   def abs(self):
     from .nn.functional import abs
     return abs(self)
