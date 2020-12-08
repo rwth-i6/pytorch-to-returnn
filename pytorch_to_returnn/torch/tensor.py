@@ -203,6 +203,10 @@ class Tensor:
     from .nn.functional import truediv
     return truediv(self, other)
 
+  def __ge__(self, other):
+    from .nn.functional import greater_equal
+    return greater_equal(self, other)
+
 
 class LongTensor(Tensor):
   def __init__(self, **kwargs):
