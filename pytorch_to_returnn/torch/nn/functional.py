@@ -97,6 +97,11 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
   return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
 
 
+def greater_equal(x: Tensor, y: Tensor) -> Tensor:
+  dtype = result_type(x, y)
+  return modules.ComparisonOperator(kind="greater_equal")(cast(x, dtype), cast(y, dtype))
+
+
 def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
   return modules.Flatten(start_dim=start_dim, end_dim=end_dim).as_returnn_torch_functional()(input)
 

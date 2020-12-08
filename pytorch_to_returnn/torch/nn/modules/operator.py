@@ -48,6 +48,22 @@ class BinaryOperator(Module):
       "from": [self._get_input_layer_name(input) for input in inputs]}
 
 
+class ComparisonOperator(BinaryOperator):
+  is_original_torch_module = False
+
+  def __init__(self, kind: str):
+    """
+    :param str kind: e.g. "equal", "greater", "less" or other supported TF comparison ops
+    """
+    super(ComparisonOperator, self).__init__(kind=kind)
+
+  def create_returnn_layer_dict(self, *inputs: Tensor):
+    inputs = _unify_tensor_dyn_axes(*inputs)
+    return {
+      "class": "compare", "kind": self.kind,
+      "from": [self._get_input_layer_name(input) for input in inputs]}
+
+
 class Reciprocal(Module):
   """
   1/x or 1/max(eps,x)
