@@ -53,7 +53,7 @@ class ComparisonOperator(BinaryOperator):
 
   def __init__(self, kind: str):
     """
-    :param str kind: e.g. “equal”, “greater”, “less” or other supported TF comparison ops
+    :param str kind: e.g. "equal", "greater", "less" or other supported TF comparison ops
     """
     super(ComparisonOperator, self).__init__(kind=kind)
 
