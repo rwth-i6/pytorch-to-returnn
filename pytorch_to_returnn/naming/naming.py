@@ -366,7 +366,7 @@ class Naming:
           return
         if not list(mod.module.parameters(recurse=False)):
           continue
-        assert prefix and prefix.endswith(".") and len(namespace.modules) == 1
+        assert (prefix == "" or prefix.endswith(".")) and len(namespace.modules) == 1
         d[prefix[:-1]] = mod.module
         _visited.add(mod.module)
       for name, sub in namespace.childs_by_name.items():
