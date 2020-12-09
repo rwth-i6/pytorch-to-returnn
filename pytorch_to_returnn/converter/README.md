@@ -46,7 +46,7 @@ The transformation happens on multiple steps,
 and we verify the outputs after each step.
 
 (Note about randomness:
-We reset the PyTorch random seed before each step.
+We reset the PyTorch and numpy random seed before each step.
 In case this is non-deterministic,
 this is ok as long as it stays within our numerical limits.)
 
