@@ -8,7 +8,7 @@ from . import tensor as _tensor
 
 
 class ReturnnContext:
-  def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None):
+  def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None, returnn_train_flag: bool):
     self.parent = parent
     if parent:
       assert name
@@ -35,6 +35,7 @@ class ReturnnContext:
       assert not parent
       self.network = TFNetwork(
         extern_data=ExternData(), config=self.config, name="root",
+        train_flag=returnn_train_flag,
         absolute_name_prefix=(self.tf_name_scope + "/") if self.tf_name_scope else "")
 
   def __repr__(self):

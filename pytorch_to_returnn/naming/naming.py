@@ -48,18 +48,21 @@ class Naming:
 
   def __init__(self, *,
                wrap_to_returnn_enabled: bool = True,
+               returnn_train_flag: bool = False,
                keep_orig_module_io_tensors: bool = True,
                import_params_from_torch_namespace: Optional[Naming] = None,
                validate_allclose_kwargs: Optional[Dict[str, Any]] = None,
                ):
     """
     :param wrap_to_returnn_enabled: Will construct corresponding RETURNN layers.
+    :param returnn_train_flag: set RETURNN TFNetwork train_flag accordingly
     :param keep_orig_module_io_tensors: Keeps references to the original (or wrapped) torch.Tensor instances
        for all module calls. This will need extra memory.
     :param import_params_from_torch_namespace: If given, we try to import params.
     :param validate_allclose_kwargs: for numpy.allclose
     """
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
+    self.returnn_train_flag = returnn_train_flag
     self.keep_orig_module_io_tensors = keep_orig_module_io_tensors
     self.import_params_from_torch_namespace = import_params_from_torch_namespace
     if validate_allclose_kwargs is None:
@@ -78,7 +81,10 @@ class Naming:
     self.module_call_stack = []
     self.root_func_calls = []
     self.root_namespace = _namespace.RegisteredName(
-      parent=None, wrap_to_returnn_enabled=wrap_to_returnn_enabled, is_subnet=True)
+      parent=None,
+      wrap_to_returnn_enabled=wrap_to_returnn_enabled,
+      returnn_train_flag=returnn_train_flag,
+      is_subnet=True)
     self.tmp_eager_root_namespace = self.root_namespace.register_sub_net(suggested_name=".tmp_root")
 
   @contextmanager

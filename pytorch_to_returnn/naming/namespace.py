@@ -29,6 +29,7 @@ class RegisteredName:
 
   def __init__(self, *,
                wrap_to_returnn_enabled: Optional[bool] = None,
+               returnn_train_flag: Optional[bool] = None,
                parent: Optional[RegisteredName] = None, name: Optional[str] = None,
                call: Optional[_call.CallEntry] = None,
                tensor: Optional[_tensor.TensorEntry] = None,
@@ -39,12 +40,16 @@ class RegisteredName:
     if parent:
       assert name
       assert wrap_to_returnn_enabled is None
+      assert returnn_train_flag is None
       wrap_to_returnn_enabled = parent.wrap_to_returnn_enabled
+      returnn_train_flag = parent.returnn_train_flag
     else:
       assert not name
       assert wrap_to_returnn_enabled is not None
+      assert returnn_train_flag is not None
     self.name = name
     self.wrap_to_returnn_enabled = wrap_to_returnn_enabled
+    self.returnn_train_flag = returnn_train_flag
     self.is_reserved = is_reserved
     if not is_reserved:
       assert name not in self.ReservedNames
@@ -135,7 +140,7 @@ class RegisteredName:
       assert self.parent.returnn_ctx
     self.returnn_ctx = _returnn_ctx.ReturnnContext(
       parent=self.parent.returnn_ctx if self.parent else None,
-      name=self.name)
+      name=self.name, returnn_train_flag=self.returnn_train_flag)
 
   def assign_module(self, module: _module.ModuleEntry):
     if module in self.modules:

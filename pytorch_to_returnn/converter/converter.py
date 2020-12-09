@@ -59,6 +59,7 @@ class Converter:
                import_torch_params: bool = True,
                export_tf_checkpoint_save_path: Optional[str] = None,
                verify_returnn_standalone_model: bool = True,
+               train: bool = False,
                ):
     """
     :param model_func:
@@ -85,6 +86,7 @@ class Converter:
     self.verify_individual_model_io = verify_individual_model_io
     self.import_torch_params = import_torch_params
     self.export_tf_checkpoint_save_path = export_tf_checkpoint_save_path
+    self.train = train
     self._tf_checkpoint_save_path = None  # type: Optional[str]
     self.verify_returnn_standalone_model = verify_returnn_standalone_model
     self._out_ref_np = None  # type: Optional[numpy.ndarray]
@@ -175,6 +177,7 @@ class Converter:
     with tf.compat.v1.Session() as session:
       with Naming.make_instance(
             wrap_to_returnn_enabled=True,
+            returnn_train_flag=self.train,
             keep_orig_module_io_tensors=True,  # it's only symbolic anyway in TF
             import_params_from_torch_namespace=self._torch_namespace) as naming:
         assert isinstance(naming, Naming)
@@ -232,7 +235,7 @@ class Converter:
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
       })
-      network = TFNetwork(config=config, name="root")
+      network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(self._returnn_net_dict)
       network.load_params_from_file(filename=self._tf_checkpoint_save_path, session=session)
 
@@ -271,7 +274,7 @@ class Converter:
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
       })
-      network = TFNetwork(config=config, name="root")
+      network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(net_dict)
       network.load_params_from_file(filename=self._tf_checkpoint_save_path, session=session)
 
