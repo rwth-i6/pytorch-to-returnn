@@ -16,10 +16,28 @@ from .._C import Size, dtype as _dtype
 _number = Union[int, float, numpy.ndarray, numpy.number]
 _size = Union[Size, List[int], Tuple[int, ...]]
 _T = TypeVar("_T")
+_default_float_type = "float32"
 
 
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
   return Tensor(*size, dtype=dtype)
+
+
+def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+  if size and isinstance(size[0], (tuple, list)):
+    assert len(size) == 1
+    size = tuple(size[0])
+  if not dtype:
+    dtype = _default_float_type
+  return tensor(numpy.ones(size, dtype=dtype))
+
+
+def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
+  from .._C import from_numpy
+  x = from_numpy(data)
+  if dtype:
+    x = x.type(dtype)
+  return x
 
 
 def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[_T, Tensor]:
@@ -35,7 +53,7 @@ def get_dtype(tensor: Union[Tensor, _number]) -> _dtype:
   if isinstance(tensor, int):
     return _dtype("int32")
   if isinstance(tensor, float):
-    return _dtype("float32")
+    return _dtype(_default_float_type)
   if isinstance(tensor, (numpy.number, numpy.ndarray)):
     return _dtype(str(tensor.dtype))
   raise TypeError(f"unexpected type {type(tensor)}")

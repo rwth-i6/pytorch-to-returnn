@@ -1,4 +1,14 @@
 
+"""
+This is used for parameter initialization.
+
+We currently mostly ignore this.
+In principle, we could keep track of this,
+and then set corresponding parameter init options on layers in RETURNN,
+such as ``forward_weights_init``, etc.
+However, even if we do, we cannot really verify whether it is correct.
+"""
+
 from ..tensor import Tensor
 
 

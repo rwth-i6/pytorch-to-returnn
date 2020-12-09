@@ -141,6 +141,15 @@ class Tensor:
     from .nn.init import normal_
     normal_(self, mean=mean, std=std)
 
+  def zero_(self):
+    self.fill_(0)
+
+  def fill_(self, x):
+    if not self._shape:  # scalar
+      self._numpy_buffer = numpy.array(x, dtype=self.dtype.name)
+    else:
+      self._numpy_buffer[:] = x
+
   def detach(self):
     return self  # TODO use stop_gradient?
 
