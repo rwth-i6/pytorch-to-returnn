@@ -248,5 +248,10 @@ class Tensor:
 
 
 class LongTensor(Tensor):
-  def __init__(self, **kwargs):
-    super(LongTensor, self).__init__(dtype="int64", **kwargs)
+  def __init__(self, *args):
+    super(LongTensor, self).__init__(dtype="int64", *args)
+
+
+class FloatTensor(Tensor):
+  def __init__(self, *args):
+    super(FloatTensor, self).__init__(dtype="float32", *args)
