@@ -131,8 +131,14 @@ class Tensor:
     # use new_zeros here to avoid errors by uninitialized memory
     return self.new_zeros(size, dtype, device, requires_grad)
 
-  def new(self, *size, dtype=None, device=None, requires_grad=False):
-    return self.new_empty(size, dtype, device, requires_grad)
+  def new(self, *args, dtype=None, device=None, requires_grad=False):
+    if args and isinstance(args[0], Tensor):
+      assert len(args) == 1
+      assert args[0].type() == self.type()
+      return args[0]
+    else:
+      shape = args
+      return self.new_empty(shape, dtype, device, requires_grad)
 
   def copy_(self, source: Tensor):
     self._numpy_buffer = source.view(*self._shape).type(self.dtype)._numpy_buffer.copy()
