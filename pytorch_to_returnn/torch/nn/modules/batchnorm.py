@@ -3,6 +3,7 @@ from __future__ import annotations
 import tensorflow as tf
 import math
 from typing import Optional, Dict, Any
+from returnn.tf.layers.basic import BatchNormLayer
 from .module import Module
 from .utils import _single, _pair, _triple, _reverse_repeat_tuple, _ntuple
 from ..common_types import _scalar_or_tuple_any_t, _size_1_t, _size_2_t, _size_3_t
@@ -92,7 +93,32 @@ class _BatchNorm(_NormBase):
 
 
 class BatchNorm1d(_BatchNorm):
-  pass
+  def import_params_torch_to_returnn(self, *, layer: BatchNormLayer, torch_module: BatchNorm1d):
+    import numpy
+    session = tf.compat.v1.get_default_session()
+
+    # The param names in our RETURNN layer are somewhat strange...
+    def _get_param_by_name_postfix(name: str) -> tf.Variable:
+      ps = [p for (name_, p) in layer.params.items() if name_.endswith(f"_{name}")]
+      assert len(ps) == 1, f"param name {name} not unique or found in layer {layer} with params {layer.params}"
+      return ps[0]
+
+    def _expand_dims(x: numpy.ndarray) -> numpy.ndarray:
+      assert x.shape == (layer.output.dim,)
+      out_shape = [
+        layer.output.dim if i == layer.output.feature_dim_axis else 1
+        for i in range(layer.output.batch_ndim)]
+      return numpy.reshape(x, out_shape)
+
+    def _convert(x: Tensor, name: str):
+      tf_param = _get_param_by_name_postfix(name)
+      values = _expand_dims(x.detach().cpu().numpy())
+      tf_param.load(values, session=session)
+
+    _convert(torch_module.running_mean, "mean")
+    _convert(torch_module.running_var, "variance")
+    _convert(torch_module.weight, "gamma")
+    _convert(torch_module.bias, "beta")
 
 
 __all__ = [
