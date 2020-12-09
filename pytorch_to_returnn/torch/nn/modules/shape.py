@@ -9,7 +9,7 @@ Note on PyTorch vs RETURNN/TF terminology:
 """
 
 from __future__ import annotations
-from typing import Tuple, List, Union, Collection, Dict, Any
+from typing import Tuple, List, Union, Collection, Dict, Any, Optional
 from functools import reduce
 import operator
 from returnn.tf.layers.basic import LayerBase, MergeDimsLayer, FlattenBatchLayer
@@ -284,6 +284,39 @@ class SplitDims(Unflatten):
   Alias, RETURNN consistent name
   """
   is_original_torch_module = False
+
+
+class Split(Module):
+  """
+  tf.split, SplitLayer in RETURNN
+  """
+  is_original_torch_module = False
+
+  def __init__(self, *, dim: int, num_splits: Optional[int] = None, size_splits: Optional[List[int]] = None):
+    super(Split, self).__init__()
+    self.dim = dim
+    assert num_splits or size_splits
+    self.num_splits = num_splits
+    self.size_splits = size_splits
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    d = {
+      "class": "split", "from": self._get_input_layer_name(input),
+      "axis": self._get_input_axis_to_returnn(input, axis=self.dim)}
+    if self.num_splits is not None:
+      d["num_splits"] = self.num_splits
+    if self.size_splits is not None:
+      d["size_splits"] = self.size_splits
+    return d
+
+  def make_structured_returnn_output(self, output: Tensor) -> List[Tensor]:
+    from .operator import Copy
+    if self.num_splits is not None:
+      num_splits = self.num_splits
+    else:
+      num_splits = len(self.size_splits)
+    res = [Copy(sub_layer=f"{i}")(output) for i in range(num_splits)]
+    return res
 
 
 __all__ = [

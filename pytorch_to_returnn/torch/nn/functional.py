@@ -237,6 +237,18 @@ def expand(input: Tensor, *sizes: _size):
   return modules.Tile(multiples=multiples).as_returnn_torch_functional()(input)
 
 
+def chunk(input: Tensor, chunks: int, dim: int = 0) -> List[Tensor]:
+  chunk_size = input.shape[dim] // chunks
+  if input.shape[dim] % chunks != 0:
+    chunk_size += 1
+    size_splits = [chunk_size] * chunks
+    size_splits[-1] -= chunk_size * chunks - input.shape[dim]
+  else:
+    size_splits = [chunk_size] * chunks
+  assert sum(size_splits) == input.shape[dim] and len(size_splits) == chunks
+  return modules.Split(dim=dim, size_splits=size_splits).as_returnn_torch_functional()(input)
+
+
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value).as_returnn_torch_functional()(input)
 
@@ -307,6 +319,14 @@ def log_softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
 
 def log(input: Tensor):
   return modules.Log().as_returnn_torch_functional()(input)
+
+
+def sigmoid(input: Tensor):
+  return modules.Sigmoid().as_returnn_torch_functional()(input)
+
+
+def logsigmoid(input: Tensor):
+  return modules.LogSigmoid().as_returnn_torch_functional()(input)
 
 
 def normalize(input: Tensor, p=2, dim=1, eps=1e-12) -> Tensor:

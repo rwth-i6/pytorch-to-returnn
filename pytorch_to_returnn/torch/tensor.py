@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import Optional, Union
+from typing import Optional, Union, List
 from functools import reduce
 import operator
 import numpy
@@ -171,6 +171,14 @@ class Tensor:
   def log(self):
     from .nn.functional import log
     return log(self)
+
+  def sigmoid(self):
+    from .nn.functional import sigmoid
+    return sigmoid(self)
+
+  def chunk(self, chunks: int, dim: int = 0) -> List[Tensor]:
+    from .nn.functional import chunk
+    return chunk(self, chunks=chunks, dim=dim)
 
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar

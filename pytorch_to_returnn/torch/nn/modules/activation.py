@@ -32,6 +32,14 @@ class Log(_ActivationReturnn):
   func_name = "log"
 
 
+class Sigmoid(_ActivationReturnn):
+  func_name = "sigmoid"
+
+
+class LogSigmoid(_ActivationReturnn):
+  func_name = "log_sigmoid"
+
+
 class LeakyReLU(Module):
   def __init__(self, negative_slope: float = 1e-2, inplace: bool = False) -> None:
     super(LeakyReLU, self).__init__()

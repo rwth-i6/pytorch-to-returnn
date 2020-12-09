@@ -9,7 +9,13 @@ from ....naming import Naming, TensorEntry
 class Copy(Module):
   is_original_torch_module = False
 
+  def __init__(self, *, sub_layer: Optional[str] = None):
+    super(Copy, self).__init__()
+    self.sub_layer = sub_layer
+
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    if self.sub_layer:
+      return {"class": "copy", "from": f"{self._get_input_layer_name(input)}/{self.sub_layer}"}
     return {"class": "copy", "from": self._get_input_layer_name(input)}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
