@@ -130,6 +130,7 @@ class Converter:
     """
     print(">>> Running with standard reference imports...")
     torch.manual_seed(42)
+    numpy.random.seed(42)
     with torch.no_grad():
       out_ref = self._model_func(None, torch.from_numpy(self._inputs_np))
       assert isinstance(out_ref, torch.Tensor)
@@ -147,6 +148,7 @@ class Converter:
     """
     print(">>> Running with wrapped imports, wrapping original PyTorch...")
     torch.manual_seed(42)
+    numpy.random.seed(42)
     with torch.no_grad():
       with Naming.make_instance(
             wrap_to_returnn_enabled=False,
@@ -174,6 +176,7 @@ class Converter:
   def _run_torch_returnn_drop_in(self):
     print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
     torch.manual_seed(42)
+    numpy.random.seed(42)
     with tf.compat.v1.Session() as session:
       with Naming.make_instance(
             wrap_to_returnn_enabled=True,
