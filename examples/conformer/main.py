@@ -35,7 +35,8 @@ def model_func(wrapped_import, inputs):
 def main():
   inputs = numpy.random.randn(Batch, Time, Dim).astype("float32")
   verify_torch_and_convert_to_returnn(
-    model_func, inputs=inputs, inputs_data_kwargs={"shape": (None, Dim)})
+    model_func, inputs=inputs, inputs_data_kwargs={
+      "shape": (None, Dim), "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
 if __name__ == '__main__':
