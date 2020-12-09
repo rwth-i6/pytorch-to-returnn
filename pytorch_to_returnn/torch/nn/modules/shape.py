@@ -310,13 +310,12 @@ class Split(Module):
     return d
 
   def make_structured_returnn_output(self, output: Tensor) -> List[Tensor]:
-    from .operator import Copy
+    from .operator import GetSublayer
     if self.num_splits is not None:
       num_splits = self.num_splits
     else:
       num_splits = len(self.size_splits)
-    res = [Copy(sub_layer=f"{i}")(output) for i in range(num_splits)]
-    return res
+    return [GetSublayer(sub_layer=f"{i}")(output) for i in range(num_splits)]
 
 
 __all__ = [
