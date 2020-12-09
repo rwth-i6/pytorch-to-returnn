@@ -1,6 +1,7 @@
 
 from typing import Any, Iterable, Iterator, Mapping, Optional, overload, Tuple, TypeVar, Union, Dict
 from collections import OrderedDict
+from collections import abc as container_abcs
 import operator
 from itertools import islice
 from .module import Module
