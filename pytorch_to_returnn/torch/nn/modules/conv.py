@@ -75,19 +75,23 @@ class _ConvNd(Module):
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert len(input.shape) == 2 + self.nd
     self._assert_spatial_axes_in_order(input)  # not implemented otherwise
-    assert self.groups == 1  # not implemented otherwise
     assert all(p == 0 for p in self.padding)  # not implemented otherwise
     assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
-    return {
+    d = {
       "class": "conv", "from": self._get_input_layer_name(input),
       "activation": None,
       "with_bias": self.bias is not None,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
-      "padding": "valid",
-      "strides": self.stride,
-      "dilation_rate": self.dilation}
+      "padding": "valid"}
+    if any(s != 1 for s in self.stride):
+      d["strides"] = self.stride
+    if any(d != 1 for d in self.dilation):
+      d["dilation_rate"] = self.dilation
+    if self.groups != 1:
+      d["groups"] = self.groups
+    return d
 
   def check_returnn_layer(self, layer: ConvLayer):
     assert layer.input_data.dim == self.in_channels
