@@ -10,7 +10,7 @@ Usage example::
 
 """
 
-
+import _setup_env  # noqa
 import argparse
 import torch
 import numpy

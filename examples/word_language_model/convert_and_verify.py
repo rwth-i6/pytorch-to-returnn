@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 
+import _setup_env  # noqa
 import argparse
 import time
 import math
@@ -9,10 +11,13 @@ import better_exchook
 import data
 
 
+my_dir = os.path.dirname(os.path.abspath(__file__))
+
+
 def main():
 
   parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM/GRU/Transformer Language Model')
-  parser.add_argument('--data', type=str, default='./data/wikitext-2',
+  parser.add_argument('--data', type=str, default=f'{my_dir}/data/wikitext-2',
                       help='location of the data corpus')
   parser.add_argument('--model', type=str, default='LSTM',
                       help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU, Transformer)')

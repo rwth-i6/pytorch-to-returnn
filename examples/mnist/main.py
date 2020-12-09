@@ -4,6 +4,7 @@
 Copied many things from https://github.com/pytorch/examples/blob/master/mnist/main.py.
 """
 
+import _setup_env  # noqa
 import better_exchook
 import typing
 from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
@@ -11,6 +12,7 @@ import torch
 import torch.utils.data
 from torchvision import datasets, transforms
 import argparse
+import os
 
 
 def model_func(wrapped_import, inputs):
@@ -21,6 +23,9 @@ def model_func(wrapped_import, inputs):
   net = model.Net()
   net = net.eval()  # disable dropout
   return net(inputs)
+
+
+my_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
@@ -64,8 +69,8 @@ def main():
     transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
   ])
-  dataset1 = datasets.MNIST('../data', train=True, download=True, transform=transform)
-  dataset2 = datasets.MNIST('../data', train=False, transform=transform)
+  dataset1 = datasets.MNIST(f'{my_dir}/../data', train=True, download=True, transform=transform)
+  dataset2 = datasets.MNIST(f'{my_dir}/../data', train=False, transform=transform)
   train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
   test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
