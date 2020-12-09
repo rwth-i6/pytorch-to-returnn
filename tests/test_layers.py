@@ -220,6 +220,31 @@ def test_functional_conv_transposed():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_batch_norm():
+  n_in, n_batch, n_time = 11, 3, 7
+  for train in [True, False]:
+
+    def model_func(wrapped_import, inputs: torch.Tensor):
+      if typing.TYPE_CHECKING or not wrapped_import:
+        import torch
+      else:
+        torch = wrapped_import("torch")
+      model = torch.nn.BatchNorm1d(n_in)
+      if not train:
+        model.eval()
+      out = model(inputs)
+      if train:
+        model.reset_running_stats()  # for the test, such that we start with initial running mean/var
+      return out
+
+    x = numpy.ones((n_batch, n_in, n_time)).astype("float32")
+    verify_torch_and_convert_to_returnn(model_func, inputs=x, train=train)
+
+    rnd = numpy.random.RandomState(42)
+    x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+    verify_torch_and_convert_to_returnn(model_func, inputs=x, train=train)
+
+
 def test_unsqueeze():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7

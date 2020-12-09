@@ -87,8 +87,15 @@ class _BatchNorm(_NormBase):
     super(_BatchNorm, self).__init__(num_features, eps, momentum, affine, track_running_stats)
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    # Note: Momentum default is quite different. In RETURNN 0.99, in Torch 0.1.
+    #  This is not because it's used the other way around.
+    # Note: The other default behavior is different as well,
+    #  i.e. we need to use `update_sample_only_in_training` and `delay_sample_update`.
+    # https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html
+    # https://github.com/pytorch/pytorch/blob/59605811488eb07b3b8bf70a5f0b4b56b34b4a61/aten/src/ATen/native/Normalization.cpp#L546
     return {
       "class": "batch_norm", "from": self._get_input_layer_name(input),
+      "update_sample_only_in_training": True, "delay_sample_update": True,
       "momentum": self.momentum, "epsilon": self.eps}
 
 
