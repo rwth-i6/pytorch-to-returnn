@@ -21,7 +21,12 @@ class WrappedTorchTensor(torch.Tensor):
   def new(self, *args, **kwargs):
     # For some reason, new() via __torch_function__ behaves different?
     # This is a workaround.
-    return self.new_empty(*args, **kwargs)
+    if args and isinstance(args[0], torch.Tensor):
+      assert len(args) == 1
+      assert args[0].type() == self.type()
+      return args[0]
+    else:
+      return self.new_empty(*args, **kwargs)
 
   @classmethod
   def __torch_function__(cls, func, types, args=(), kwargs=None):
