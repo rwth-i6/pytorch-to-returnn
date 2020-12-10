@@ -766,6 +766,8 @@ class Module:
     batch_size = None
     dyn_size_dim_tag_to_spatial_idx_and_torch_dim = OrderedDict()  # RETURNN dim tag -> in spatial idx, Torch dim
     for input in inputs_flat:
+      if not input.shape:
+        continue  # skip scalars
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
@@ -817,12 +819,14 @@ class Module:
 
         # Assume no reordering happened on the Torch site.
         for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
-          out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
+          if returnn_in_axis is not None:
+            out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
 
       else:  # same order, but maybe some dims added or removed
         if layer.output.batch_ndim == x.returnn_data.batch_ndim:  # no dim added/removed
           for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
-            out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
+            if returnn_in_axis is not None:
+              out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
 
         pass  # should be covered below
 

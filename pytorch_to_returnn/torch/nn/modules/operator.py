@@ -273,6 +273,8 @@ def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   num_dims = max(x.returnn_data.batch_ndim for x in tensors)
   assert all(x.returnn_data.batch_ndim in {0, num_dims} for x in tensors)
   num_spatial_dims = len(x0.returnn_data.get_spatial_batch_axes())
+  if num_spatial_dims == 0:
+    return inputs
   # Assume same order of spatial axes, but not matter where B/F is.
   spatial_dims = {}  # spatial idx -> (tensor, DimensionTag) (static != 1, or dynamic)
   for i, x in enumerate(list(tensors)):
