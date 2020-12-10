@@ -311,7 +311,29 @@ class Naming:
       self.root_namespace.register_returnn_subnet_output(entry)
     return entry
 
+  def get_module_abs_call_name(self, module: _types.Module) -> str:
+    mod_entry = self.modules[module]
+    assert mod_entry.calls  # otherwise it would not have a name
+    call = mod_entry.calls[0]
+    return call.namespace.get_absolute_name()
+
+  def get_module_by_abs_call_name(self, name: str) -> _types.Module:
+    namespace = self.root_namespace
+    if name:
+      for part_name in name.split("/"):
+        if part_name[:1].isnumeric():
+          part_name = f"layer{part_name}"
+        namespace = namespace.childs_by_name[part_name]
+    assert namespace.modules
+    return namespace.modules[0].module
+
   def get_module_abs_name(self, module: _types.Module) -> str:
+    """
+    Returns an attrib chain, such that `root_mod.attrib1.attrib2...` resolves to `module`,
+    for some `root_mod` (in root_namespace.modules).
+    Specifically, it would return `attrib1.attrib2...` in that case.
+    The inverse is :func:`get_module_by_abs_name`.
+    """
     parts = []
     mod_entry = self.modules[module]
     while True:
@@ -332,14 +354,24 @@ class Naming:
     return abs_name
 
   def get_module_by_abs_name(self, name: str) -> _types.Module:
-    namespace = self.root_namespace
+    """
+    This gets the module by the attrib chain,
+    starting from the root modules (root_namespace.modules).
+    This is the inverse of :func:`get_module_abs_name`.
+
+    Note that this is different from the registered name hierarchy (via root_namespace).
+    The registered name hierarchy reflects the call hierarchy,
+    and corresponding canonical names from a call.
+    """
+    potential_modules = [m.module for m in self.root_namespace.modules]
     if name:
-      for part_name in name.split("."):
-        if part_name[:1].isnumeric():
-          part_name = f"layer{part_name}"
-        namespace = namespace.childs_by_name[part_name]
-    assert namespace.modules
-    return namespace.modules[0].module
+      name_parts = name.split(".")
+      for i, part_name in enumerate(name_parts):
+        possible_modules = [m for m in potential_modules if hasattr(m, part_name)]
+        assert possible_modules, f"{potential_modules} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}"
+        potential_modules = [getattr(m, part_name) for m in possible_modules]
+    assert len(potential_modules) == 1, f"unique mod for name {name!r}"
+    return potential_modules[0]
 
   def get_module_call_idx(self, *, module: _types.Module, call: _call.CallEntry) -> int:
     mod_entry = self.modules[module]
