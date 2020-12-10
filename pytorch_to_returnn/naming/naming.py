@@ -327,7 +327,8 @@ class Naming:
     assert namespace.modules
     return namespace.modules[0].module
 
-  def get_module_abs_name(self, module: _types.Module) -> str:
+  def get_module_abs_name(self, module: _types.Module,
+                          root_namespace: Optional[_namespace.RegisteredName] = None) -> Optional[str]:
     """
     Returns an attrib chain, such that `root_mod.attrib1.attrib2...` resolves to `module`,
     for some `root_mod` (in root_namespace.modules).
@@ -336,18 +337,16 @@ class Naming:
     """
     parts = []
     mod_entry = self.modules[module]
+    if not root_namespace:
+      root_namespace = self.root_namespace
     while True:
-      if mod_entry in self.root_namespace.modules:
-        break
-      name = self.root_namespace.find_name_for_module(mod_entry)
-      if name:
-        parts.append(name)
+      if mod_entry in root_namespace.modules:
         break
       if mod_entry.parent_owning_modules:
         mod_entry, name = mod_entry.parent_owning_modules[0]
         parts.append(name)
         continue
-      raise Exception(f"no name for mod {module}")
+      return None
     abs_name = ".".join(reversed(parts))
     checked_mod = self.get_module_by_abs_name(abs_name)
     assert checked_mod is module
@@ -372,6 +371,71 @@ class Naming:
         potential_modules = [getattr(m, part_name) for m in possible_modules]
     assert len(potential_modules) == 1, f"unique mod for name {name!r}"
     return potential_modules[0]
+
+  def get_module_abs_id_name(self, module: _types.Module) -> str:
+    """
+    This is a mixture of :func:`get_module_abs_name` and :func:`get_module_abs_call_name`.
+    Not all modules are accessible via an attrib chain,
+    e.g. when they are temporarily created and not assigned to an attrib.
+    Here, we try to resolve an attrib chain, but fall back to call names if not possible.
+    The inverse is :func:`get_module_by_abs_id_name`.
+    """
+    parts = []
+    mod_entry = self.modules[module]
+    visited = set()
+    while True:
+      assert mod_entry not in visited
+      visited.add(mod_entry)
+      if mod_entry in self.root_namespace.modules:
+        break
+      if mod_entry.parent_owning_modules:
+        mod_entry, name = mod_entry.parent_owning_modules[0]
+        parts.append(name)
+        continue
+      # Fallback to call hierarchy.
+      assert mod_entry.names
+      name_ = mod_entry.names[0]
+      parts.append(f"({name_.name})")
+      if name_.parent is self.root_namespace:
+        break
+      assert name_.parent and name_.parent.modules
+      mod_entry = name_.parent.modules[0]
+    abs_name = ".".join(reversed(parts))
+    checked_mod = self.get_module_by_abs_id_name(abs_name)
+    assert checked_mod is module
+    return abs_name
+
+  def get_module_by_abs_id_name(self, name: str) -> _types.Module:
+    """
+    This is the inverse of :func:`get_module_abs_id_name`.
+    """
+    potential_namespaces = [self.root_namespace]
+    potential_modules = [m for m in self.root_namespace.modules]
+    if name:
+      name_parts = name.split(".")
+      for i, part_name in enumerate(name_parts):
+        if part_name[:1] == "(" and part_name[-1:] == ")":
+          part_name = part_name[1:-1]
+          possible_namespaces = [name_ for name_ in potential_namespaces if part_name in name_.childs_by_name]
+          assert possible_namespaces, (
+            f"{potential_namespaces} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}")
+          potential_namespaces = [name_.childs_by_name[part_name] for name_ in potential_namespaces]
+          potential_modules = []
+          for name_ in potential_namespaces:
+            for m in name_.modules:
+              if m not in potential_modules:
+                potential_modules.append(m)
+        else:
+          possible_modules = [m for m in potential_modules if hasattr(m.module, part_name)]
+          assert possible_modules, f"{potential_modules} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}"
+          potential_modules = [self.modules[getattr(m.module, part_name)] for m in possible_modules]
+          potential_namespaces = []
+          for m in possible_modules:
+            for name_ in m.names:
+              if name_ not in potential_namespaces:
+                potential_namespaces.append(name_)
+    assert len(potential_modules) == 1, f"unique mod for name {name!r}"
+    return potential_modules[0].module
 
   def get_module_call_idx(self, *, module: _types.Module, call: _call.CallEntry) -> int:
     mod_entry = self.modules[module]

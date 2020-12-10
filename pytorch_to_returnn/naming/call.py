@@ -167,11 +167,11 @@ class CallEntry:
             if list(module.parameters(recurse=False)):
               # Need some way to get a unique name, to get the corresponding module from previous Torch run.
               # We can use get_module_abs_name, to get the attrib chain,
-              # or get_module_abs_call_name, to get the call chain.
-              # get_module_abs_name should be more consistent,
-              # because the calls can look different.
-              mod_abs_name = naming.get_module_abs_name(module)
-              torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_name(mod_abs_name)
+              # or get_module_abs_call_name, to get the call chain,
+              # or get_module_abs_id_name as a combination.
+              # See the corresponding documentation.
+              mod_abs_name = naming.get_module_abs_id_name(module)
+              torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
               print(
                 f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
                 f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...")

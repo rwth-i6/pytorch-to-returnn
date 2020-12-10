@@ -588,11 +588,11 @@ class Module:
     mod_entry = call.module
     mod = mod_entry.module
     call_idx = naming.get_module_call_idx(module=mod, call=call)
-    mod_abs_name = naming.get_module_abs_name(mod)
+    mod_abs_name = naming.get_module_abs_id_name(mod)
     # If the following throws an exception, maybe this module was marked with is_original_torch_module=True,
     # but actually it does not exist in Torch, or would not be used like this.
     # E.g. in the functional API, any created modules should use `as_returnn_torch_functional()`.
-    torch_mod = torch_naming.get_module_by_abs_name(mod_abs_name)
+    torch_mod = torch_naming.get_module_by_abs_id_name(mod_abs_name)
     torch_mod_calls = torch_naming.get_module_calls(torch_mod)
     assert call_idx < len(torch_mod_calls)
     torch_mod_call = torch_mod_calls[call_idx]
