@@ -220,6 +220,22 @@ class Tensor:
     from .nn.functional import truediv
     return truediv(self, other)
 
+  def __radd__(self, other):
+    from .nn.functional import add
+    return add(other, self)
+
+  def __rsub__(self, other):
+    from .nn.functional import sub
+    return sub(other, self)
+
+  def __rmul__(self, other):
+    from .nn.functional import mul
+    return mul(other, self)
+
+  def __rtruediv__(self, other):
+    from .nn.functional import truediv
+    return truediv(other, self)
+
   def __ge__(self, other):
     from .nn.functional import greater_equal
     return greater_equal(self, other)
