@@ -96,6 +96,7 @@ class _BatchNorm(_NormBase):
     return {
       "class": "batch_norm", "from": self._get_input_layer_name(input),
       "update_sample_only_in_training": True, "delay_sample_update": True,
+      "param_version": 1,
       "momentum": self.momentum, "epsilon": self.eps}
 
 
@@ -106,7 +107,7 @@ class BatchNorm1d(_BatchNorm):
 
     # The param names in our RETURNN layer are somewhat strange...
     def _get_param_by_name_postfix(name: str) -> tf.Variable:
-      ps = [p for (name_, p) in layer.params.items() if name_.endswith(f"_{name}")]
+      ps = [p for (name_, p) in layer.params.items() if name_.endswith(f"_{name}") or name_.endswith(f"/{name}")]
       assert len(ps) == 1, f"param name {name} not unique or found in layer {layer} with params {layer.params}"
       return ps[0]
 
