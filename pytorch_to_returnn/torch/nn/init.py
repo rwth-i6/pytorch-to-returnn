@@ -36,6 +36,10 @@ def ones_(tensor):
   pass
 
 
+def constant_(tensor, value=0):
+  pass
+
+
 def uniform_(tensor, a=0., b=1.):
   pass
 
@@ -53,4 +57,8 @@ def xavier_normal_(tensor: Tensor, gain=1.):
 
 
 def kaiming_uniform_(tensor: Tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
+  pass
+
+
+def kaiming_normal_(tensor: Tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
   pass

@@ -140,9 +140,16 @@ class Tensor:
   def normal_(self, mean=0, std=1):
     from .nn.init import normal_
     normal_(self, mean=mean, std=std)
+    return self
+
+  def uniform_(self, a=0, b=1):
+    from .nn.init import uniform_
+    uniform_(self, a=a, b=b)
+    return self
 
   def zero_(self):
     self.fill_(0)
+    return self
 
   def fill_(self, x):
     if not self._shape:  # scalar
