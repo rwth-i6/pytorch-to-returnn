@@ -104,6 +104,7 @@ class CallEntry:
         # The logic in `name_for_tensor` should find the entry from the subnet.
       layer = self.namespace.returnn_ctx.sub_net_layer
       layer_dict = None  # will be constructed later lazily when needed
+      new_update_ops = []  # ignore
 
     else:  # no module.forward, direct RETURNN layer call
       assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
