@@ -207,7 +207,7 @@ class Module:
     elif name == '':
       raise KeyError("module name can't be empty string \"\"")
     self._modules[name] = module
-    if module:
+    if module is not None:
       Naming.get_instance().register_module_child_attr(self, name, module)
 
   def register_parameter(self, name: str, param: Optional[Parameter]) -> None:
