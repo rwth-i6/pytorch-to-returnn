@@ -28,6 +28,28 @@ def test_embedding():
     inputs=x, inputs_data_kwargs={"shape": (None,), "sparse": True, "dim": n_in, "batch_dim_axis": 1})
 
 
+def test_linear_multiple_steps():
+  n_steps = 3
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    ins = inputs.chunk(n_steps, dim=-1)
+    model = torch.nn.Linear(n_in, n_out)
+    outs = [model(x) for x in ins]
+    out = sum(outs)
+    return out
+
+  x = numpy.ones((n_batch, n_time, n_in * n_steps)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_in * n_steps), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
