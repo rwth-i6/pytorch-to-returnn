@@ -70,8 +70,8 @@ class CallEntry:
       self.outputs_flat = entry_outputs
       self.outputs = nest.pack_sequence_as(structure=outputs, flat_sequence=entry_outputs)
       for x in entry_outputs:
-        x.output_from_calls.append(self)
-        if self.module:
+        if self not in x.output_from_calls:
+          x.output_from_calls.append(self)
           x.output_from_modules.append(self.module)
       if entry_outputs:
         if self.namespace not in entry_outputs[0].names:
@@ -140,6 +140,7 @@ class CallEntry:
       assert isinstance(res_entry, _tensor.TensorEntry)
       res_entry.returnn_data = layer.output
       self.namespace.assign_tensor(res_entry)
+      res_entry.output_from_calls.append(self)  # do now, in case it gets lost after make_structured_returnn_output
 
       res = module.make_structured_returnn_output(res)
 

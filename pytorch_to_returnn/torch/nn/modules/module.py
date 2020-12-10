@@ -543,7 +543,7 @@ class Module:
             t.validated_to_torch_tf_sizes_feed_dict[size] = numpy.array([size_] * batch_dim, dtype=numpy.int32)
           t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
         else:
-          assert len(t.output_from_calls) == 1
+          assert len(t.output_from_calls) >= 1
           call_ = t.output_from_calls[0]
           queue_ += call_.inputs_flat
           continue
