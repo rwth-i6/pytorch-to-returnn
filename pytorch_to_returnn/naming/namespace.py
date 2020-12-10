@@ -237,14 +237,15 @@ class RegisteredName:
     tensor.returnn_data = copy_call.returnn_layer.output
     return child
 
-  def name_for_tensor(self, tensor: _tensor.TensorEntry) -> Tuple[str, RegisteredName]:
+  def name_in_ctx(self, possible_sub_names: List[RegisteredName],
+                  _src_tensor: Optional[_tensor.TensorEntry] = None) -> Tuple[str, RegisteredName]:
     assert self.is_subnetwork()
     # First try to find in our direct namespace.
     # Only if that fails, search in potential sub namespaces.
     parent_idx = 0
     while True:
       parent_indices = []
-      for name_ in tensor.names:
+      for name_ in possible_sub_names:
         parent_hierarchy = name_.get_parents_hierarchy()
         if self not in parent_hierarchy:
           continue
@@ -257,9 +258,14 @@ class RegisteredName:
         parent_indices.append(parent_hierarchy.index(self))
       if not parent_indices:
         # If you get here, check the logic in Module.__call__, Naming.push_module_call.
-        raise KeyError(f"namespace {self!r}: tensor {tensor!r} not found")
+        raise KeyError(f"namespace {self!r}: {_src_tensor or possible_sub_names!r} not found")
       assert parent_idx == 0  # should not get here twice
       parent_idx = min(parent_indices)
+
+  def name_for_tensor(self, tensor: _tensor.TensorEntry) -> Tuple[str, RegisteredName]:
+    assert self.is_subnetwork()
+    assert tensor.names
+    return self.name_in_ctx(possible_sub_names=tensor.names, _src_tensor=tensor)
 
   def find_name_for_module(self, module: _module.ModuleEntry) -> Optional[str]:
     assert self.is_subnetwork()

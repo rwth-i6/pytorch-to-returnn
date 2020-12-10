@@ -376,6 +376,17 @@ class Module:
     for elem in gen:
       yield elem
 
+  def buffers(self, recurse: bool = True) -> Iterator[Tensor]:
+    for name, buf in self.named_buffers(recurse=recurse):
+      yield buf
+
+  def named_buffers(self, prefix: str = '', recurse: bool = True) -> Iterator[Tuple[str, Tensor]]:
+    gen = self._named_members(
+      lambda module: module._buffers.items(),
+      prefix=prefix, recurse=recurse)
+    for elem in gen:
+      yield elem
+
   def eval(self):
     return self  # ignore
 
