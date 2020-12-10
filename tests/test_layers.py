@@ -285,7 +285,7 @@ def test_batch_norm_running_stats():
     model = torch.nn.BatchNorm1d(n_in)
     out = model(inputs)
     if isinstance(model, ModuleTorch):
-      mean_torch = model.running_mean.detach().cpu().numpy()
+      mean_torch = model.running_mean.detach().cpu().numpy().copy()
     elif isinstance(model, ModuleReturnn):
       naming = Naming.get_instance()
       if naming.import_params_from_torch_namespace:  # only then we have the params
@@ -301,14 +301,17 @@ def test_batch_norm_running_stats():
   x = numpy.ones((n_batch, n_in, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x, train=True)
   assert mean_returnn is not None and mean_torch is not None
-  numpy.testing.assert_allclose(mean_returnn, mean_torch)
+  print(mean_torch)
+  numpy.testing.assert_allclose(mean_torch[0], 0.1, rtol=0, atol=1e-5)  # default momentum 0.1
+  numpy.testing.assert_allclose(mean_returnn, mean_torch, rtol=0, atol=1e-5)
 
   mean_returnn = mean_torch = None
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x, train=True)
   assert mean_returnn is not None and mean_torch is not None
-  numpy.testing.assert_allclose(mean_returnn, mean_torch)
+  print(mean_torch)
+  numpy.testing.assert_allclose(mean_returnn, mean_torch, rtol=0, atol=1e-5)
 
 
 def test_unsqueeze():
