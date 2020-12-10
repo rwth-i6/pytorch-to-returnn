@@ -581,7 +581,7 @@ class Module:
       **naming.validate_allclose_kwargs)
 
   @staticmethod
-  def check_call_returnn_outputs_to_prev_torch(call: CallEntry):
+  def check_call_returnn_outputs_to_prev_torch(call: CallEntry, *, update_ops: List[tf.Operation]):
     naming = Naming.get_instance()
     assert naming.wrap_to_returnn_enabled and naming.import_params_from_torch_namespace and call.returnn_layer
     torch_naming = naming.import_params_from_torch_namespace
@@ -612,8 +612,8 @@ class Module:
     for i, x in enumerate(call.outputs_flat):
       idx_repr = f" {i + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""
       print(f"**** validate: add call {call} output{idx_repr} tensor {x}")
-    out = session.run(
-      [(x.returnn_data.placeholder, x.returnn_data.size_placeholder) for x in call.outputs_flat],
+    out, _ = session.run(
+      ([(x.returnn_data.placeholder, x.returnn_data.size_placeholder) for x in call.outputs_flat], update_ops),
       feed_dict=feed_dict)
     for out_idx, returnn_output_tensor_entry in enumerate(call.outputs_flat):
       idx_repr = f" {out_idx + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""

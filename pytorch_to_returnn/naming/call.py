@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 from typing import Optional, List, Tuple, Union, Any, Dict
+import tensorflow as tf
 from tensorflow.python.util import nest
 from returnn.tf.layers.basic import LayerBase
 from . import _types
@@ -121,8 +122,14 @@ class CallEntry:
       print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
 
       # Now the main construction of the layer itself.
+      # Collect also potential new TF update ops (e.g. running statistics).
+      prev_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
       with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
         layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      new_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+      assert len(prev_update_ops) <= len(new_update_ops)
+      assert all(a is b for (a, b) in zip(prev_update_ops, new_update_ops))
+      new_update_ops = new_update_ops[len(prev_update_ops):]
 
       # Update params in parents.
       parent_layer = layer.network.parent_layer
@@ -167,7 +174,7 @@ class CallEntry:
             print(
               f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
               f"check RETURNN inputs/outputs given Torch inputs/outputs ...")
-            module.check_call_returnn_outputs_to_prev_torch(self)
+            module.check_call_returnn_outputs_to_prev_torch(self, update_ops=new_update_ops)
 
     return res
 
