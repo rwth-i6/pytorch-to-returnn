@@ -92,6 +92,49 @@ def test_custom_layer_norm():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_naming_problem():
+  N, F, T = 3, 5, 11
+
+  def model_func(wrapped_import, inputs):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    class ConvFeatureExtractionModel(torch.nn.Module):
+      def __init__(self):
+        super(ConvFeatureExtractionModel, self).__init__()
+        self.conv_layers = torch.nn.ModuleList()
+        in_d = F
+        conv_layers = [(7, 3), (7, 3)]
+        for i, (dim, k) in enumerate(conv_layers):
+          self.conv_layers.append(
+            torch.nn.Sequential(
+              torch.nn.Conv1d(in_d, dim, k),
+              torch.nn.GELU()))
+          in_d = dim
+
+      def forward(self, x):
+        for conv in self.conv_layers:
+          x = conv(x)
+        return x
+
+    class MainModel(torch.nn.Module):
+      def __init__(self):
+        super(MainModel, self).__init__()
+        self.feature_extractor = ConvFeatureExtractionModel()
+
+      def forward(self, x):
+        return self.feature_extractor(x)
+
+    model = MainModel()
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (N, F, T)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
