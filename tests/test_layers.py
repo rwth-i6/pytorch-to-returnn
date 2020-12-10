@@ -495,6 +495,33 @@ def test_multiple_outputs():
     inputs_data_kwargs={"shape": (None, n_in), "batch_dim_axis": 1})
 
 
+def test_gated_linear_unit_via_chunk():
+  n_in, n_out = 12, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class GLU(torch.nn.Module):
+      def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+      def forward(self, x):
+        out, gate = x.chunk(2, dim=self.dim)
+        return out * gate.sigmoid()
+
+    model = GLU(dim=1)
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
