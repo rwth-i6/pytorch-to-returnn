@@ -93,7 +93,7 @@ import numpy
 
 def pprint(o: Any, *, file=sys.stdout,
            prefix="", postfix="",
-           line_prefix="", line_postfix="\n") -> None:
+           line_prefix="", line_postfix="\n", numpy_threshold_print_all=10) -> None:
   if "\n" in line_postfix and _type_simplicity_score(o) <= _type_simplicity_limit:
     prefix = f"{line_prefix}{prefix}"
     line_prefix = ""
@@ -166,11 +166,18 @@ def pprint(o: Any, *, file=sys.stdout,
     return
 
   if isinstance(o, numpy.ndarray):
-    _sub_pprint(
-      o.tolist(),
-      prefix=f"{prefix}numpy.array(",
-      postfix=f", dtype=numpy.{o.dtype}){postfix}",
-      inc_indent=False)
+    if o.size <= numpy_threshold_print_all:
+      _sub_pprint(
+        o.tolist(),
+        prefix=f"{prefix}numpy.array(",
+        postfix=f", dtype=numpy.{o.dtype}){postfix}",
+        inc_indent=False)
+    else:
+      _sub_pprint(
+        "[...]",
+        prefix=f"{prefix}numpy.array(",
+        postfix=f", dtype=numpy.{o.dtype}) of shape {o.shape}{postfix}",
+        inc_indent=False)
     return
 
   # fallback

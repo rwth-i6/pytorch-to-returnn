@@ -9,6 +9,7 @@ from . import module as _module
 from . import naming as _naming
 from . import tensor as _tensor
 from . import namespace as _namespace
+from ..pprint import pprint
 
 
 class CallEntry:
@@ -120,7 +121,7 @@ class CallEntry:
           call0 = self.module.calls[0]
           prev_call_name, _ = parent_namespace.name_in_ctx([call0.namespace])
           layer_dict["reuse_params"] = prev_call_name
-      print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
+      pprint(layer_dict, prefix=f"*** {returnn_net.name}/{layer_name!r} layer dict: ")
 
       # Now the main construction of the layer itself.
       # Collect also potential new TF update ops (e.g. running statistics).
