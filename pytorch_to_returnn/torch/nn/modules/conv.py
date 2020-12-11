@@ -113,7 +113,8 @@ class _ConvNd(Module):
       axes = list(range(values.ndim))
       values = values.transpose(*(axes[2:] + [axes[1], axes[0]]))
       layer.params["W"].load(values, session=session)
-    layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
+    if self.bias is not None:
+      layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
 
 class Conv1d(_ConvNd):
