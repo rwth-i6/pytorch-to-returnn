@@ -430,7 +430,7 @@ class Naming:
           assert possible_modules, f"{potential_modules} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}"
           potential_modules = [self.modules[getattr(m.module, part_name)] for m in possible_modules]
           potential_namespaces = []
-          for m in possible_modules:
+          for m in potential_modules:
             for name_ in m.names:
               if name_ not in potential_namespaces:
                 potential_namespaces.append(name_)

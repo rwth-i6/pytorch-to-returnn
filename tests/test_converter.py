@@ -101,6 +101,10 @@ def test_naming_problem():
     else:
       import torch
 
+    class Activation(torch.nn.Module):
+      def forward(self, x):
+        return torch.nn.GELU()(x)
+
     class ConvFeatureExtractionModel(torch.nn.Module):
       def __init__(self):
         super(ConvFeatureExtractionModel, self).__init__()
@@ -111,7 +115,7 @@ def test_naming_problem():
           self.conv_layers.append(
             torch.nn.Sequential(
               torch.nn.Conv1d(in_d, dim, k),
-              torch.nn.GELU()))
+              Activation()))
           in_d = dim
 
       def forward(self, x):
