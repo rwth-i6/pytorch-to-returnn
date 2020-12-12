@@ -1,5 +1,12 @@
 /.idea
 __pycache__
+*.pyc
 
 # You might add a symlink. Or alternatively install it.
 /returnn
+
+# via setuptools (setup.py)
+/MANIFEST
+/build
+/dist
+/_setup_info_generated.py
