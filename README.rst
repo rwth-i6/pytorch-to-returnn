@@ -3,9 +3,18 @@ runnable within `RETURNN <https://github.com/rwth-i6/returnn>`__
 (on TensorFlow).
 This provides some wrappers (and maybe some magic) to do that.
 
+Installation
+============
+
+This package is `on PyPI <https://pypi.org/project/pytorch-to-returnn/>`__.
+
+.. code-block::
+
+    pip install pytorch-to-returnn
+
 
 ``torch`` drop-in replacement for RETURNN
-*****************************************
+=========================================
 
 The idea:
 
@@ -16,7 +25,7 @@ The idea:
     class Model(torch.nn.Module):
      ...
 
-Would be changed to:
+Can be changed to:
 
 .. code-block:: python
 
@@ -91,7 +100,7 @@ Somewhat related is also the ``torch.fx`` module.
 
 
 Direct use in RETURNN
-*********************
+=====================
 
 A RETURNN config could be written in this way.
 
@@ -134,7 +143,7 @@ Or directly using a PyTorch model as-is:
 
 
 Model converter
-***************
+===============
 
 For the process of converting a model from PyTorch to RETURNN,
 including a PyTorch model checkpoint,
@@ -187,7 +196,7 @@ and do verification on several steps of all the outputs
 
 
 Import wrapper
-**************
+==============
 
 We also support to transform external PyTorch code
 on-the-fly
@@ -238,3 +247,19 @@ Example for `Parallel WaveGAN <https://github.com/kan-bayashi/ParallelWaveGAN>`_
 
 (RETURNN ``Data`` encapsulates a tensor and adds a lot of meta information
 about it and its axes, such as sequence lengths, beam, vocabulary of class indices, etc.)
+
+
+Examples
+========
+
+See `examples <examples>`__.
+
+
+Tests
+=====
+
+See `tests <tests>`__.
+They are automatically run via GitHub Actions for CI.
+
+.. image:: https://github.com/rwth-i6/pytorch-to-returnn/workflows/CI/badge.svg
+    :target: https://github.com/rwth-i6/pytorch-to-returnn/actions
