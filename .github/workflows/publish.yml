@@ -3,16 +3,15 @@ name: Publish
 on:
   workflow_run:
     workflows: ["CI"]
-    branches: [master]
+    branches: [main]
     types:
       - completed
 
 jobs:
   publish:
-    # disabled for now...
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'master' &&
+      github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.event == 'push' &&
       github.repository == 'rwth-i6/pytorch-to-returnn'
     runs-on: ubuntu-latest
