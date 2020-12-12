@@ -7,7 +7,8 @@ from __future__ import print_function
 from pprint import pprint
 import os
 import sys
-
+import subprocess
+from subprocess import Popen, PIPE, CalledProcessError
 
 _my_dir = os.path.dirname(os.path.abspath(__file__))
 # Use realpath to resolve any symlinks. We want the real root-dir, to be able to check the Git revision.
@@ -44,13 +45,82 @@ def parse_pkg_info(fn):
   return res
 
 
+def sys_exec_out(*args, **kwargs):
+  """
+  :param str args: for subprocess.Popen
+  :param kwargs: for subprocess.Popen
+  :return: stdout as str (assumes utf8)
+  :rtype: str
+  """
+  kwargs.setdefault("shell", False)
+  p = Popen(args, stdin=PIPE, stdout=PIPE, **kwargs)
+  out, _ = p.communicate()
+  if p.returncode != 0:
+    raise CalledProcessError(p.returncode, args)
+  if isinstance(out, bytes):
+    out = out.decode("utf8")
+  return out
+
+
+def sys_exec_ret_code(*args, **kwargs):
+  """
+  :param str args: for subprocess.call
+  :param kwargs: for subprocess.call
+  :return: return code
+  :rtype: int
+  """
+  res = subprocess.call(args, shell=False, **kwargs)
+  valid = kwargs.get("valid", (0, 1))
+  if valid is not None:
+    if res not in valid:
+      raise CalledProcessError(res, args)
+  return res
+
+
+def git_commit_rev(commit="HEAD", git_dir="."):
+  """
+  :param str commit:
+  :param str git_dir:
+  :rtype: str
+  """
+  if commit is None:
+    commit = "HEAD"
+  return sys_exec_out("git", "rev-parse", "--short", commit, cwd=git_dir).strip()
+
+
+def git_is_dirty(git_dir="."):
+  """
+  :param str git_dir:
+  :rtype: bool
+  """
+  r = sys_exec_ret_code("git", "diff", "--no-ext-diff", "--quiet", "--exit-code", cwd=git_dir)
+  if r == 0:
+    return False
+  if r == 1:
+    return True
+  assert False, "bad return %i" % r
+
+
+def git_commit_date(commit="HEAD", git_dir="."):
+  """
+  :param str commit:
+  :param str git_dir:
+  :rtype: str
+  """
+  return (
+    sys_exec_out("git", "show", "-s", "--format=%ci", commit, cwd=git_dir)
+    .strip()[:-6]
+    .replace(":", "")
+    .replace("-", "")
+    .replace(" ", "."))
+
+
 def git_head_version(git_dir=_root_dir, long=False):
   """
   :param str git_dir:
   :param bool long: see :func:`get_version_str`
   :rtype: str
   """
-  from returnn.util.basic import git_commit_date, git_commit_rev, git_is_dirty
   commit_date = git_commit_date(git_dir=git_dir)  # like "20190202.154527"
   version = "1.%s" % commit_date  # distutils.version.StrictVersion compatible
   if long:
@@ -128,4 +198,4 @@ def get_version_str(verbose=False, fallback=None, long=False):
     if long:
       assert "+" in fallback
     return fallback
-  raise Exception("Cannot get RETURNN version.")
+  raise Exception("Cannot get PyTorch-to-RETURNN version.")
