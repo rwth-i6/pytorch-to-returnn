@@ -10,3 +10,4 @@ __pycache__
 /build
 /dist
 /_setup_info_generated.py
+*.egg-info
