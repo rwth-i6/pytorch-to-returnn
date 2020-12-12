@@ -1,0 +1,30 @@
+# https://packaging.python.org/guides/using-manifest-in/
+
+include MANIFEST.in
+include _setup_info_generated.py
+
+# include LICENSE
+# include CODEOWNERS
+
+include .editorconfig
+include .gitignore
+
+include *.py
+include *.rst
+include *.md
+include *.txt
+graft pytorch_to_returnn
+graft tests
+graft examples
+
+# Prune data / external links.
+prune examples/data
+prune examples/parallel_wavegan/data
+prune examples/parallel_wavegan/mb_melgan_models
+prune examples/parallel_wavegan/returnn
+prune examples/parallel_wavegan/returnn_models
+prune examples/word_language_model/data
+
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude .history*
