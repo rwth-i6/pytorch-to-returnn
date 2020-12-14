@@ -344,3 +344,16 @@ def norm(input: Tensor,
 
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
   return modules.Norm(p=pow, axes=[i for i in range(v.dim()) if i != dim], keepdims=True)(v)
+
+
+def group_norm(input, num_groups, weight=None, bias=None, eps=1e-5) -> Tensor:
+  if weight is None:
+    assert bias is None
+    module = modules.GroupNorm(num_groups=num_groups, num_channels=0, eps=eps, affine=False)
+  else:
+    assert bias is not None
+    assert weight.shape == bias.shape
+    module = modules.GroupNorm(num_groups=num_groups, num_channels=weight.shape[0], eps=eps)
+    module.register_parameter("weight", weight)
+    module.register_parameter("bias", bias)
+  return module.as_returnn_torch_functional()(input)
