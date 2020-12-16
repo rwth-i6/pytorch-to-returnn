@@ -138,11 +138,13 @@ class Naming:
       if names:
         continue
       if x.is_param:
-        assert x.returnn_data
-        assert x.returnn_data.placeholder is None
+        # This should be via the `Parameter` class. We don't really enforce this here, though.
+        # Earlier, we also asserted that returnn_data must be set and its placeholder is not set yet.
+        # We don't enforce this anymore. If the variable was created before in the temp namespace,
+        # and now accessed in the real namespace, we want to create it again.
         from pytorch_to_returnn.torch.nn.modules import Variable
         param_name = x.get_canonical_name()
-        if x.returnn_data.name == "_unnamed_param":
+        if x.returnn_data and x.returnn_data.name == "_unnamed_param":
           x.returnn_data.name = f"param:{param_name}"
         parent_mod = x.get_canonical_parent_module()
         prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
@@ -151,9 +153,9 @@ class Naming:
         res = mod()
         res_tensor = self.tensors[res]
         assert isinstance(res_tensor, _tensor.TensorEntry)
-        assert len(res_tensor.names) == 1
         assert res_tensor.returnn_data.placeholder is not None
-        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+        if x.returnn_data:
+          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
       elif not x.output_from_calls or x.is_const:
         # Assume this is a constant.
         x.is_const = True
