@@ -1,7 +1,8 @@
 
 from __future__ import annotations
 import numpy
-from returnn.tf.layers.base import LayerBase
+import tensorflow as tf
+from returnn.tf.layers.basic import LayerBase, VariableLayer
 from typing import Tuple, List, Dict, Optional
 from ...tensor import Tensor
 from ..parameter import Parameter
@@ -21,6 +22,11 @@ class Variable(Module):
     return {"class": "variable", "add_batch_axis": False, "shape": self.param.shape}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    assert isinstance(layer, VariableLayer)
+    assert len(layer.params) == 1
+    tf_param = list(layer.params.values())[0]
+    session = tf.compat.v1.get_default_session()
+    tf_param.load(self.param.detach().numpy(), session=session)
     return self.param
 
 
