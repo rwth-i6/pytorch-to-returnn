@@ -56,6 +56,34 @@ def test_mnist():
     model_func, inputs=x, inputs_data_kwargs={"shape": (C, H, W)})
 
 
+def test_weight_norm():
+  n_batch, n_time = 3, 7
+  n_in, n_out = 11, 13
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class OuterModel(torch.nn.Module):
+      def __init__(self):
+        super(OuterModel, self).__init__()
+        self.model = torch.nn.Conv1d(n_in, n_out, (1,))
+        torch.nn.utils.weight_norm(self.model)
+
+      def forward(self, x):
+        return self.model(x)
+
+    model = OuterModel()
+    return model(inputs)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+  # TODO actually also check that weight norm is used in RETURNN...
+
+
 def test_custom_layer_norm():
   N, F, T = 64, 11, 28
 
