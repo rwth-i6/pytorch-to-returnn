@@ -40,7 +40,11 @@ class CallEntry:
     self.child_calls = []
 
   def __repr__(self):
-    return f"<{self.__class__.__name__} {self.module!r} (depth {self.level})>"
+    return (
+      f"<{self.__class__.__name__}"
+      f" {self.namespace.get_absolute_name() if self.namespace else '?'!r}"
+      f" {self.module!r}"
+      f" (depth {self.level})>")
 
   def get_root_call(self) -> CallEntry:
     entry = self
