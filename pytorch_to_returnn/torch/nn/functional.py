@@ -329,6 +329,10 @@ def logsigmoid(input: Tensor):
   return modules.LogSigmoid().as_returnn_torch_functional()(input)
 
 
+def pow(input: Tensor, exponent: float):
+  return modules.Power(exponent=exponent).as_returnn_torch_functional()(input)
+
+
 def normalize(input: Tensor, p=2, dim=1, eps=1e-12) -> Tensor:
   norm_ = modules.Norm(p=p, axes=[dim], keepdims=True)(input)
   norm_f = modules.Reciprocal(eps=eps)(norm_)
