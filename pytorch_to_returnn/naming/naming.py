@@ -388,7 +388,10 @@ class Naming:
       visited.add(mod_entry)
       if mod_entry in self.root_namespace.modules:
         break
-      if mod_entry.parent_owning_modules:
+      # Use get_module_abs_name to check whether we have a unique name directly up to the root namespace.
+      # If not, directly go to the fallback below via the call name.
+      if self.get_module_abs_name(mod_entry.module) is not None:
+        assert mod_entry.parent_owning_modules
         mod_entry, name = mod_entry.parent_owning_modules[0]
         parts.append(name)
         continue
