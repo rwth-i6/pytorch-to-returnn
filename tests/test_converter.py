@@ -166,6 +166,37 @@ def test_naming_inner_func():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_naming_inner_func_functional_with_buffer():
+  n_batch, n_time = 3, 7
+  n_in, n_out = 11, 13
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+
+    class OuterModel(torch.nn.Module):
+      def __init__(self):
+        super(OuterModel, self).__init__()
+        h_synthesis = numpy.ones((n_in, 3))
+        synthesis_filter = torch.from_numpy(h_synthesis).float().unsqueeze(0)
+        self.register_buffer("synthesis_filter", synthesis_filter)
+
+      def some_func(self, x):  # intentionally this is not `forward`
+        return F.conv1d(x, self.synthesis_filter)
+
+    model = OuterModel()
+    out = model.some_func(inputs)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):

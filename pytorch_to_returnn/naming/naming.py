@@ -156,6 +156,7 @@ class Naming:
         x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
       elif not x.output_from_calls or x.is_const:
         # Assume this is a constant.
+        x.is_const = True
         const_name = x.get_canonical_name(fallback="unnamed_const")
         tensor = x.tensor()
         if not x.returnn_data:

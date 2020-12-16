@@ -103,6 +103,8 @@ class RegisteredName:
     res = []
     x = self
     while x.parent:
+      if x.name.startswith("."):  # stop at hidden
+        break
       res.append(x.parent)
       x = x.parent
     return res
