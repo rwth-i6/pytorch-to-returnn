@@ -40,8 +40,15 @@ class WeightNorm(object):
     module.register_parameter(name + '_v', Parameter(weight.data))
     setattr(module, name, fn.compute_weight(module))
 
-    # recompute weight before every forward()
-    module.register_forward_pre_hook(fn)
+    # The original logic here was:
+    #   # recompute weight before every forward()
+    #   module.register_forward_pre_hook(fn)
+    # However, we don't use TF in eager mode,
+    # i.e. there is no need to recalculate it dynamically.
+
+    # TODO we should set some flag on the resulting tensor from compute_weight,
+    #  or maybe the owning module,
+    #  such that we have a chance to tell RETURNN to use weight norm on the corresponding layer.
 
     return fn
 
