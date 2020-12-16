@@ -4,7 +4,7 @@ import math
 import numbers
 from typing import Dict, Any, Union, List
 import tensorflow as tf
-from returnn.tf.layers.basic import LayerNormLayer, NormLayer, SubnetworkLayer
+from returnn.tf.layers.basic import LayerNormLayer, NormLayer
 from .module import Module
 from ..parameter import Parameter
 from ...tensor import Tensor, Size
@@ -62,25 +62,19 @@ class GroupNorm(Module):
     self.eps = eps
     self.affine = affine
     if self.affine:
-        self.weight = Parameter(Tensor(num_channels))
-        self.bias = Parameter(Tensor(num_channels))
+      self.weight = Parameter(Tensor(num_channels))
+      self.bias = Parameter(Tensor(num_channels))
     else:
-        self.register_parameter('weight', None)
-        self.register_parameter('bias', None)
+      self.register_parameter('weight', None)
+      self.register_parameter('bias', None)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
-      if self.affine:
-          init.ones_(self.weight)
-          init.zeros_(self.bias)
-
-  def extra_repr(self) -> str:
-      return '{num_groups}, {num_channels}, eps={eps}, affine={affine}'.format(**self.__dict__)
+    if self.affine:
+      init.ones_(self.weight)
+      init.zeros_(self.bias)
 
   def import_params_torch_to_returnn(self, *, layer: NormLayer, torch_module: GroupNorm):
-    if isinstance(layer, SubnetworkLayer):
-      assert "GroupNorm" in layer.subnetwork.layers
-      layer = layer.subnetwork.layers["GroupNorm"]
     assert isinstance(layer, NormLayer)
     session = tf.compat.v1.get_default_session()
     layer.params["scale"].load(torch_module.weight.detach().numpy(), session=session)

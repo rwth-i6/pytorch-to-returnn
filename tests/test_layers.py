@@ -316,7 +316,7 @@ def test_batch_norm_running_stats():
 
 def test_group_norm():
   n_batch, n_time = 4, 20
-  for num_groups, num_channels in [(1, 512), (512, 512)]:
+  for num_groups, num_channels in [(1, 5), (5, 5)]:
 
     def model_func(wrapped_import, inputs: torch.Tensor):
       if typing.TYPE_CHECKING or not wrapped_import:
