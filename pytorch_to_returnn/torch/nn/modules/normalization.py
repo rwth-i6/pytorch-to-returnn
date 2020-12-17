@@ -4,7 +4,7 @@ import math
 import numbers
 from typing import Dict, Any, Union, List
 import tensorflow as tf
-from returnn.tf.layers.basic import LayerNormLayer
+from returnn.tf.layers.basic import LayerNormLayer, NormLayer
 from .module import Module
 from ..parameter import Parameter
 from ...tensor import Tensor, Size
@@ -51,6 +51,46 @@ class LayerNorm(Module):
     session = tf.compat.v1.get_default_session()
     layer.params["scale"].load(torch_module.weight.detach().numpy(), session=session)
     layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
+
+
+class GroupNorm(Module):
+  def __init__(self, num_groups: int, num_channels: int, eps: float = 1e-5, affine: bool = True) -> None:
+    super(GroupNorm, self).__init__()
+    assert num_groups == 1 or num_groups == num_channels, "Not implemented otherwise"
+    self.num_groups = num_groups
+    self.num_channels = num_channels
+    self.eps = eps
+    self.affine = affine
+    if self.affine:
+      self.weight = Parameter(Tensor(num_channels))
+      self.bias = Parameter(Tensor(num_channels))
+    else:
+      self.register_parameter('weight', None)
+      self.register_parameter('bias', None)
+    self.reset_parameters()
+
+  def reset_parameters(self) -> None:
+    if self.affine:
+      init.ones_(self.weight)
+      init.zeros_(self.bias)
+
+  def import_params_torch_to_returnn(self, *, layer: NormLayer, torch_module: GroupNorm):
+    assert isinstance(layer, NormLayer)
+    if self.affine:
+      session = tf.compat.v1.get_default_session()
+      layer.params["scale"].load(torch_module.weight.detach().numpy(), session=session)
+      layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
+
+  def create_returnn_layer_dict(self, input: Tensor):
+    if self.num_groups == 1:
+      axes = "TF"
+    elif self.num_groups == self.num_channels:
+      axes = "T"
+    else:
+      raise NotImplementedError(f"num groups {self.num_groups}, num channels {self.num_channels}")
+    return {
+      "class": "norm", "axes": axes, "epsilon": self.eps, "scale": self.affine, "bias": self.affine,
+      "from": self._get_input_layer_name(input)}
 
 
 __all__ = [

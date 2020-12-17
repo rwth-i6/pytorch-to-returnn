@@ -314,6 +314,26 @@ def test_batch_norm_running_stats():
   numpy.testing.assert_allclose(mean_returnn, mean_torch, rtol=0, atol=1e-5)
 
 
+def test_group_norm():
+  n_batch, n_time = 4, 20
+  for num_groups, num_channels in [(1, 5), (5, 5)]:
+
+    def model_func(wrapped_import, inputs: torch.Tensor):
+      if typing.TYPE_CHECKING or not wrapped_import:
+        import torch
+      else:
+        torch = wrapped_import("torch")
+
+      model = torch.nn.GroupNorm(num_groups, num_channels)
+      out = model(inputs)
+      return out
+
+    print(f"test for num_groups={num_groups}, num_channels={num_channels}")
+    rnd = numpy.random.RandomState(42)
+    x = rnd.normal(0., 1., (n_batch, num_channels, n_time)).astype("float32")
+    verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_unsqueeze():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
