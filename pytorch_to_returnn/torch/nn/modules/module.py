@@ -397,7 +397,6 @@ class Module:
     return self  # ignore
 
   def __call__(self, *input: Tensor, **kwargs):
-    assert not kwargs  # not implemented yet
     naming = Naming.get_instance()
     with naming.push_module_context(self):
       assert naming.wrap_to_returnn_enabled
@@ -411,7 +410,7 @@ class Module:
         res = call_entry.apply_call()
       return res
 
-  def forward(self, *inputs: Tensor) -> Tensor:
+  def forward(self, *inputs: Tensor, **kwargs) -> Tensor:
     """
     Note:
 
