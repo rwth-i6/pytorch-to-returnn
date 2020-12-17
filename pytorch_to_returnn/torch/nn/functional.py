@@ -348,7 +348,7 @@ def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
 
 def group_norm(input: Tensor, num_groups: int, weight: Optional[Tensor] = None, bias: Optional[Tensor] = None,
                eps: float = 1e-5) -> Tensor:
-  module = modules.GroupNorm(num_groups=num_groups, num_channels=0, eps=eps, affine=False)
+  module = modules.GroupNorm(num_groups=num_groups, num_channels=input.shape[1], eps=eps, affine=False)
   out = module.as_returnn_torch_functional()(input)
   if weight is not None:
     assert (out.shape[1],) == weight.shape, "data should be of shape (B, F, *) and weights should be of shape (F,)"
