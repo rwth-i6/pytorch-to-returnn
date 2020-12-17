@@ -509,7 +509,8 @@ def test_forward_with_kwargs():
         super(MyModel, self).__init__()
         self.bias = bias
 
-      def forward(self, x, add_bias=False):
+      def forward(self, x, *, add_bias=None):
+        assert isinstance(add_bias, bool)
         if add_bias:
           x += self.bias
         return x
