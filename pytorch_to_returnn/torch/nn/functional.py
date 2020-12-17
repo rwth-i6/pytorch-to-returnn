@@ -350,10 +350,10 @@ def group_norm(input: Tensor, num_groups: int, weight: Optional[Tensor] = None, 
                eps: float = 1e-5) -> Tensor:
   module = modules.GroupNorm(num_groups=num_groups, num_channels=0, eps=eps, affine=False)
   out = module.as_returnn_torch_functional()(input)
-  assert out.shape[1] == weight.shape[0], "data should be of shape (B, F, *) and weights should be of shape (F,)"
-  assert out.shape[1] == bias.shape[0], "data should be of shape (B, F, *) and bias should be of shape (F,)"
   if weight is not None:
+    assert (out.shape[1],) == weight.shape, "data should be of shape (B, F, *) and weights should be of shape (F,)"
     out *= weight.view(1, -1, 1)
   if bias is not None:
+    assert (out.shape[1],) == bias.shape, "data should be of shape (B, F, *) and bias should be of shape (F,)"
     out += bias.view(1, -1, 1)
   return out
