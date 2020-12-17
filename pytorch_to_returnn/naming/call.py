@@ -98,7 +98,7 @@ class CallEntry:
       for x in inputs_flat:
         if isinstance(x, Tensor):
           self.namespace.register_input(tensor=naming.tensors[x])
-      res = module.forward(*inputs_args)
+      res = module.forward(*inputs_args, **inputs_kwargs)
       res_flat = nest.flatten(res)
       assert len(res_flat) >= 1
       if self.namespace.returnn_ctx.sub_net_layer:
