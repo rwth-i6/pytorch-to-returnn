@@ -121,6 +121,52 @@ class Naming:
     assert self.module_context_stack[-1] is entry
     self.module_context_stack.pop(-1)
 
+  def prepare_tensor_as_input(self, x: _tensor.TensorEntry, *, parent_namespace: _namespace.RegisteredName):
+    names = [name_ for name_ in x.names if parent_namespace in name_.get_parents_hierarchy()]
+    if names:
+      return  # ok
+    if x.is_param:
+      # This should be via the `Parameter` class. We don't really enforce this here, though.
+      # Earlier, we also asserted that returnn_data must be set and its placeholder is not set yet.
+      # We don't enforce this anymore. If the variable was created before in the temp namespace,
+      # and now accessed in the real namespace, we want to create it again.
+      from pytorch_to_returnn.torch.nn.modules import Variable
+      param_name = x.get_canonical_name()
+      if x.returnn_data and x.returnn_data.name == "_unnamed_param":
+        x.returnn_data.name = f"param:{param_name}"
+      parent_mod = x.get_canonical_parent_module()
+      prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
+      mod = Variable(param=x.tensor())
+      self.modules[mod].canonical_name = prefix + param_name
+      res = mod()
+      res_tensor = self.tensors[res]
+      assert isinstance(res_tensor, _tensor.TensorEntry)
+      assert res_tensor.returnn_data.placeholder is not None
+      if x.returnn_data:
+        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+    elif not x.output_from_calls or x.is_const:
+      # Assume this is a constant.
+      x.is_const = True
+      const_name = x.get_canonical_name(fallback="unnamed_const")
+      tensor = x.tensor()
+      if not x.returnn_data:
+        x.returnn_data = Data(
+          name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
+          batch_dim_axis=None, time_dim_axis=None)
+        x.returnn_axis_from_torch_axis = {i: i for i in range(len(tensor.shape))}
+      parent_mod = x.get_canonical_parent_module()
+      prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
+      from pytorch_to_returnn.torch.nn.modules import Constant
+      mod = Constant(value=tensor)
+      self.modules[mod].canonical_name = prefix + const_name
+      res = mod()
+      res_tensor = self.tensors[res]
+      assert isinstance(res_tensor, _tensor.TensorEntry)
+      assert res_tensor.returnn_data.placeholder is not None
+      x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
+    else:
+      raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
+
   def _prepare_module_call_returnn_inputs(self, call: _call.CallEntry):
     """
     It means this module has no forward, i.e. it is wrapped as RETURNN layer.
@@ -131,53 +177,9 @@ class Naming:
       return
     call_parent_namespace = call.namespace.parent or self.root_namespace
     for x in call.inputs_flat:
-      if x is None:
+      if not isinstance(x, _tensor.TensorEntry):
         continue
-      assert isinstance(x, _tensor.TensorEntry)
-      names = [name_ for name_ in x.names if call_parent_namespace in name_.get_parents_hierarchy()]
-      if names:
-        continue
-      if x.is_param:
-        # This should be via the `Parameter` class. We don't really enforce this here, though.
-        # Earlier, we also asserted that returnn_data must be set and its placeholder is not set yet.
-        # We don't enforce this anymore. If the variable was created before in the temp namespace,
-        # and now accessed in the real namespace, we want to create it again.
-        from pytorch_to_returnn.torch.nn.modules import Variable
-        param_name = x.get_canonical_name()
-        if x.returnn_data and x.returnn_data.name == "_unnamed_param":
-          x.returnn_data.name = f"param:{param_name}"
-        parent_mod = x.get_canonical_parent_module()
-        prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-        mod = Variable(param=x.tensor())
-        self.modules[mod].canonical_name = prefix + param_name
-        res = mod()
-        res_tensor = self.tensors[res]
-        assert isinstance(res_tensor, _tensor.TensorEntry)
-        assert res_tensor.returnn_data.placeholder is not None
-        if x.returnn_data:
-          x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-      elif not x.output_from_calls or x.is_const:
-        # Assume this is a constant.
-        x.is_const = True
-        const_name = x.get_canonical_name(fallback="unnamed_const")
-        tensor = x.tensor()
-        if not x.returnn_data:
-          x.returnn_data = Data(
-            name=f"const:{const_name}", shape=tensor.shape, dtype=tensor.dtype.name,
-            batch_dim_axis=None, time_dim_axis=None)
-          x.returnn_axis_from_torch_axis = {i: i for i in range(len(tensor.shape))}
-        parent_mod = x.get_canonical_parent_module()
-        prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-        from pytorch_to_returnn.torch.nn.modules import Constant
-        mod = Constant(value=tensor)
-        self.modules[mod].canonical_name = prefix + const_name
-        res = mod()
-        res_tensor = self.tensors[res]
-        assert isinstance(res_tensor, _tensor.TensorEntry)
-        assert res_tensor.returnn_data.placeholder is not None
-        x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-      else:
-        raise Exception(f"Cannot handle tensor {x}, via {x.output_from_calls} ...")
+      self.prepare_tensor_as_input(x, parent_namespace=call_parent_namespace)
 
   def push_module_call(self, *, module: _types.Module,
                        inputs_args: Tuple[Union[_types.Tensor, Any], ...],
@@ -264,18 +266,42 @@ class Naming:
         module_context_stack=list(self.module_context_stack))
     return self.tensors[tensor]
 
-  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray]
+  def get_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, Any]) -> _tensor.TensorEntry:
+    """
+    Call this when you expect the input to be a tensor.
+    If it is a const Python number (int or so), it would create a corresponding const tensor.
+    """
+    from pytorch_to_returnn.torch import Tensor
+    if isinstance(x, Tensor):
+      return self.tensors[x]  # we expect this to be registered
+    return self.make_const_tensor(x)
+
+  def make_const_tensor(self, x: Union[int, float, numpy.number, numpy.ndarray, Any]) -> _tensor.TensorEntry:
+    from pytorch_to_returnn.torch import from_numpy, Tensor
+    assert isinstance(x, (int, float, bool, numpy.number, numpy.ndarray))
+    x = from_numpy(x)
+    assert isinstance(x, Tensor)
+    self.const_tensor_cache.append(x)
+    return self.tensors[x]
+
+  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, Any]
                    ) -> Optional[_tensor.TensorEntry]:
+    """
+    We have to decide which objects we keep as-is (as constant),
+    and which we convert to a TensorEntry.
+    This is somewhat arbitrary, but should in principle not matter.
+    """
     if x is None:
       return None
+    if isinstance(x, (int, float, bool, numpy.number)):
+      return x  # keep as-is for now. would be handled via `get_tensor` later on
     if not self.wrap_to_returnn_enabled:
       if x in self.tensors:
         return self.tensors[x]
       return None
-    from pytorch_to_returnn.torch import from_numpy, Tensor
-    if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
-      x = from_numpy(x)
-      self.const_tensor_cache.append(x)
+    from pytorch_to_returnn.torch import Tensor
+    if isinstance(x, (numpy.ndarray,)):
+      return self.make_const_tensor(x)
     assert isinstance(x, Tensor)
     return self.tensors[x]
 
