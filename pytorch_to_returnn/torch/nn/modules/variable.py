@@ -57,6 +57,13 @@ class Constant(Module):
       for i in range(1, value.shape[0]):
         numpy.testing.assert_equal(value[0], value[i])
       value = value[0]  # remove batch axis
+    assert isinstance(value, numpy.ndarray)
+    # Simplify representation in these simple cases.
+    if not value.shape:  # scalar
+      if value.dtype == "int32":
+        value = int(value)
+      elif value.dtype == "float32":
+        value = float(value)
     d = {"class": "constant", "value": value}
     if batch_axis is not None:
       d["with_batch_dim"] = True
