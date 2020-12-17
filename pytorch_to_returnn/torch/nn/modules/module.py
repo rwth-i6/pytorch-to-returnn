@@ -750,20 +750,7 @@ class Module:
     # We could also use functions like Data.get_batch_shape_dim_tags, Data.get_common_data,
     # DimensionTag.get_all_dimension_tags, etc.
     # However, this is simpler, and also more consistent with get_returnn_axis_description.
-    def _get_shape_meta(data: Data) -> List[str]:
-      _res = []
-      for i in range(data.batch_ndim):
-        if i == data.batch_dim_axis:
-          _res.append("B")
-        elif i == data.feature_dim_axis:
-          _res.append("F")
-        elif i in data.get_spatial_batch_axes():
-          _res.append(f"spatial:{data.get_spatial_batch_axes().index(i)}")
-        else:
-          raise Exception(f"not expected {data}, axis {i}")
-      return _res
 
-    layer_output_shape_meta = _get_shape_meta(layer.output)  # e.g. [T_out,B,D_out]
     out_returnn_axis_to_torch_axis = {}
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
