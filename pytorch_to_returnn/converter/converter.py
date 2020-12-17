@@ -187,6 +187,7 @@ class Converter:
         in_returnn = torch_returnn.from_numpy(self._inputs_np.copy())
         assert isinstance(in_returnn, torch_returnn.Tensor)
         x = naming.register_input(in_returnn, Data("data", **self._returnn_in_data_dict))
+        print("RETURNN input:", x)
         out_returnn = self._model_func(wrapped_import_torch_returnn, in_returnn)
         assert isinstance(out_returnn, torch_returnn.Tensor)
         out_returnn_ = naming.register_output(out_returnn)
