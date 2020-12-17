@@ -335,28 +335,29 @@ def test_group_norm():
 
 
 def test_fp32_group_norm():
-  n_batch, n_time = 4, 20
+  n_batch, n_time = 3, 17
   for num_groups, num_channels in [(1, 5), (5, 5)]:
 
     def model_func(wrapped_import, inputs: torch.Tensor):
       if typing.TYPE_CHECKING or not wrapped_import:
         import torch
+        import torch.nn.functional as F
       else:
         torch = wrapped_import("torch")
+        F = wrapped_import("torch.nn.functional")
 
-      #copy of Fp32GroupNorm from fairseq
+      # copy of Fp32GroupNorm from fairseq
       class Fp32GroupNorm(torch.nn.GroupNorm):
         def __init__(self, *args, **kwargs):
           super().__init__(*args, **kwargs)
 
         def forward(self, input):
-          output = torch.nn.functional.group_norm(
+          output = F.group_norm(
             input.float(),
             self.num_groups,
             self.weight.float() if self.weight is not None else None,
             self.bias.float() if self.bias is not None else None,
-            self.eps,
-          )
+            self.eps)
           return output.type_as(input)
 
       model = Fp32GroupNorm(num_groups, num_channels)
