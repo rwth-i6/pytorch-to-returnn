@@ -17,16 +17,16 @@ class CallEntry:
   Note that a module can be called multiple times.
   """
   module: _module.ModuleEntry
-  orig_inputs_args: Optional[Tuple[Union[_types.Tensor, Any]]] = None
-  orig_inputs_kwargs: Optional[Dict[str, Tuple[_types.Tensor, Any]]] = None
-  orig_inputs_flat: Optional[List[Tuple[_types.Tensor, Any]]] = None
-  orig_outputs: Optional[Union[_types.Tensor, Tuple[_types.Tensor]]] = None
+  orig_inputs_args: Optional[Tuple[Union[_types.Tensor, Any], ...]] = None
+  orig_inputs_kwargs: Optional[Dict[str, Union[_types.Tensor, Any]]] = None
+  orig_inputs_flat: Optional[List[Union[_types.Tensor, Any]]] = None
+  orig_outputs: Optional[Union[_types.Tensor, Tuple[_types.Tensor, ...], Any]] = None
   orig_outputs_flat: Optional[List[Union[_types.Tensor, Any]]] = None
-  inputs_args: Optional[Tuple[Optional[_tensor.TensorEntry]]] = None
-  inputs_kwargs: Optional[Dict[str, Optional[Tuple[_tensor.TensorEntry, Any]]]] = None
-  inputs_flat: Optional[List[_tensor.TensorEntry]] = None
+  inputs_args: Optional[Tuple[Union[_tensor.TensorEntry, Any], ...]] = None
+  inputs_kwargs: Optional[Dict[str, Union[_tensor.TensorEntry, Any]]] = None
+  inputs_flat: Optional[List[Union[_tensor.TensorEntry, int, float, Any]]] = None
   outputs: Optional[Union[_tensor.TensorEntry, Any]] = None
-  outputs_flat: Optional[List[_tensor.TensorEntry]] = None
+  outputs_flat: Optional[List[Union[_tensor.TensorEntry, Any]]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack
   child_calls: List[CallEntry]
   level: Optional[int] = None
@@ -90,13 +90,14 @@ class CallEntry:
     module = self.module.module
     assert isinstance(module, Module)
     assert self.namespace
-    inputs_flat = [x.tensor() if x else None for x in self.inputs_flat]  # make sure all are tensors
+    inputs_flat = [x.tensor() if isinstance(x, _tensor.TensorEntry) else x for x in self.inputs_flat]
     inputs_args, inputs_kwargs = nest.pack_sequence_as(
       structure=(self.inputs_args, self.inputs_kwargs), flat_sequence=inputs_flat)
 
     if module.has_torch_forward():
       for x in inputs_flat:
-        self.namespace.register_input(tensor=naming.tensors[x])
+        if isinstance(x, Tensor):
+          self.namespace.register_input(tensor=naming.tensors[x])
       res = module.forward(*inputs_args)
       res_flat = nest.flatten(res)
       assert len(res_flat) >= 1

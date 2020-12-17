@@ -513,9 +513,8 @@ class Module:
     while queue:
       queue_ = []
       for t in queue:
-        if t is None:
+        if not isinstance(t, TensorEntry):
           continue
-        assert isinstance(t, TensorEntry)
         if t in visited:
           continue
         visited.add(t)
@@ -601,6 +600,8 @@ class Module:
     feed_dict = {}
     sizes_feed_dict = {}
     for tensor_entry, torch_input in zip(call.inputs_flat, torch_mod_call.orig_inputs_flat):
+      if not isinstance(tensor_entry, TensorEntry):
+        continue
       torch_input_np = torch_input.detach().cpu().numpy()
       Module._check_call_returnn_input_to_prev_torch(
         call=call, tensor=tensor_entry, torch_values=torch_input_np)
@@ -641,8 +642,10 @@ class Module:
           f" (RETURNN<-Torch axis mapping {returnn_output_tensor_entry.returnn_axis_from_torch_axis})",
           f"  Torch output shape: {torch_out_np.shape}"]
         for i, (tensor_entry, torch_input) in enumerate(zip(call.inputs_flat, torch_mod_call.orig_inputs_flat)):
-          assert isinstance(tensor_entry, TensorEntry)
           error_msg_info += [f"input {i + 1}/{len(call.inputs_flat)}:"]
+          if not isinstance(tensor_entry, TensorEntry):
+            error_msg_info += ["  (non tensor)"]
+            continue
           torch_axis_from_returnn_axis = {i: j for (j, i) in tensor_entry.returnn_axis_from_torch_axis.items()}
           torch_input_np_ = torch_input.detach().cpu().numpy()
           assert isinstance(torch_input_np_, numpy.ndarray)
@@ -675,8 +678,10 @@ class Module:
     assert naming.module_call_stack
     top_call_entry = naming.module_call_stack[-1]
     parent_namespace = top_call_entry.namespace.parent
+    x = naming.get_tensor(input)
+    naming.prepare_tensor_as_input(x, parent_namespace=parent_namespace)
     # Note: If name_for_tensor fails, it means the tensor was not registered properly.
-    name, _ = parent_namespace.name_for_tensor(naming.tensors[input])
+    name, _ = parent_namespace.name_for_tensor(x)
     return name
 
   @staticmethod
@@ -708,7 +713,7 @@ class Module:
     is_const = False
     numpy_array = None
     inputs_entries = [
-      naming.tensors[x] if x is not None else None for x in inputs_flat]  # type: List[Optional[TensorEntry]]
+      naming.tensors[x] if isinstance(x, Tensor) else None for x in inputs_flat]  # type: List[Optional[TensorEntry]]
     if all([x.is_const if x else True for x in inputs_entries]):
       # Only have const input.
       # Evaluate layer, because this const might be used in certain operation (e.g. predefined filter for conv).
@@ -766,6 +771,8 @@ class Module:
     batch_size = None
     dyn_size_dim_tag_to_spatial_idx_and_torch_dim = OrderedDict()  # RETURNN dim tag -> in spatial idx, Torch dim
     for input in inputs_flat:
+      if not isinstance(input, Tensor):
+        continue
       if not input.shape:
         continue  # skip scalars
       x = naming.tensors[input]
