@@ -76,9 +76,10 @@ class GroupNorm(Module):
 
   def import_params_torch_to_returnn(self, *, layer: NormLayer, torch_module: GroupNorm):
     assert isinstance(layer, NormLayer)
-    session = tf.compat.v1.get_default_session()
-    layer.params["scale"].load(torch_module.weight.detach().numpy(), session=session)
-    layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
+    if self.affine:
+      session = tf.compat.v1.get_default_session()
+      layer.params["scale"].load(torch_module.weight.detach().numpy(), session=session)
+      layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
   def create_returnn_layer_dict(self, input: Tensor):
     if self.num_groups == 1:
@@ -86,7 +87,7 @@ class GroupNorm(Module):
     elif self.num_groups == self.num_channels:
       axes = "T"
     else:
-      raise NotImplementedError
+      raise NotImplementedError(f"num groups {self.num_groups}, num channels {self.num_channels}")
     return {
       "class": "norm", "axes": axes, "epsilon": self.eps, "scale": self.affine, "bias": self.affine,
       "from": self._get_input_layer_name(input)}
