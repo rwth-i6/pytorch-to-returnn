@@ -132,7 +132,7 @@ class Converter:
     torch.manual_seed(42)
     numpy.random.seed(42)
     with torch.no_grad():
-      out_ref = self._model_func(None, torch.from_numpy(self._inputs_np))
+      out_ref = self._model_func(None, torch.from_numpy(self._inputs_np.copy()))
       assert isinstance(out_ref, torch.Tensor)
       out_ref_np = out_ref.cpu().numpy()
     self._out_ref_np = out_ref_np
@@ -154,7 +154,7 @@ class Converter:
             wrap_to_returnn_enabled=False,
             keep_orig_module_io_tensors=self.verify_individual_model_io) as naming:
         wrapped_torch = wrapped_import_torch_traced("torch")
-        out_wrapped = self._model_func(wrapped_import_torch_traced, wrapped_torch.from_numpy(self._inputs_np))
+        out_wrapped = self._model_func(wrapped_import_torch_traced, wrapped_torch.from_numpy(self._inputs_np.copy()))
         assert isinstance(out_wrapped, WrappedTorchTensor)
         out_wrapped_np = out_wrapped.cpu().numpy()
         print(">>>> Module naming hierarchy:")
@@ -184,7 +184,7 @@ class Converter:
             keep_orig_module_io_tensors=True,  # it's only symbolic anyway in TF
             import_params_from_torch_namespace=self._torch_namespace) as naming:
         assert isinstance(naming, Naming)
-        in_returnn = torch_returnn.from_numpy(self._inputs_np)
+        in_returnn = torch_returnn.from_numpy(self._inputs_np.copy())
         assert isinstance(in_returnn, torch_returnn.Tensor)
         x = naming.register_input(in_returnn, Data("data", **self._returnn_in_data_dict))
         out_returnn = self._model_func(wrapped_import_torch_returnn, in_returnn)
