@@ -358,6 +358,22 @@ def test_unsqueeze2():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_broadcast_with_different_axes_types():
+  n_batch, n_time, n_feature = 3, 7, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    weight = torch.ones(n_feature)
+    return inputs * weight.view(1, -1, 1)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_movedim():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
