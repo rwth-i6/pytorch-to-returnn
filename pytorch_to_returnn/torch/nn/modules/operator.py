@@ -268,29 +268,33 @@ def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
   if len(inputs) <= 1:
     return inputs
   naming = Naming.get_instance()
-  tensors = [naming.tensors[x] for x in inputs]  # type: List[TensorEntry]
-  x0 = tensors[0]
-  num_dims = max(x.returnn_data.batch_ndim for x in tensors)
-  assert all(x.returnn_data.batch_ndim in {0, num_dims} for x in tensors)
-  num_spatial_dims = len(x0.returnn_data.get_spatial_batch_axes())
-  if num_spatial_dims == 0:
+  tensors = [naming.tensors[x] for x in inputs if isinstance(x, Tensor)]  # type: List[TensorEntry]
+  tensors = [x for x in tensors if x.returnn_data.batch_ndim > 0]  # filter out scalars
+  if len(tensors) <= 1:
     return inputs
+  inputs = list(inputs)
+  num_dims = max(x.returnn_data.batch_ndim for x in tensors)
+  assert all(x.returnn_data.batch_ndim == num_dims for x in tensors)
   # Assume same order of spatial axes, but not matter where B/F is.
-  spatial_dims = {}  # spatial idx -> (tensor, DimensionTag) (static != 1, or dynamic)
-  for i, x in enumerate(list(tensors)):
+  dims = {}  # torch axis -> (tensor, DimensionTag) (static != 1, or dynamic)
+  for i, x in enumerate(inputs):
+    if not isinstance(x, Tensor):
+      continue
+    x = naming.tensors[x]
+    assert isinstance(x, TensorEntry)
     if x.returnn_data.batch_ndim == 0:  # scalars are fine
       continue
-    x_spatial_axes = x.returnn_data.get_spatial_batch_axes()
-    assert len(x_spatial_axes) == num_spatial_dims, f"unexpected Data {x.returnn_data}"
+    assert x.returnn_data.batch_ndim == num_dims
     used_reinterpret = False
-    for spatial_idx in range(num_spatial_dims):
-      dim_tag = x.returnn_data.get_dim_tag(x_spatial_axes[spatial_idx])
+    for axis in range(num_dims):
+      returnn_axis = x.returnn_axis_from_torch_axis[axis]
+      dim_tag = x.returnn_data.get_dim_tag(returnn_axis)
       if dim_tag.dimension == 1:
         continue  # broadcast dim, so always ok. do not add
-      if spatial_idx not in spatial_dims:
-        spatial_dims[spatial_idx] = (x, dim_tag)
+      if axis not in dims:
+        dims[axis] = (x, dim_tag)
       else:
-        prev_x, prev_dim_tag = spatial_dims[spatial_idx]
+        prev_x, prev_dim_tag = dims[axis]
         if prev_dim_tag is dim_tag:
           pass  # ok
         elif prev_dim_tag.dimension is not None:
@@ -303,9 +307,11 @@ def _unify_tensor_dyn_axes(*inputs: Tensor) -> Tuple[Tensor, ...]:
           # So we unify them via reinterpret_data.
           x_ = ReturnnReinterpretSameSizeAs()(x.tensor(), prev_x.tensor())
           x = naming.tensors[x_]
-          tensors[i] = x
+          assert isinstance(x, TensorEntry)
+          assert x.returnn_data.batch_ndim == num_dims
+          inputs[i] = x_
           used_reinterpret = True
-  return tuple([x.tensor() for x in tensors])
+  return tuple(inputs)
 
 
 __all__ = [
