@@ -94,6 +94,10 @@ class Tensor:
 
   def view(self, *shape):
     from .nn.functional import reshape
+    if shape and isinstance(shape[0], (tuple, list)):
+      assert len(shape) == 1
+      shape = tuple(shape[0])
+    assert isinstance(shape, tuple)
     return reshape(self, shape)
 
   def unsqueeze(self, dim: int):
@@ -109,6 +113,10 @@ class Tensor:
 
   def expand(self, *sizes):
     from .nn.functional import expand
+    if sizes and isinstance(sizes[0], (tuple, list)):
+      assert len(sizes) == 1
+      sizes = tuple(sizes[0])
+    assert isinstance(sizes, tuple)
     return expand(self, sizes)
 
   def resize_(self, *sizes, memory_format=None):
