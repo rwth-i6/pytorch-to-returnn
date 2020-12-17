@@ -28,16 +28,16 @@ def _calculate_fan_in_and_fan_out(tensor: Tensor):
   return fan_in, fan_out
 
 
-def zeros_(tensor):
-  pass
+def zeros_(tensor: Tensor):
+  tensor.zero_()
 
 
-def ones_(tensor):
-  pass
+def ones_(tensor: Tensor):
+  tensor.fill_(1)
 
 
-def constant_(tensor, value=0):
-  pass
+def constant_(tensor: Tensor, value=0):
+  tensor.fill_(value)
 
 
 def uniform_(tensor, a=0., b=1.):
