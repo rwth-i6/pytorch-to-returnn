@@ -495,6 +495,34 @@ def test_multiple_outputs():
     inputs_data_kwargs={"shape": (None, n_in), "batch_dim_axis": 1})
 
 
+def test_forward_with_kwargs():
+  n_batch, n_time, n_feature = 3, 7, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class MyModel(torch.nn.Module):
+      def __init__(self, bias=0):
+        super(MyModel, self).__init__()
+        self.bias = bias
+
+      def forward(self, x, add_bias=False):
+        if add_bias:
+          x += self.bias
+        return x
+
+    model = MyModel(bias=1)
+    out = model(inputs, add_bias=True)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_gated_linear_unit_via_chunk():
   n_in, n_out = 12, 13
   n_batch, n_time = 3, 7
