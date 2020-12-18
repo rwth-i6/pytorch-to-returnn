@@ -88,6 +88,12 @@ class Tensor:
   def contiguous(self):
     return self  # ignore
 
+  def clone(self):
+    return self  # ignore
+
+  def device(self):
+    return None  # ignore
+
   def flatten(self):
     from .nn.functional import flatten
     return flatten(self)
@@ -196,6 +202,10 @@ class Tensor:
   def sigmoid(self):
     from .nn.functional import sigmoid
     return sigmoid(self)
+
+  def pow(self, exponent: float):
+    from .nn.functional import pow
+    return pow(self, exponent)
 
   def chunk(self, chunks: int, dim: int = 0) -> List[Tensor]:
     from .nn.functional import chunk

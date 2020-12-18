@@ -40,6 +40,19 @@ class LogSigmoid(_ActivationReturnn):
   func_name = "log_sigmoid"
 
 
+class Power(Module):
+  is_original_torch_module = False
+
+  def __init__(self, exponent: float) -> None:
+    super(Power, self).__init__()
+    self.exponent = exponent
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "eval", "eval": f"tf.math.pow(source(0), {self.exponent})",
+      "from": self._get_input_layer_name(input)}
+
+
 class LeakyReLU(Module):
   def __init__(self, negative_slope: float = 1e-2, inplace: bool = False) -> None:
     super(LeakyReLU, self).__init__()
