@@ -1,8 +1,2 @@
-def is_available():
-  """
-  Always returns False for now
-
-  :return: False
-  :rtupe: bool
-  """
-  return False
+def is_available() -> bool:
+  return False  # stub
