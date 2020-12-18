@@ -166,26 +166,25 @@ class CallEntry:
         f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: "
         f"[{','.join(layer.output.get_batch_axes_short_description())}]")
 
-      if naming.import_params_from_torch_namespace and layer:
-        if not layer_abs_repr_name.startswith("."):  # temp layer
-          if module.is_original_torch_module:
-            if list(module.parameters(recurse=False)):
-              # Need some way to get a unique name, to get the corresponding module from previous Torch run.
-              # We can use get_module_abs_name, to get the attrib chain,
-              # or get_module_abs_call_name, to get the call chain,
-              # or get_module_abs_id_name as a combination.
-              # See the corresponding documentation.
-              mod_abs_name = naming.get_module_abs_id_name(module)
-              torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
-              print(
-                f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
-                f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...")
-              module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
-
+      if not layer_abs_repr_name.startswith("."):  # temp layer
+        if module.is_original_torch_module:
+          if list(module.parameters(recurse=False)):
+            # Need some way to get a unique name, to get the corresponding module from previous Torch run.
+            # We can use get_module_abs_name, to get the attrib chain,
+            # or get_module_abs_call_name, to get the call chain,
+            # or get_module_abs_id_name as a combination.
+            # See the corresponding documentation.
+            mod_abs_name = naming.get_module_abs_id_name(module)
+            torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
             print(
               f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
-              f"check RETURNN inputs/outputs given Torch inputs/outputs ...")
-            module.check_call_returnn_outputs_to_prev_torch(self, update_ops=new_update_ops)
+              f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...")
+            module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
+
+          print(
+            f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
+            f"check RETURNN inputs/outputs given Torch inputs/outputs ...")
+          module.check_call_returnn_outputs_to_prev_torch(self, update_ops=new_update_ops)
 
     return res
 
