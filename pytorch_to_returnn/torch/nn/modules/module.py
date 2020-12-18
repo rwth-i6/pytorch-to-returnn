@@ -446,6 +446,7 @@ class Module:
       orig_import_params_torch_to_returnn(layer=sub_layer, torch_module=torch_module)
 
     setattr(self, "import_params_torch_to_returnn", import_params_torch_to_returnn)
+    setattr(self, "has_torch_forward", lambda: False)
 
     class _WrappedBaseClass(Module):
       is_original_torch_module = False
