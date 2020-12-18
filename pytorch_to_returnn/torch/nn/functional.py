@@ -357,3 +357,11 @@ def group_norm(input: Tensor, num_groups: int, weight: Optional[Tensor] = None, 
     assert (out.shape[1],) == bias.shape, "data should be of shape (B, F, *) and bias should be of shape (F,)"
     out += bias.view(1, -1, 1)
   return out
+
+def dropout(input: Tensor, p: float = 0.5, training: bool = True, inplace: bool = False) -> Tensor:
+  if p < 0. or p > 1.:
+    raise ValueError("dropout probability has to be between 0 and 1, but got {}".format(p))
+  if p == 0.0 or not training:
+    return input
+  if p > 0.0:
+    return modules.Dropout(p=p, inplace=inplace).as_returnn_torch_functional()(input)
