@@ -203,7 +203,7 @@ class Tensor:
     from .nn.functional import sigmoid
     return sigmoid(self)
 
-  def pow(self, exponent):
+  def pow(self, exponent: float):
     from .nn.functional import pow
     return pow(self, exponent)
 

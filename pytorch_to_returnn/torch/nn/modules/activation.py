@@ -41,6 +41,8 @@ class LogSigmoid(_ActivationReturnn):
 
 
 class Power(Module):
+  is_original_torch_module = False
+
   def __init__(self, exponent: float) -> None:
     super(Power, self).__init__()
     self.exponent = exponent
