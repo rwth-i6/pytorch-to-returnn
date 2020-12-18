@@ -362,6 +362,7 @@ def group_norm(input: Tensor, num_groups: int, weight: Optional[Tensor] = None, 
     out += bias.view(1, -1, 1)
   return out
 
+
 def dropout(input: Tensor, p: float = 0.5, training: bool = True, inplace: bool = False) -> Tensor:
   if p < 0. or p > 1.:
     raise ValueError("dropout probability has to be between 0 and 1, but got {}".format(p))
