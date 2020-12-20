@@ -3,6 +3,7 @@ runnable within `RETURNN <https://github.com/rwth-i6/returnn>`__
 (on TensorFlow).
 This provides some wrappers (and maybe some magic) to do that.
 
+
 Installation
 ============
 
@@ -95,8 +96,6 @@ Otherwise, when you hit some ``Module``
 or ``functional`` function, or Tensor function
 which is not implemented,
 it just means that no-one has implemented it yet.
-
-Somewhat related is also the ``torch.fx`` module.
 
 
 Direct use in RETURNN
@@ -263,3 +262,13 @@ They are automatically run via GitHub Actions for CI.
 
 .. image:: https://github.com/rwth-i6/pytorch-to-returnn/workflows/CI/badge.svg
     :target: https://github.com/rwth-i6/pytorch-to-returnn/actions
+
+
+Related work
+============
+
+* Somewhat related is also the ``torch.fx`` module.
+* `Shawn Presser <https://twitter.com/theshawwn>`__
+  has a proof-of-concept implementation of PyTorch based on TensorFlow
+  `here <https://github.com/shawwn/ml-notes/blob/working/tftorch.py>`__,
+  initial announcement `here <https://twitter.com/theshawwn/status/1311925180126511104>`__.
