@@ -5,6 +5,6 @@ from .nn.functional import *
 from .serialization import load
 from .autograd import *
 from . import nn
-import torch.cuda
-import torch.onnx
-import torch.jit
+from . import cuda
+from . import onnx
+from . import jit
