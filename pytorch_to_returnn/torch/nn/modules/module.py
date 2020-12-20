@@ -396,6 +396,10 @@ class Module:
   def to(self, *args):
     return self  # ignore
 
+  @property
+  def training(self):
+    return False
+
   def __call__(self, *input: Tensor, **kwargs):
     naming = Naming.get_instance()
     with naming.push_module_context(self):
