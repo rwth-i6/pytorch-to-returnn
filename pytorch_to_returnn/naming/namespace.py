@@ -285,9 +285,10 @@ class RegisteredName:
       child.dump(prefix=f"{prefix}  ")
 
   def dump_as_returnn_layer_dict(self) -> Dict[str, Any]:
-    if self.calls and not self.calls[0].module.module.has_torch_forward():
+    if not self.is_subnet:
       assert len(self.calls) == 1
       call = self.calls[0]
+      assert call.returnn_layer_dict
       return call.returnn_layer_dict
     # Subnetwork
     inputs = []
