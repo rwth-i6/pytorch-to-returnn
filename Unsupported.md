@@ -2,6 +2,8 @@ Note that this is about the current state of the project.
 We can potentially find solutions for all of this.
 It was just not needed so far.
 
+Also see the list of [supported modules and functions](Supported.md).
+
 
 # Inplace ops
 

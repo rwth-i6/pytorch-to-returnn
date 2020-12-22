@@ -91,7 +91,8 @@ for details about how this works,
 and what can be done with it.
 Obviously, this is incomplete.
 For some status of what is not supported currently,
-see `the unsupported document <Unsupported.md>`__.
+see `the supported document <Supported.md>`__
+and `the unsupported document <Unsupported.md>`__.
 Otherwise, when you hit some ``Module``
 or ``functional`` function, or Tensor function
 which is not implemented,
