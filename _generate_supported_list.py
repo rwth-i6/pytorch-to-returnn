@@ -54,7 +54,7 @@ markdown_output_file = None  # type: Optional[TextIO]
 def report_available(name: str, obj, available: bool):
   # Potential available True check marks: ✓✅✓✓☑
   # Potential available False check marks: ✗❎✗✘❌
-  avail_s = "✅" if available else "❌"
+  avail_s = "✓" if available else "❌"
   print(name, f"({type_name(obj)})", "available:", avail_s)
   markdown_output_file.write(
     f"* `{name}` ({type_name(obj)}) available: {avail_s}\n")
