@@ -158,6 +158,29 @@ def test_conv_transposed_2d():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_functional_linear():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+    rnd = numpy.random.RandomState(42)
+    weight = rnd.normal(0., 1., (n_out, n_in)).astype("float32")
+    bias = rnd.normal(0., 1., (n_out,)).astype("float32")
+    weight = torch.from_numpy(weight)
+    bias = torch.from_numpy(bias)
+    return F.linear(inputs.transpose(1, 2), weight=weight, bias=bias)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7

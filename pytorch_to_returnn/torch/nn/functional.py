@@ -262,6 +262,11 @@ def max(*inputs: Tensor) -> Tensor:
   return modules.Max()(*inputs)
 
 
+def linear(input: Tensor, weight: Tensor, bias: Optional[Tensor] = None):
+  mod = modules.FunctionalLinear()
+  return mod(input, weight, bias)
+
+
 def conv1d(
     input: Tensor, weight: Tensor, bias: Optional[Tensor] = None,
     stride: Union[int, _size] = 1, padding: Union[int, _size] = 0,
