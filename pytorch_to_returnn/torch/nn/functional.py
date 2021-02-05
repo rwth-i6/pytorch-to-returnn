@@ -212,6 +212,15 @@ def transpose(input: Tensor, dim0: int, dim1: int):
   return tensorflow_transpose(input, perm={dim0: dim1, dim1: dim0})
 
 
+def t(input: Tensor):
+  if len(input.shape) < 2:
+    return input
+  elif len(input.shape) == 2:
+    return transpose(input, 0, 1)
+  else:
+    raise ValueError("t() expects input to be <= 2-D tensor")
+
+
 def tensorflow_transpose(input: Tensor, perm: Optional[Union[Dict[int, int], Tuple[int, ...], List[int]]]):
   """
   Note: This function is added by us, not available in original PyTorch.
