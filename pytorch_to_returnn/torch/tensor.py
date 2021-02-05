@@ -117,6 +117,10 @@ class Tensor:
     from .nn.functional import transpose
     return transpose(self, dim0=dim0, dim1=dim1)
 
+  def t(self):
+    from .nn.functional import t
+    return t(self)
+
   def expand(self, *sizes):
     from .nn.functional import expand
     if sizes and isinstance(sizes[0], (tuple, list)):
