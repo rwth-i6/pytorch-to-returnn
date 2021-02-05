@@ -93,7 +93,11 @@ class DotLayer(Module):
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     sources = [self._get_input_layer_name(source) for source in inputs]
     assert len(sources) == 2
-    return {"class": "dot", "from": sources}
+    red1 = inputs[0].returnn_naming_entry.get_returnn_axis_description(-1)
+    red2 = inputs[1].returnn_naming_entry.get_returnn_axis_description(-2)
+    var1 = inputs[0].returnn_naming_entry.get_returnn_axis_description(-2)
+    var2 = inputs[1].returnn_naming_entry.get_returnn_axis_description(-1)
+    return {"class": "dot", "red1": red1, "red2": red2, "var1": var1, "var2": var2, "from": sources}
 
 
 __all__ = [
