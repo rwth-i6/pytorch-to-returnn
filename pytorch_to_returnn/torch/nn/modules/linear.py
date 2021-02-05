@@ -78,14 +78,11 @@ class FunctionalLinear(Module):
       "activation": None}
 
 
-class DotLayer(Module):
+class Matmul(Module):
   """
   Maps to RETURNN DotLayer
   """
   is_original_torch_module = False
-
-  def __init__(self):
-    super(DotLayer, self).__init__()
 
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     sources = [self._get_input_layer_name(source) for source in inputs]
