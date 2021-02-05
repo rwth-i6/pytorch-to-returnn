@@ -282,8 +282,10 @@ def max(*inputs: Tensor) -> Tensor:
 
 
 def linear(input: Tensor, weight: Tensor, bias: Optional[Tensor] = None):
-  mod = modules.FunctionalLinear()
-  return mod(input, weight, bias)
+  output = input.matmul(weight.t())
+  if bias is not None:
+    output += bias
+  return output
 
 
 def conv1d(
