@@ -63,9 +63,6 @@ class Linear(Module):
 class FunctionalLinear(Module):
   is_original_torch_module = False
 
-  def __init__(self):
-    super(FunctionalLinear, self).__init__()
-
   def create_returnn_layer_dict(self, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Dict[str, Any]:
     assert len(weight.shape) == 2
     out_features, in_features = weight.shape
