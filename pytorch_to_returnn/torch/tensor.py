@@ -211,6 +211,10 @@ class Tensor:
     from .nn.functional import chunk
     return chunk(self, chunks=chunks, dim=dim)
 
+  def matmul(self, tensor2: Tensor) -> Tensor:
+    from .nn.functional import matmul
+    return matmul(self, tensor2)
+
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
     if isinstance(item, int):
