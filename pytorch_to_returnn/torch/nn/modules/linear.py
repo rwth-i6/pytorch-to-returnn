@@ -90,10 +90,10 @@ class Matmul(Module):
 
     assert len(inputs[0].shape) >= 2, "not implemented otherwise"
     assert len(inputs[1].shape) >= 2, "not implemented otherwise"
-    red1 = inputs[0].returnn_naming_entry.get_returnn_axis_description(-1)
-    red2 = inputs[1].returnn_naming_entry.get_returnn_axis_description(-2)
-    var1 = [inputs[0].returnn_naming_entry.get_returnn_axis_description(-2)]
-    var2 = [inputs[1].returnn_naming_entry.get_returnn_axis_description(-1)]
+    red1 = self._get_input_axis_to_returnn(inputs[0], -1)
+    red2 = self._get_input_axis_to_returnn(inputs[1], -2)
+    var1 = [self._get_input_axis_to_returnn(inputs[0], -2)]
+    var2 = [self._get_input_axis_to_returnn(inputs[1], -1)]
 
     max_len = max(len(inputs[0].shape), len(inputs[1].shape))
     shape1 = [None] * (max_len - len(inputs[0].shape)) + list(inputs[0].shape)
@@ -101,12 +101,12 @@ class Matmul(Module):
     for ax in range(-3, -max_len - 1, -1):
       if isinstance(shape1[ax], int) and shape1[ax] > 1:
         if shape2[ax] in [1, None]:
-          var1.append(inputs[0].returnn_naming_entry.get_returnn_axis_description(ax))
+          var1.append(self._get_input_axis_to_returnn(inputs[0], ax))
         else:
           assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
       if isinstance(shape2[ax], int) and shape2[ax] > 1:
         if shape1[ax] in [1, None]:
-          var2.append(inputs[1].returnn_naming_entry.get_returnn_axis_description(ax))
+          var2.append(self._get_input_axis_to_returnn(inputs[1], ax))
         else:
           assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
 
