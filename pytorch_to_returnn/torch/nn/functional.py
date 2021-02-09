@@ -118,10 +118,6 @@ def mul(x: Tensor, y: Tensor) -> Tensor:
 def matmul(input: Tensor, other: Tensor, *, out: Optional[Tensor] = None) -> Tensor:
   assert out is None, "not implemented otherwise"
   mod = modules.Matmul()
-  if len(input.shape) > len(other.shape):
-    other = other.expand(list(input.shape[:-len(other.shape)]) + [-1] * len(other.shape))
-  elif len(input.shape) < len(other.shape):
-    input = input.expand(list(other.shape[:-len(input.shape)]) + [-1] * len(input.shape))
   return mod(input, other)
 
 
