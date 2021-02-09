@@ -87,10 +87,29 @@ class Matmul(Module):
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     sources = [self._get_input_layer_name(source) for source in inputs]
     assert len(sources) == 2
+
+    assert len(inputs[0].shape) >= 2, "not implemented otherwise"
+    assert len(inputs[1].shape) >= 2, "not implemented otherwise"
     red1 = inputs[0].returnn_naming_entry.get_returnn_axis_description(-1)
     red2 = inputs[1].returnn_naming_entry.get_returnn_axis_description(-2)
-    var1 = inputs[0].returnn_naming_entry.get_returnn_axis_description(-2)
-    var2 = inputs[1].returnn_naming_entry.get_returnn_axis_description(-1)
+    var1 = [inputs[0].returnn_naming_entry.get_returnn_axis_description(-2)]
+    var2 = [inputs[1].returnn_naming_entry.get_returnn_axis_description(-1)]
+
+    max_len = max(len(inputs[0].shape), len(inputs[1].shape))
+    shape1 = [None] * (max_len - len(inputs[0].shape)) + list(inputs[0].shape)
+    shape2 = [None] * (max_len - len(inputs[1].shape)) + list(inputs[1].shape)
+    for ax in range(-3, -max_len - 1, -1):
+      if isinstance(shape1[ax], int) and shape1[ax] > 1:
+        if shape2[ax] in [1, None]:
+          var1.append(inputs[0].returnn_naming_entry.get_returnn_axis_description(ax))
+        else:
+          assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
+      if isinstance(shape2[ax], int) and shape2[ax] > 1:
+        if shape1[ax] in [1, None]:
+          var2.append(inputs[1].returnn_naming_entry.get_returnn_axis_description(ax))
+        else:
+          assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
+
     return {"class": "dot", "red1": red1, "red2": red2, "var1": var1, "var2": var2, "from": sources}
 
 
