@@ -202,6 +202,26 @@ def test_matmul():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_t():
+  n_batch, n_feature, n_time = 3, 5, 17
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+    rnd = numpy.random.RandomState(42)
+    weight = rnd.normal(0., 1., (3, 5)).astype("float32")
+    weight = torch.from_numpy(weight)
+    return weight.t()
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
