@@ -60,23 +60,6 @@ class Linear(Module):
       layer.params["b"].load(torch_module.bias.detach().numpy(), session=session)
 
 
-class FunctionalLinear(Module):
-  is_original_torch_module = False
-
-  def create_returnn_layer_dict(self, input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Dict[str, Any]:
-    assert len(weight.shape) == 2
-    out_features, in_features = weight.shape
-    if bias is not None:
-      assert bias.shape == (out_features,)
-    return {
-      "class": "linear", "from": self._get_input_layer_name(input),
-      "n_out": out_features,
-      "with_bias": bias is not None,
-      "bias": self._get_input_layer_name(bias) if bias is not None else None,
-      "weights": self._get_input_layer_name(weight),
-      "use_transposed_weights": True,
-      "activation": None}
-
 
 class Matmul(Module):
   """
