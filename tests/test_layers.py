@@ -215,7 +215,8 @@ def test_t():
     rnd = numpy.random.RandomState(42)
     weight = rnd.normal(0., 1., (3, 5)).astype("float32")
     weight = torch.from_numpy(weight)
-    return weight.t()
+    weight = weight.t()
+    return F.relu(inputs)
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
