@@ -332,7 +332,9 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
     return inputs
   inputs = list(inputs)
   num_dims = max(x.returnn_data.batch_ndim for x in tensors)
-  assert all(x.returnn_data.batch_ndim == num_dims for x in tensors)
+  for idx in range(len(inputs)):
+    if naming.tensors[inputs[idx]] in tensors and inputs[idx].ndim < num_dims:
+      inputs[idx] = inputs[idx].expand([1] * (num_dims - inputs[idx].ndim) + [-1] * inputs[idx].ndim)
 
   dims = {}  # torch axis -> (tensor, DimensionTag) (static != 1, or dynamic)
   for i, x in enumerate(inputs):

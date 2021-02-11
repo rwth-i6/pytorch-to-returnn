@@ -446,6 +446,24 @@ def test_broadcast_with_different_axes_types():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_broadcast_add_bias():
+  n_batch, n_feature, n_time = 3, 5, 17
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    rnd = numpy.random.RandomState(42)
+    bias = rnd.normal(0., 1., (n_feature)).astype("float32")
+    bias = torch.from_numpy(bias)
+    return inputs + bias
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={"time_dim_axis": None})
+
+
 def test_movedim():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
