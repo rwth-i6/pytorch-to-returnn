@@ -11,6 +11,7 @@ from typing import Optional, Union, List, Tuple, Dict, TypeVar, Sequence
 from . import modules
 from ..tensor import Tensor
 from .._C import Size, dtype as _dtype
+from ...naming import Naming
 
 
 _number = Union[int, float, numpy.ndarray, numpy.number]
@@ -45,6 +46,14 @@ def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[
   if dtype == get_dtype(input):
     return input
   return modules.Cast(dtype=dtype)(input)
+
+def cat(tensors, dim=0):
+  from .modules.operator import Copy
+  naming = Naming.get_instance()
+  for tensor in tensors:
+    returnn_data = naming.tensors[tensor].returnn_data
+    assert returnn_data.get_axis_from_description(dim) == returnn_data.feature_dim_axis, "Concatenation in dimensions other than the feature dimension is currently not supported."
+  return Copy().as_returnn_torch_functional()(*tensors)
 
 
 def get_dtype(tensor: Union[Tensor, _number]) -> _dtype:

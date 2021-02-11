@@ -51,6 +51,19 @@ def test_linear_multiple_steps():
       "shape": (None, n_in * n_steps), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_cat():
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+      if wrapped_import:
+        torch = wrapped_import("torch")
+      else:
+        import torch
+      return torch.cat((inputs, inputs), dim=-1)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (3,3)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
 def test_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7

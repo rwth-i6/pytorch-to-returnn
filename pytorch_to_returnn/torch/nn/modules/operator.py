@@ -10,13 +10,8 @@ from ....naming import Naming, TensorEntry
 class Copy(Module):
   is_original_torch_module = False
 
-  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
-    return {"class": "copy", "from": self._get_input_layer_name(input)}
-
-  def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
-    assert len(inputs_flat) == 1
-    return inputs_flat[0]
-
+  def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
+    return {"class": "copy", "from": [self._get_input_layer_name(input) for input in inputs]}
 
 class GetSublayer(Module):
   is_original_torch_module = False
