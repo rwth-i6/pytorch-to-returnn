@@ -202,6 +202,25 @@ def test_matmul():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_bmm():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    x = inputs.new_zeros(inputs.shape[0], inputs.shape[2], n_out) + 1  # (T, F_in, F_out)
+    return torch.bmm(inputs, x)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_in), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_t():
   n_batch, n_feature, n_time = 3, 5, 17
 
