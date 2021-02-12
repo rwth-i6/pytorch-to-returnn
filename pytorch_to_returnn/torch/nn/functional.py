@@ -11,6 +11,7 @@ from typing import Optional, Union, List, Tuple, Dict, TypeVar, Sequence
 from . import modules
 from ..tensor import Tensor
 from .._C import Size, dtype as _dtype
+from ...naming import Naming
 
 
 _number = Union[int, float, numpy.ndarray, numpy.number]
@@ -45,6 +46,10 @@ def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[
   if dtype == get_dtype(input):
     return input
   return modules.Cast(dtype=dtype)(input)
+
+def cat(tensors, dim=0):
+  from .modules.operator import Cat
+  return Cat(dim).as_returnn_torch_functional()(*tensors)
 
 
 def get_dtype(tensor: Union[Tensor, _number]) -> _dtype:
