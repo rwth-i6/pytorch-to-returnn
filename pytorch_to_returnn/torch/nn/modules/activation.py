@@ -24,6 +24,10 @@ class Abs(_ActivationReturnn):
   func_name = "abs"
 
 
+class Sqrt(_ActivationReturnn):
+  func_name = "sqrt"
+
+
 class Tanh(_ActivationReturnn):
   func_name = "tanh"
 

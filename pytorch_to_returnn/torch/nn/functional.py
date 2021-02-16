@@ -306,6 +306,10 @@ def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = Fals
   return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace).as_returnn_torch_functional()(input)
 
 
+def sqrt(input: Tensor) -> Tensor:
+  return modules.Sqrt().as_returnn_torch_functional()(input)
+
+
 def tanh(input: Tensor) -> Tensor:
   return modules.Tanh().as_returnn_torch_functional()(input)
 
