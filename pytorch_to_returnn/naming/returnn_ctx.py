@@ -53,6 +53,7 @@ class ReturnnContext:
     assert data_key not in self.network.extern_data.data
     assert input.returnn_data
     self.network.extern_data.data[data_key] = input.returnn_data
+    self.network.extern_data.init_batch_info()
 
   def define_output(self, output_layer: LayerBase):
     assert self.network.layers["output"] is output_layer
