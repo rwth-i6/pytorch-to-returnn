@@ -230,7 +230,7 @@ class LSTM(RNNBase):
   def check_returnn_layer(self, layer: LayerBase):
     if self.num_layers > 1:
       assert isinstance(layer, SubnetworkLayer)
-      assert layer.subnetwork.extern_data.data["data"].dim == self.input_size
+      assert layer.subnetwork_.construct_layer("data").output.dim == self.input_size
     else:
       assert isinstance(layer, RecLayer)
       assert layer.input_data.dim == self.input_size
