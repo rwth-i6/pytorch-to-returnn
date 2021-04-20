@@ -137,16 +137,6 @@ class CallEntry:
       assert all(a is b for (a, b) in zip(prev_update_ops, new_update_ops))
       new_update_ops = new_update_ops[len(prev_update_ops):]
 
-      # Update params in parents.
-      parent_layer = layer.network.parent_layer
-      parent_layer_param_prefix = f"{layer.name}/"
-      while parent_layer:
-        if parent_layer.name.startswith("."):
-          break  # stop if hidden
-        parent_layer.params.update({parent_layer_param_prefix + k: v for (k, v) in layer.params.items()})
-        parent_layer_param_prefix = f"{parent_layer.name}/{parent_layer_param_prefix}"
-        parent_layer = parent_layer.network.parent_layer
-
       module.check_returnn_layer(layer)
       res = module.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
       res_entry = naming.tensors[res]
