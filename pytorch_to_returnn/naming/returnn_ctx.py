@@ -15,12 +15,11 @@ class ReturnnContext:
       self.config = parent.config
       self.tf_name_scope = parent.network.get_absolute_name_scope_prefix() + LayerBase.cls_get_tf_scope_name(name)
       assert parent.network.extern_data.data
-      self.sub_net_layer = (
-        parent.network.add_layer(
-          name=name, layer_class=SubnetworkLayer,
-          # This is just a placeholder, will be replaced in define_output.
-          sources=[parent.network.get_layer("data")],
-          subnetwork={"output": {"class": "copy"}}))  # type: SubnetworkLayer
+      self.sub_net_layer = parent.network.construct_layer(
+        name=name,
+        # This is just a placeholder, will be replaced in define_output.
+        net_dict={name: {"class": "subnetwork", "from": "data", "subnetwork": {"output": {"class": "copy"}}}})
+      assert isinstance(self.sub_net_layer, SubnetworkLayer)
       self._dummy_sub_output = self.sub_net_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
