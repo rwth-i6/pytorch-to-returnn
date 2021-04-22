@@ -170,10 +170,22 @@ def reshape(input: Tensor, shape: Tuple[int, ...]) -> Tensor:
         assert shape[axis2] % n == 0 and n < shape[axis2]
         n *= input.shape[a]
         a += 1
-      assert n == shape[axis2]
-      input = modules.Flatten(start_dim=axis1, end_dim=a - 1).as_returnn_torch_functional()(input)
-      assert input.shape[axis1] == shape[axis2]
-      continue
+      if n == shape[axis2]:
+        input = modules.Flatten(start_dim=axis1, end_dim=a - 1).as_returnn_torch_functional()(input)
+        assert input.shape[axis1] == shape[axis2]
+        continue
+      elif shape[axis2] % input.shape[axis1] == 0:
+        split_factor = shape[axis2] // input.shape[axis1]
+        assert input.shape[axis1 + 1] == shape[axis2 + 1] * split_factor
+        # something like (..., a, b*c,...) -> (..., a*b, c,...)
+        unflattened_size = (split_factor, shape[axis2 + 1])
+        input = modules.Unflatten(dim=axis1 + 1, unflattened_size=unflattened_size).as_returnn_torch_functional()(input)
+        input = modules.Flatten(start_dim=axis1, end_dim=axis1 + 1).as_returnn_torch_functional()(input)
+        assert input.shape[axis1] == shape[axis2]
+        axis1 += 1
+        axis2 += 1
+        assert input.shape[axis1] == shape[axis2]
+        continue
     elif input.shape[axis1] > shape[axis2]:
       n = 1
       a = axis2
@@ -181,10 +193,23 @@ def reshape(input: Tensor, shape: Tuple[int, ...]) -> Tensor:
         assert input.shape[axis1] % n == 0 and n < input.shape[axis1]
         n *= shape[a]
         a += 1
-      assert n == input.shape[axis1]
-      input = modules.Unflatten(dim=axis1, unflattened_size=tuple(shape[axis2:a])).as_returnn_torch_functional()(input)
-      assert input.shape[axis1] == shape[axis2]
-      continue
+      if n == input.shape[axis1]:
+        unflattened_size = tuple(shape[axis2:a])
+        input = modules.Unflatten(dim=axis1, unflattened_size=unflattened_size).as_returnn_torch_functional()(input)
+        assert input.shape[axis1] == shape[axis2]
+        continue
+      elif input.shape[axis1] % shape[axis2] == 0:
+        split_factor = input.shape[axis1] // shape[axis2]
+        assert input.shape[axis1 + 1] * split_factor == shape[axis2 + 1]
+        # something like (..., a*b, c,...) -> (..., a, b*c,...)
+        unflattened_size = (shape[axis2], split_factor)
+        input = modules.Unflatten(dim=axis1, unflattened_size=unflattened_size).as_returnn_torch_functional()(input)
+        assert input.shape[axis1] == shape[axis2]
+        axis1 += 1
+        axis2 += 1
+        input = modules.Flatten(start_dim=axis1, end_dim=axis1 + 1).as_returnn_torch_functional()(input)
+        assert input.shape[axis1] == shape[axis2]
+        continue
     else:
       assert False  # cannot happen
   assert axis1 == axis2

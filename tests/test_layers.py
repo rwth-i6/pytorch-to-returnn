@@ -243,6 +243,24 @@ def test_t():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_reshape():
+  n_batch, n_time, n_feature_1, n_feature_2 = 3, 5, 8, 6
+
+  def model_func_1(wrapped_import, inputs: torch.Tensor):
+    # test case (..., a*b, c,...) -> (..., a, b*c,...)
+    return inputs.view(n_batch, n_time, n_feature_1 // 2, n_feature_2 * 2)
+
+  def model_func_2(wrapped_import, inputs: torch.Tensor):
+    # test case (..., a, b*c,...) -> (..., a*b, c,...)
+    return inputs.view(n_batch, n_time, n_feature_1 * 2, n_feature_2 // 2)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feature_1, n_feature_2)).astype("float32")
+  for model_func in [model_func_1, model_func_2]:
+    verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+        "shape": (None, n_feature_1, n_feature_2), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
