@@ -514,35 +514,6 @@ def multi_head_attention_forward(
       - attn_output_weights: :math:`(N, L, S)` where N is the batch size,
         L is the target sequence length, S is the source sequence length.
   """
-  tens_ops = (query, key, value, in_proj_weight, in_proj_bias, bias_k, bias_v, out_proj_weight, out_proj_bias)
-  if has_torch_function(tens_ops):
-    return handle_torch_function(
-      multi_head_attention_forward,
-      tens_ops,
-      query,
-      key,
-      value,
-      embed_dim_to_check,
-      num_heads,
-      in_proj_weight,
-      in_proj_bias,
-      bias_k,
-      bias_v,
-      add_zero_attn,
-      dropout_p,
-      out_proj_weight,
-      out_proj_bias,
-      training=training,
-      key_padding_mask=key_padding_mask,
-      need_weights=need_weights,
-      attn_mask=attn_mask,
-      use_separate_proj_weight=use_separate_proj_weight,
-      q_proj_weight=q_proj_weight,
-      k_proj_weight=k_proj_weight,
-      v_proj_weight=v_proj_weight,
-      static_k=static_k,
-      static_v=static_v,
-    )
   tgt_len, bsz, embed_dim = query.size()
   assert embed_dim == embed_dim_to_check
   # allow MHA to have different sizes for the feature dimension
@@ -646,7 +617,7 @@ def multi_head_attention_forward(
       or attn_mask.dtype == torch.bool
     ), "Only float, byte, and bool types are supported for attn_mask, not {}".format(attn_mask.dtype)
     if attn_mask.dtype == torch.uint8:
-      warnings.warn("Byte tensor for attn_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
+      print("Warning: Byte tensor for attn_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
       attn_mask = attn_mask.to(torch.bool)
 
     if attn_mask.dim() == 2:
@@ -662,9 +633,7 @@ def multi_head_attention_forward(
 
   # convert ByteTensor key_padding_mask to bool
   if key_padding_mask is not None and key_padding_mask.dtype == torch.uint8:
-    warnings.warn(
-      "Byte tensor for key_padding_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead."
-    )
+    print("Warning: Byte tensor for key_padding_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
     key_padding_mask = key_padding_mask.to(torch.bool)
 
   if bias_k is not None and bias_v is not None:
