@@ -212,6 +212,7 @@ def test_bmm():
     else:
       torch = wrapped_import("torch")
 
+    inputs = inputs.transpose(0, 1)
     x = inputs.new_zeros(inputs.shape[0], inputs.shape[2], n_out) + 1  # (T, F_in, F_out)
     return torch.bmm(inputs, x)
 
