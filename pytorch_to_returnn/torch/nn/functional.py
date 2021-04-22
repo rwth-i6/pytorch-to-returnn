@@ -651,23 +651,24 @@ def multi_head_attention_forward(
     assert bias_k is None
     assert bias_v is None
 
-  q = q.contiguous().view(tgt_len, bsz * num_heads, head_dim).transpose(0, 1)
+  # reshape to (bsz, num_heads, tgt_len, head_dim)
+  q = q.contiguous().view(tgt_len, bsz, num_heads, head_dim).transpose(0, 1).transpose(1, 2)
   if k is not None:
-    k = k.contiguous().view(-1, bsz * num_heads, head_dim).transpose(0, 1)
+    k = k.contiguous().view(-1, bsz, num_heads, head_dim).transpose(0, 1).transpose(1, 2)
   if v is not None:
-    v = v.contiguous().view(-1, bsz * num_heads, head_dim).transpose(0, 1)
+    v = v.contiguous().view(-1, bsz, num_heads, head_dim).transpose(0, 1).transpose(1, 2)
 
   if static_k is not None:
     assert static_k.size(0) == bsz * num_heads
     assert static_k.size(2) == head_dim
-    k = static_k
+    k = static_k.view(bsz, num_heads, -1, head_dim)
 
   if static_v is not None:
     assert static_v.size(0) == bsz * num_heads
     assert static_v.size(2) == head_dim
-    v = static_v
+    v = static_v.view(bsz, num_heads, -1, head_dim)
 
-  src_len = k.size(1)
+  src_len = k.size(2)
 
   if key_padding_mask is not None:
     assert key_padding_mask.size(0) == bsz
@@ -675,36 +676,35 @@ def multi_head_attention_forward(
 
   if add_zero_attn:
     src_len += 1
-    k = torch.cat([k, torch.zeros((k.size(0), 1) + k.size()[2:], dtype=k.dtype, device=k.device)], dim=1)
-    v = torch.cat([v, torch.zeros((v.size(0), 1) + v.size()[2:], dtype=v.dtype, device=v.device)], dim=1)
+    k = torch.cat([k, torch.zeros(k.size()[:2] + (1, k.size(3)), dtype=k.dtype, device=k.device)], dim=2)
+    v = torch.cat([v, torch.zeros(v.size()[:2] + (1, v.size(3)), dtype=v.dtype, device=v.device)], dim=2)
     if attn_mask is not None:
       attn_mask = pad(attn_mask, (0, 1))
     if key_padding_mask is not None:
       key_padding_mask = pad(key_padding_mask, (0, 1))
 
-  attn_output_weights = torch.bmm(q, k.transpose(1, 2))
-  assert list(attn_output_weights.size()) == [bsz * num_heads, tgt_len, src_len]
+  attn_output_weights = torch.matmul(q, k.transpose(2, 3))
+  assert list(attn_output_weights.size()) == [bsz, num_heads, tgt_len, src_len]
 
   if attn_mask is not None:
+    attn_mask = attn_mask.view(bsz, num_heads, tgt_len, src_len)
     if attn_mask.dtype == torch.bool:
       attn_output_weights.masked_fill_(attn_mask, float("-inf"))
     else:
       attn_output_weights += attn_mask
 
   if key_padding_mask is not None:
-    attn_output_weights = attn_output_weights.view(bsz, num_heads, tgt_len, src_len)
     attn_output_weights = attn_output_weights.masked_fill(
       key_padding_mask.unsqueeze(1).unsqueeze(2),
       float("-inf"),
     )
-    attn_output_weights = attn_output_weights.view(bsz * num_heads, tgt_len, src_len)
 
   attn_output_weights = softmax(attn_output_weights, dim=-1)
   attn_output_weights = dropout(attn_output_weights, p=dropout_p, training=training)
 
-  attn_output = torch.bmm(attn_output_weights, v)
-  assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]
-  attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+  attn_output = torch.matmul(attn_output_weights, v)
+  assert list(attn_output.size()) == [bsz, num_heads, tgt_len, head_dim]
+  attn_output = attn_output.transpose(1, 2).transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
   attn_output = linear(attn_output, out_proj_weight, out_proj_bias)
 
   if need_weights:
