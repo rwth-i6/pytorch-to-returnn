@@ -121,6 +121,13 @@ def matmul(input: Tensor, other: Tensor, *, out: Optional[Tensor] = None) -> Ten
   return mod(input, other)
 
 
+def bmm(input: Tensor, mat2: Tensor, *, deterministic: bool = False, out: Optional[Tensor] = None) -> Tensor:
+  assert out is None, "not implemented otherwise"
+  assert input.shape[0] == mat2.shape[0], "First axis must match"
+  assert input.shape[2] == mat2.shape[1], "Axes for matrix-matrix product must match"
+  return matmul(input, mat2)
+
+
 def truediv(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
