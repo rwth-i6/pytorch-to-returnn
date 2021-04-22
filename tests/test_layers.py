@@ -642,6 +642,56 @@ def test_fp32_group_norm_subnetwork():
     verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_multi_head_attention_forward():
+  n_batch, n_time, n_feature = 3, 17, 8
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+
+    class MultiHeadAttention(torch.nn.Module):
+      def __init__(self, embed_dim, num_heads,):
+        super(MultiHeadAttention, self).__init__()
+
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.dummy_weight = torch.ones(embed_dim, embed_dim)
+        self.dummy_in_bias = torch.zeros(3 * embed_dim)
+        self.dummy_out_bias = torch.zeros(embed_dim)
+
+        self.k_proj = torch.nn.Linear(embed_dim, embed_dim, bias=False)
+        self.q_proj = torch.nn.Linear(embed_dim, embed_dim, bias=False)
+        self.v_proj = torch.nn.Linear(embed_dim, embed_dim, bias=False)
+        torch.nn.init.xavier_uniform_(self.k_proj.weight)
+        torch.nn.init.xavier_uniform_(self.v_proj.weight)
+        torch.nn.init.xavier_uniform_(self.q_proj.weight)
+
+      def forward(self, query, key, value):
+        attn_output, attn_output_weights = F.multi_head_attention_forward(
+          query, key, value, self.embed_dim, self.num_heads,
+          in_proj_weight=self.dummy_weight, in_proj_bias=self.dummy_in_bias,
+          bias_k=None, bias_v=None, add_zero_attn=False, dropout_p=0.0,
+          out_proj_weight=self.dummy_weight, out_proj_bias=self.dummy_out_bias,
+          need_weights=False, use_separate_proj_weight=True,
+          k_proj_weight=self.k_proj.weight, q_proj_weight=self.q_proj.weight, v_proj_weight=self.v_proj.weight)
+        return attn_output
+
+
+    model = MultiHeadAttention(embed_dim=n_feature, num_heads=2)
+    inputs = inputs
+    out = model(query=inputs, key=inputs, value=inputs)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_feature)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2, "shape": (None, n_feature)})
+
+
 def test_unsqueeze():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
