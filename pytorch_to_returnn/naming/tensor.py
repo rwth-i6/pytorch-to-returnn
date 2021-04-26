@@ -104,7 +104,11 @@ class TensorEntry:
     dim_tag = self.returnn_data.get_dim_tag(axis)
     assert dim_tag.kind == DimensionTag.Types.Spatial
     if dim_tag.dyn_size is not None:
-      return f"stag:{dim_tag.description}"
+      axes_with_same_dim_tag = [ax for ax in range(ndim) if dim_tag == self.returnn_data.get_dim_tag(ax)]
+      if len(axes_with_same_dim_tag) == 1:
+        return f"stag:{dim_tag.description}"
+      else:
+        return f"stag-single:{axis - ndim}:{dim_tag.description}"
     static_axes = self.returnn_data.get_static_axes()
     if axis in static_axes:
       return f"static:{static_axes.index(axis)}"
