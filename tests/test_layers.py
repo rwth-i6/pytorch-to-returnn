@@ -181,7 +181,7 @@ def test_functional_linear():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
-def test_matmul():
+def test_matmul_broadcasting():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
 
@@ -200,6 +200,23 @@ def test_matmul():
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_matmul_shared_remaining_axes():
+  n_1, n_2 = 2, 4
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    return torch.matmul(inputs, inputs.transpose(2, 3))
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_1, n_time, n_2)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (n_1, None, n_2), "batch_dim_axis": 0, "time_dim_axis": 2, "feature_dim_axis": 3})
 
 
 def test_bmm():
