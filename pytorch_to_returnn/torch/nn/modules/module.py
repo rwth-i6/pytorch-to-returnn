@@ -757,6 +757,11 @@ class Module:
     # DimensionTag.get_all_dimension_tags, etc.
     # However, this is simpler, and also more consistent with get_returnn_axis_description.
 
+    def _get_unique_spatial_dim_tag_name(data, axis):
+      dim_tag = data.get_dim_tag(axis)
+      idx = data.get_spatial_batch_axes().index(axis)
+      return f"stag-single:{idx}:{dim_tag.description}"
+
     out_returnn_axis_to_torch_axis = {}
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
@@ -773,7 +778,7 @@ class Module:
       if x.returnn_data.have_batch_axis():
         batch_size = input.shape[x.returnn_axis_from_torch_axis[x.returnn_data.batch_dim_axis]]
       for i in x.returnn_data.get_dynamic_axes():
-        dim_tag = x.returnn_data.get_dim_tag(i, unique_spatial_dims=True).description
+        dim_tag = _get_unique_spatial_dim_tag_name(x.returnn_data, i)
         assert i in x.returnn_data.get_spatial_batch_axes()
         spatial_idx = x.returnn_data.get_spatial_batch_axes().index(i)
         torch_dim = input.shape[x.returnn_axis_from_torch_axis[i]]
@@ -796,7 +801,7 @@ class Module:
             mapping_out_to_in[out_axis] = None  # new axis
           continue
         if out_axis in layer.output.get_dynamic_axes():
-          dim_tag = layer.output.get_dim_tag(out_axis, unique_spatial_dims=True).description
+          dim_tag = _get_unique_spatial_dim_tag_name(layer.output, out_axis)
           if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
             in_spatial_idx, _ = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
             mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
@@ -846,7 +851,7 @@ class Module:
     if layer.output.get_dynamic_axes():
       assert dyn_size_dim_tag_to_spatial_idx_and_torch_dim
       for i in layer.output.get_dynamic_axes():
-        dim_tag = layer.output.get_dim_tag(i, unique_spatial_dims=True).description
+        dim_tag = _get_unique_spatial_dim_tag_name(layer.output, i)
         if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
           in_spatial_idx, out_shape[i] = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
           if i in rem_returnn_axes:
