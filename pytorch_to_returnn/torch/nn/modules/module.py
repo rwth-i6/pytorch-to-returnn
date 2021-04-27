@@ -13,7 +13,7 @@ from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming, CallEntry, TensorEntry
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
-from returnn.tf.util.data import Data
+from returnn.tf.util.data import Data, DimensionTag
 
 # See https://mypy.readthedocs.io/en/latest/generics.html#generic-methods-and-generic-self for the use
 # of `T` to annotate `self`. Many methods of `Module` return `self` and we want those return values to be
@@ -757,16 +757,17 @@ class Module:
     # DimensionTag.get_all_dimension_tags, etc.
     # However, this is simpler, and also more consistent with get_returnn_axis_description.
 
-    def _get_unique_spatial_dim_tag_name(data, axis):
-      dim_tag = data.get_dim_tag(axis)
-      idx = data.get_axes_by_tag_name(dim_tag.description).index(axis)
-      return f"stag-single:{idx}:{dim_tag.description}"
+    def _get_spatial_dim_tag_and_single_index(data: Data, axis: int) -> Tuple[DimensionTag, int]:
+      dim_tag_ = data.get_dim_tag(axis)
+      idx_ = data.get_axes_by_tag_name(dim_tag_.description).index(axis)
+      return dim_tag_, idx_
 
     out_returnn_axis_to_torch_axis = {}
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
     batch_size = None
-    dyn_size_dim_tag_to_spatial_idx_and_torch_dim = OrderedDict()  # RETURNN dim tag -> in spatial idx, Torch dim
+    # RETURNN dim tag, spatial dim tag index (for stag-single) -> in spatial idx, Torch dim
+    dyn_size_dim_tag_to_spatial_idx_and_torch_dim = OrderedDict()
     for input in inputs_flat:
       if not isinstance(input, Tensor):
         continue
@@ -778,12 +779,12 @@ class Module:
       if x.returnn_data.have_batch_axis():
         batch_size = input.shape[x.returnn_axis_from_torch_axis[x.returnn_data.batch_dim_axis]]
       for i in x.returnn_data.get_dynamic_axes():
-        dim_tag = _get_unique_spatial_dim_tag_name(x.returnn_data, i)
+        dim_tag, idx = _get_spatial_dim_tag_and_single_index(x.returnn_data, i)
         assert i in x.returnn_data.get_spatial_batch_axes()
         spatial_idx = x.returnn_data.get_spatial_batch_axes().index(i)
         torch_dim = input.shape[x.returnn_axis_from_torch_axis[i]]
-        if dim_tag not in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
-          dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag] = (spatial_idx, torch_dim)
+        if (dim_tag, idx) not in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
+          dyn_size_dim_tag_to_spatial_idx_and_torch_dim[(dim_tag, idx)] = (spatial_idx, torch_dim)
 
       # Find mapping to layer_output_shape_meta.
       mapping_out_to_in = {}
@@ -801,9 +802,9 @@ class Module:
             mapping_out_to_in[out_axis] = None  # new axis
           continue
         if out_axis in layer.output.get_dynamic_axes():
-          dim_tag = _get_unique_spatial_dim_tag_name(layer.output, out_axis)
-          if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
-            in_spatial_idx, _ = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
+          dim_tag, idx = _get_spatial_dim_tag_and_single_index(layer.output, out_axis)
+          if (dim_tag, idx) in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
+            in_spatial_idx, _ = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[(dim_tag, idx)]
             mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
             continue
         assert out_axis in layer.output.get_spatial_batch_axes()
@@ -851,9 +852,9 @@ class Module:
     if layer.output.get_dynamic_axes():
       assert dyn_size_dim_tag_to_spatial_idx_and_torch_dim
       for i in layer.output.get_dynamic_axes():
-        dim_tag = _get_unique_spatial_dim_tag_name(layer.output, i)
-        if dim_tag in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
-          in_spatial_idx, out_shape[i] = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[dim_tag]
+        dim_tag, idx = _get_spatial_dim_tag_and_single_index(layer.output, i)
+        if (dim_tag, idx) in dyn_size_dim_tag_to_spatial_idx_and_torch_dim:
+          in_spatial_idx, out_shape[i] = dyn_size_dim_tag_to_spatial_idx_and_torch_dim[(dim_tag, idx)]
           if i in rem_returnn_axes:
             out_spatial_idx = rem_returnn_axes_.index(i)
             if in_spatial_idx != out_spatial_idx:

@@ -108,7 +108,7 @@ class TensorEntry:
       if len(axes_with_same_dim_tag) == 1:
         return f"stag:{dim_tag.description}"
       else:
-        return f"stag-single:{axis - ndim}:{dim_tag.description}"
+        return f"stag-single:{axes_with_same_dim_tag.index(axis) - len(axes_with_same_dim_tag)}:{dim_tag.description}"
     static_axes = self.returnn_data.get_static_axes()
     if axis in static_axes:
       return f"static:{static_axes.index(axis)}"
