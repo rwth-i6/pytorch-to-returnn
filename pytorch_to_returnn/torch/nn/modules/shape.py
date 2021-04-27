@@ -97,7 +97,11 @@ class MergeDims(Module):
     # Switch to TF terminology. axis, not dim.
     in_torch_axes = [_pos_dim(d) for d in dims]
     in_returnn_axes = [in_.returnn_axis_from_torch_axis[i] for i in in_torch_axes]
-    out_returnn_reduced_axis = min(in_returnn_axes)
+    if in_.returnn_data.feature_dim_axis in in_returnn_axes:
+      out_returnn_reduced_axis = in_.returnn_data.feature_dim_axis
+      out_returnn_reduced_axis -= sum([axis < in_.returnn_data.feature_dim_axis for axis in in_returnn_axes])
+    else:
+      out_returnn_reduced_axis = min(in_returnn_axes)
     out_size = reduce(operator.mul, [input.shape[i] for i in in_torch_axes], 1)
     out_torch_reduced_axis = min(in_torch_axes)
     out_torch_shape = [input.shape[i] for i in range(input.ndim) if i not in in_torch_axes]
@@ -128,7 +132,8 @@ class MergeDims(Module):
       else:
         returnn_offset = len([a for a in in_returnn_axes if a < in_returnn_axis])
         assert 0 < returnn_offset < len(in_returnn_axes), f"in_returnn_axis={in_returnn_axis}?"
-        returnn_offset -= 1
+        if in_returnn_axis > out_returnn_reduced_axis:
+          returnn_offset -= 1
       out_returnn_axis = in_returnn_axis - returnn_offset
       out_returnn_axis_from_torch_axis[out_torch_axis] = out_returnn_axis
 
