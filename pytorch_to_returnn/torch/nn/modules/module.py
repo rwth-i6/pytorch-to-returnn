@@ -759,7 +759,7 @@ class Module:
 
     def _get_unique_spatial_dim_tag_name(data, axis):
       dim_tag = data.get_dim_tag(axis)
-      idx = data.get_spatial_batch_axes().index(axis)
+      idx = data.get_axes_by_tag_name(dim_tag.description).index(axis)
       return f"stag-single:{idx}:{dim_tag.description}"
 
     out_returnn_axis_to_torch_axis = {}
