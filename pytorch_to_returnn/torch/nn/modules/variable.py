@@ -26,11 +26,12 @@ class Variable(Module):
     naming = Naming.get_instance()
     values = None
     if naming.import_params_from_torch_namespace and self.parent_mod:
-      parent_mod, param_name = self.parent_mod
-      mod_abs_name = naming.get_module_abs_id_name(parent_mod)
-      torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
-      torch_param = getattr(torch_mod, param_name)
-      values = torch_param.detach().numpy()
+      if not ".tmp_root" in layer.network.name:  # temp layer
+        parent_mod, param_name = self.parent_mod
+        mod_abs_name = naming.get_module_abs_id_name(parent_mod)
+        torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
+        torch_param = getattr(torch_mod, param_name)
+        values = torch_param.detach().numpy()
     if values is None:
       values = self.param.detach().numpy()
     assert isinstance(layer, VariableLayer)
