@@ -26,7 +26,7 @@ class Variable(Module):
     naming = Naming.get_instance()
     values = None
     if naming.import_params_from_torch_namespace and self.parent_mod:
-      if not ".tmp_root" in layer.network.name:  # temp layer
+      if ".tmp_root" not in layer.network.name:  # temp layer
         parent_mod, param_name = self.parent_mod
         mod_abs_name = naming.get_module_abs_id_name(parent_mod)
         torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
