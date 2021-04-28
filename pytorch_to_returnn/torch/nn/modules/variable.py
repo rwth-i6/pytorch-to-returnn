@@ -17,16 +17,25 @@ class Variable(Module):
     super(Variable, self).__init__()
     assert isinstance(param, Parameter)
     self.param = param
+    self.parent_mod = None
 
   def create_returnn_layer_dict(self, *inputs):  # ignore inputs
     return {"class": "variable", "add_batch_axis": False, "shape": self.param.shape}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    naming = Naming.get_instance()
+    values = self.param.detach().numpy()
+    if naming.import_params_from_torch_namespace and self.parent_mod:
+      if self.parent_mod[0].is_original_torch_module:
+        mod_abs_name = naming.get_module_abs_id_name(self.parent_mod[0])
+        torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
+        values = torch_mod.weight.detach().numpy()
+
     assert isinstance(layer, VariableLayer)
     assert len(layer.params) == 1
     tf_param = list(layer.params.values())[0]
     session = tf.compat.v1.get_default_session()
-    tf_param.load(self.param.detach().numpy(), session=session)
+    tf_param.load(values, session=session)
     return self.param
 
 

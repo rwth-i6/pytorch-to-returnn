@@ -138,6 +138,7 @@ class Naming:
       prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
       mod = Variable(param=x.tensor())
       self.modules[mod].canonical_name = prefix + param_name
+      mod.parent_mod = (parent_mod.module, param_name)
       res = mod()
       res_tensor = self.tensors[res]
       assert isinstance(res_tensor, _tensor.TensorEntry)
