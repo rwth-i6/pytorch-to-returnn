@@ -136,9 +136,8 @@ class Naming:
         x.returnn_data.name = f"param:{param_name}"
       parent_mod = x.get_canonical_parent_module()
       prefix = (parent_mod.get_canonical_name() + "_") if parent_mod else ""
-      mod = Variable(param=x.tensor())
+      mod = Variable(param=x.tensor(), parent_mod=(parent_mod.module, param_name))
       self.modules[mod].canonical_name = prefix + param_name
-      mod.parent_mod = (parent_mod.module, param_name)
       res = mod()
       res_tensor = self.tensors[res]
       assert isinstance(res_tensor, _tensor.TensorEntry)
