@@ -157,7 +157,7 @@ class CallEntry:
         f"[{','.join(layer.output.get_batch_axes_short_description())}]")
 
       if naming.import_params_from_torch_namespace and layer:
-        if not layer_abs_repr_name.startswith("."):  # temp layer
+        if not layer.get_absolute_name().startswith("."):  # temp layer
           if module.is_original_torch_module and not module.has_torch_forward():
             if list(module.parameters(recurse=False)):
               # Need some way to get a unique name, to get the corresponding module from previous Torch run.
