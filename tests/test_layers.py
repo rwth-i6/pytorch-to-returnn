@@ -51,6 +51,65 @@ def test_linear_multiple_steps():
       "shape": (None, n_in * n_steps), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_load_params_in_returnn():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+
+    class DummyModule(torch.nn.Module):
+      def __init__(self):
+        super(DummyModule, self).__init__()
+        self.model = torch.nn.Linear(n_in, n_out)
+
+      def forward(self, x):
+        return F.linear(x, self.model.weight)
+
+    mod = DummyModule()
+    return mod(inputs)
+
+  x = numpy.ones((n_batch, n_time, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_in), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
+def test_load_params_in_returnn_with_initializer():
+  n_in, n_out = 11, 13
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+
+    class DummyModule(torch.nn.Module):
+      def __init__(self):
+        super(DummyModule, self).__init__()
+        self.model = torch.nn.Linear(n_in, n_out)
+        torch.nn.init.xavier_uniform_(self.model.weight)
+
+      def forward(self, x):
+        return F.linear(x, self.model.weight)
+
+    mod = DummyModule()
+    return mod(inputs)
+
+  x = numpy.ones((n_batch, n_time, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_in), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_cat():
 
   def model_func(wrapped_import, inputs: torch.Tensor):
@@ -63,6 +122,7 @@ def test_cat():
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (3,3)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
 
 def test_conv():
   n_in, n_out = 11, 13
