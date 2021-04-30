@@ -7,6 +7,7 @@ In RETURNN, every operation is a layer.
 """
 
 import numpy
+import warnings
 from pytorch_to_returnn import torch
 from typing import Optional, Union, List, Tuple, Dict, TypeVar, Sequence
 from . import modules
@@ -436,6 +437,7 @@ def dropout(input: Tensor, p: float = 0.5, training: bool = True, inplace: bool 
   if p > 0.0:
     return modules.Dropout(p=p, inplace=inplace).as_returnn_torch_functional()(input)
 
+
 def multi_head_attention_forward(
   query: Tensor,
   key: Tensor,
@@ -461,59 +463,8 @@ def multi_head_attention_forward(
   static_k: Optional[Tensor] = None,
   static_v: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Optional[Tensor]]:
-  r"""
-  Args:
-      query, key, value: map a query and a set of key-value pairs to an output.
-          See "Attention Is All You Need" for more details.
-      embed_dim_to_check: total dimension of the model.
-      num_heads: parallel attention heads.
-      in_proj_weight, in_proj_bias: input projection weight and bias.
-      bias_k, bias_v: bias of the key and value sequences to be added at dim=0.
-      add_zero_attn: add a new batch of zeros to the key and
-                     value sequences at dim=1.
-      dropout_p: probability of an element to be zeroed.
-      out_proj_weight, out_proj_bias: the output projection weight and bias.
-      training: apply dropout if is ``True``.
-      key_padding_mask: if provided, specified padding elements in the key will
-          be ignored by the attention. This is an binary mask. When the value is True,
-          the corresponding value on the attention layer will be filled with -inf.
-      need_weights: output attn_output_weights.
-      attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
-          the batches while a 3D mask allows to specify a different mask for the entries of each batch.
-      use_separate_proj_weight: the function accept the proj. weights for query, key,
-          and value in different forms. If false, in_proj_weight will be used, which is
-          a combination of q_proj_weight, k_proj_weight, v_proj_weight.
-      q_proj_weight, k_proj_weight, v_proj_weight, in_proj_bias: input projection weight and bias.
-      static_k, static_v: static key and value used for attention operators.
-  Shape:
-      Inputs:
-      - query: :math:`(L, N, E)` where L is the target sequence length, N is the batch size, E is
-        the embedding dimension.
-      - key: :math:`(S, N, E)`, where S is the source sequence length, N is the batch size, E is
-        the embedding dimension.
-      - value: :math:`(S, N, E)` where S is the source sequence length, N is the batch size, E is
-        the embedding dimension.
-      - key_padding_mask: :math:`(N, S)` where N is the batch size, S is the source sequence length.
-        If a ByteTensor is provided, the non-zero positions will be ignored while the zero positions
-        will be unchanged. If a BoolTensor is provided, the positions with the
-        value of ``True`` will be ignored while the position with the value of ``False`` will be unchanged.
-      - attn_mask: 2D mask :math:`(L, S)` where L is the target sequence length, S is the source sequence length.
-        3D mask :math:`(N*num_heads, L, S)` where N is the batch size, L is the target sequence length,
-        S is the source sequence length. attn_mask ensures that position i is allowed to attend the unmasked
-        positions. If a ByteTensor is provided, the non-zero positions are not allowed to attend
-        while the zero positions will be unchanged. If a BoolTensor is provided, positions with ``True``
-        are not allowed to attend while ``False`` values will be unchanged. If a FloatTensor
-        is provided, it will be added to the attention weight.
-      - static_k: :math:`(N*num_heads, S, E/num_heads)`, where S is the source sequence length,
-        N is the batch size, E is the embedding dimension. E/num_heads is the head dimension.
-      - static_v: :math:`(N*num_heads, S, E/num_heads)`, where S is the source sequence length,
-        N is the batch size, E is the embedding dimension. E/num_heads is the head dimension.
-      Outputs:
-      - attn_output: :math:`(L, N, E)` where L is the target sequence length, N is the batch size,
-        E is the embedding dimension.
-      - attn_output_weights: :math:`(N, L, S)` where N is the batch size,
-        L is the target sequence length, S is the source sequence length.
-  """
+  # pytorch-to-returnn: remove possible `return handle_torch_function(...)` from original implementation
+
   tgt_len, bsz, embed_dim = query.size()
   assert embed_dim == embed_dim_to_check
   # allow MHA to have different sizes for the feature dimension
@@ -617,7 +568,7 @@ def multi_head_attention_forward(
       or attn_mask.dtype == torch.bool
     ), "Only float, byte, and bool types are supported for attn_mask, not {}".format(attn_mask.dtype)
     if attn_mask.dtype == torch.uint8:
-      print("Warning: Byte tensor for attn_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
+      warnings.warn("Byte tensor for attn_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
       attn_mask = attn_mask.to(torch.bool)
 
     if attn_mask.dim() == 2:
@@ -633,7 +584,9 @@ def multi_head_attention_forward(
 
   # convert ByteTensor key_padding_mask to bool
   if key_padding_mask is not None and key_padding_mask.dtype == torch.uint8:
-    print("Warning: Byte tensor for key_padding_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead.")
+    warnings.warn(
+      "Byte tensor for key_padding_mask in nn.MultiheadAttention is deprecated. Use bool tensor instead."
+    )
     key_padding_mask = key_padding_mask.to(torch.bool)
 
   if bias_k is not None and bias_v is not None:
@@ -651,7 +604,8 @@ def multi_head_attention_forward(
     assert bias_k is None
     assert bias_v is None
 
-  # reshape to (bsz, num_heads, tgt_len, head_dim)
+  # Unlike the original implementation, we keep batch axis and num_heads separate.
+  # Therefore, reshape q, k and v to (bsz, num_heads, tgt_len, head_dim)
   q = q.contiguous().view(tgt_len, bsz, num_heads, head_dim).transpose(0, 1).transpose(1, 2)
   if k is not None:
     k = k.contiguous().view(-1, bsz, num_heads, head_dim).transpose(0, 1).transpose(1, 2)
@@ -661,14 +615,14 @@ def multi_head_attention_forward(
   if static_k is not None:
     assert static_k.size(0) == bsz * num_heads
     assert static_k.size(2) == head_dim
-    k = static_k.view(bsz, num_heads, -1, head_dim)
+    k = static_k.view(bsz, num_heads, -1, head_dim)  # adapt to separate batch axis
 
   if static_v is not None:
     assert static_v.size(0) == bsz * num_heads
     assert static_v.size(2) == head_dim
-    v = static_v.view(bsz, num_heads, -1, head_dim)
+    v = static_v.view(bsz, num_heads, -1, head_dim)  # adapt to separate batch axis
 
-  src_len = k.size(2)
+  src_len = k.size(2)  # adapt to separate batch axis
 
   if key_padding_mask is not None:
     assert key_padding_mask.size(0) == bsz
@@ -676,6 +630,7 @@ def multi_head_attention_forward(
 
   if add_zero_attn:
     src_len += 1
+    # adapt to separate batch axis
     k = torch.cat([k, torch.zeros(k.size()[:2] + (1, k.size(3)), dtype=k.dtype, device=k.device)], dim=2)
     v = torch.cat([v, torch.zeros(v.size()[:2] + (1, v.size(3)), dtype=v.dtype, device=v.device)], dim=2)
     if attn_mask is not None:
@@ -683,10 +638,12 @@ def multi_head_attention_forward(
     if key_padding_mask is not None:
       key_padding_mask = pad(key_padding_mask, (0, 1))
 
+  # adapt to separate batch axis
   attn_output_weights = torch.matmul(q, k.transpose(2, 3))
   assert list(attn_output_weights.size()) == [bsz, num_heads, tgt_len, src_len]
 
   if attn_mask is not None:
+    # adapt to separate batch axis
     attn_mask = attn_mask.view(bsz, num_heads, tgt_len, src_len)
     if attn_mask.dtype == torch.bool:
       attn_output_weights.masked_fill_(attn_mask, float("-inf"))
@@ -694,6 +651,7 @@ def multi_head_attention_forward(
       attn_output_weights += attn_mask
 
   if key_padding_mask is not None:
+    # adapt to separate batch axis
     attn_output_weights = attn_output_weights.masked_fill(
       key_padding_mask.unsqueeze(1).unsqueeze(2),
       float("-inf"),
@@ -702,6 +660,7 @@ def multi_head_attention_forward(
   attn_output_weights = softmax(attn_output_weights, dim=-1)
   attn_output_weights = dropout(attn_output_weights, p=dropout_p, training=training)
 
+  # adapt to separate batch axis
   attn_output = torch.matmul(attn_output_weights, v)
   assert list(attn_output.size()) == [bsz, num_heads, tgt_len, head_dim]
   attn_output = attn_output.transpose(1, 2).transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
