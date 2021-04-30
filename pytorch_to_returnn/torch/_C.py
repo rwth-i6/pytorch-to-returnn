@@ -138,6 +138,11 @@ def zeros(*shape):
   return Tensor(*shape)
 
 
+def empty(*shape):
+  from .tensor import Tensor
+  return Tensor(*shape)
+
+
 def from_numpy(arr):
   import numpy
   if isinstance(arr, int):
