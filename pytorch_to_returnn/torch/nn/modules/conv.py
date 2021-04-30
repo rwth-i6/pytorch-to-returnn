@@ -124,10 +124,11 @@ class _ConvNd(Module):
     """
     torch_shape, returnn_axis_from_torch_axis = super(_ConvNd, self)._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
-    torch_axis_from_returnn_axis = {j: i for i, j in returnn_axis_from_torch_axis.items()}
-    torch_shape = list(torch_shape)
-    for idx, ax in enumerate(layer.output.get_dynamic_axes()):
-      torch_ax = torch_axis_from_returnn_axis[ax]
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    torch_shape[1] = self.out_channels
+    for idx in range(self.nd):
+      torch_ax = idx + 2
       torch_shape[torch_ax] = (torch_shape[torch_ax] + 2 * self.padding[idx] - self.dilation[idx] * (
         self.kernel_size[idx] - 1) - 1) // self.stride[idx] + 1
     return tuple(torch_shape), returnn_axis_from_torch_axis
@@ -214,10 +215,11 @@ class _ConvTransposeNd(_ConvNd):
     """
     torch_shape, returnn_axis_from_torch_axis = super(_ConvNd, self)._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
-    torch_axis_from_returnn_axis = {j: i for i, j in returnn_axis_from_torch_axis.items()}
-    torch_shape = list(torch_shape)
-    for idx, ax in enumerate(layer.output.get_dynamic_axes()):
-      torch_ax = torch_axis_from_returnn_axis[ax]
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    torch_shape[1] = self.out_channels
+    for idx in range(self.nd):
+      torch_ax = idx + 2
       torch_shape[torch_ax] = (torch_shape[torch_ax] - 1) * self.stride[idx] - 2 * self.padding[idx] + (
         self.dilation[idx] * (self.kernel_size[idx] - 1) + self.output_padding[idx] + 1)
     return tuple(torch_shape), returnn_axis_from_torch_axis
