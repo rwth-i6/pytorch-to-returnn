@@ -2,7 +2,7 @@
 from __future__ import annotations
 import tensorflow as tf
 import math
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Tuple, Any
 from returnn.tf.layers.basic import LayerBase, ConvLayer
 from .module import Module
 from .utils import _single, _pair, _triple, _reverse_repeat_tuple, _ntuple
@@ -116,6 +116,23 @@ class _ConvNd(Module):
     if self.bias is not None:
       layer.params["bias"].load(torch_module.bias.detach().numpy(), session=session)
 
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    The basic returnn_axis_from_torch_axis should be correct, however, if the size of a dynamic axis changes (e.g. due
+    to strides and/or padding), this is not covered in the base method and we fix it here.
+    """
+    torch_shape, returnn_axis_from_torch_axis = super(_ConvNd, self)._get_output_shape_from_returnn(
+      inputs_flat=inputs_flat, layer=layer)
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    torch_shape[1] = self.out_channels
+    for idx in range(self.nd):
+      torch_ax = idx + 2
+      torch_shape[torch_ax] = (torch_shape[torch_ax] + 2 * self.padding[idx] - self.dilation[idx] * (
+        self.kernel_size[idx] - 1) - 1) // self.stride[idx] + 1
+    return tuple(torch_shape), returnn_axis_from_torch_axis
+
 
 class Conv1d(_ConvNd):
   nd = 1
@@ -189,6 +206,23 @@ class _ConvTransposeNd(_ConvNd):
     if self.padding:
       d["remove_padding"] = self.padding
     return d
+
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    The basic returnn_axis_from_torch_axis should be correct, however, if the size of a dynamic axis changes (e.g. due
+    to strides and/or padding), this is not covered in the base method and we fix it here.
+    """
+    torch_shape, returnn_axis_from_torch_axis = super(_ConvNd, self)._get_output_shape_from_returnn(
+      inputs_flat=inputs_flat, layer=layer)
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    torch_shape[1] = self.out_channels
+    for idx in range(self.nd):
+      torch_ax = idx + 2
+      torch_shape[torch_ax] = (torch_shape[torch_ax] - 1) * self.stride[idx] - 2 * self.padding[idx] + (
+        self.dilation[idx] * (self.kernel_size[idx] - 1) + self.output_padding[idx] + 1)
+    return tuple(torch_shape), returnn_axis_from_torch_axis
 
 
 class ConvTranspose1d(_ConvTransposeNd):

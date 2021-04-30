@@ -636,6 +636,9 @@ class Module:
       returnn_output_np = returnn_output_np_.transpose(*[
         returnn_output_tensor_entry.returnn_axis_from_torch_axis[i] for i in range(returnn_output_np_.ndim)])
       torch_out_np = torch_mod_call.orig_outputs_flat[out_idx].detach().cpu().numpy()
+      assert torch_out_np.shape == tuple(int(i) for i in returnn_output_tensor_entry.tensor().shape), (
+        f"torch shape of TensorEntry does not match real torch shape: "
+        f"{torch_out_np.shape} vs. {returnn_output_tensor_entry}")
       error_msg_info = [f"RETURNN layer: {call.returnn_layer}", f"Torch module: {torch_mod}"]
       if returnn_output_np.shape != torch_out_np.shape:
         error_msg_info += [
