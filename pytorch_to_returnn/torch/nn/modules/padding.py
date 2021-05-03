@@ -23,6 +23,14 @@ class GenericPadNd(Module):
   def create_returnn_layer_dict(self, input: Tensor):
     assert self.mode
     assert self.mode != "replicate"  # not implemented
+    assert len(self.padding) % 2 == 0, 'Padding needs to be a multiple of 2'
+
+    # PyTorch specifies the padding in one big tuple
+    # e.g. (1,1,1,1) to pad by 1 in each direction of the last 2 dimensions
+    # RETURNN however takes padding split by axis
+    # e.g. [(1,1), (1,1)]
+    returnn_padding = [(self.padding[2 * i], self.padding[2 * i + 1]) for i in range(len(self.padding) // 2)]
+
     # PyTorch assumes the input to be in batch-feature-major.
     # E.g. for 1D, it assumes input (N, C, W_in),
     # and produces output (N, C, W_out) with W_out = W_in + padding_left + padding_right.
@@ -30,7 +38,7 @@ class GenericPadNd(Module):
     # For 3D, it assumes input (N, C, D_in, H_in, W_in).
     # I.e. does padding in the spatial axes.
     d = {
-      "class": "pad", "mode": self.mode, "axes": "spatial", "padding": self.padding,
+      "class": "pad", "mode": self.mode, "axes": "spatial", "padding": returnn_padding,
       "from": self._get_input_layer_name(input)}
     if self.mode == "constant":
       d["value"] = self.value
