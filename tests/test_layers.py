@@ -388,9 +388,9 @@ def test_pad():
     else:
       F = wrapped_import("torch.nn.functional")
 
-    return F.pad(inputs, (1,1,2,2))
+    return F.pad(inputs, (1, 1, 2, 2))
 
-  x = numpy.zeros((1,1,4,4)).astype("float32")
+  x = numpy.zeros((1, 1, 4, 4)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
