@@ -922,12 +922,15 @@ class Module:
 
   @classmethod
   def _make_returnn_dummy_input(cls, data: Data) -> numpy.ndarray:
-    some_primes = (3, 5, 7, 11, 13)  # use primes for dynamic dims, just nicer to identify in logs
-    dynamic_axes = [i for i, dim in enumerate(data.batch_shape) if dim is None]
-    assert len(dynamic_axes) <= len(some_primes)  # just not implemented otherwise
-    shape = list(data.batch_shape)
-    for i, j in enumerate(dynamic_axes):
-      shape[j] = some_primes[i]
+    if cls.returnn_dummy_input_shape is not None:
+      shape = cls.returnn_dummy_input_shape
+    else:
+      some_primes = (3, 5, 7, 11, 13)  # use primes for dynamic dims, just nicer to identify in logs
+      dynamic_axes = [i for i, dim in enumerate(data.batch_shape) if dim is None]
+      assert len(dynamic_axes) <= len(some_primes)  # just not implemented otherwise
+      shape = list(data.batch_shape)
+      for i, j in enumerate(dynamic_axes):
+        shape[j] = some_primes[i]
     return numpy.zeros(shape, dtype=data.dtype)
 
   def _returnn_dummy_call(self, *returnn_inputs: Dict[str, Any]) -> Naming:

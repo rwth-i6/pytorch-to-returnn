@@ -1022,6 +1022,26 @@ def test_pad():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_dummy_input_shape():
+  n_in, n_out = 11, 11
+  n_batch, n_time = 3, 999
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    model = torch.nn.Conv1d(in_channels=n_in, out_channels=n_out, kernel_size=5, stride=5)
+    x = inputs
+    for i in range(3):
+      x = model(x)
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_dummy_input_shape=x.shape)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
