@@ -6,7 +6,7 @@ import numpy
 import types
 import tempfile
 from pytorch_to_returnn.pprint import pprint
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any, Tuple
 from returnn.tf.util.data import Data
 from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
@@ -53,6 +53,7 @@ class Converter:
                model_func: ModelFuncType, *,
                inputs: numpy.ndarray,
                inputs_data_kwargs: Optional[Dict[str, Any]] = None,
+               returnn_dummy_input_shape: Optional[Tuple[int]] = None,
                use_non_wrapped_reference: bool = True,
                verify_with_torch: bool = True,
                verify_individual_model_io: bool = True,
@@ -81,6 +82,7 @@ class Converter:
         inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
         for i in range(1, len(inputs.shape))]
     self._returnn_in_data_dict = inputs_data_kwargs
+    self._returnn_dummy_input_shape = returnn_dummy_input_shape
     self.use_non_wrapped_reference = use_non_wrapped_reference
     self.verify_with_torch = verify_with_torch
     self.verify_individual_model_io = verify_individual_model_io
@@ -263,6 +265,8 @@ class Converter:
         # We assume this would be flattened away in the namespace.
         # All named modules should thus have the same names.
         class DummyModule(torch_returnn.nn.Module):
+          returnn_dummy_input_shape = self._returnn_dummy_input_shape
+
           def get_returnn_name(self) -> str:
             return ""  # also avoid that this name becomes a prefix anywhere
 
