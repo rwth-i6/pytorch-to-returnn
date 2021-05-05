@@ -359,6 +359,10 @@ def relu(input: Tensor) -> Tensor:
   return modules.ReLU().as_returnn_torch_functional()(input)
 
 
+def gelu(input: Tensor) -> Tensor:
+  return modules.GELU().as_returnn_torch_functional()(input)
+
+
 def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = False) -> Tensor:
   return modules.LeakyReLU(negative_slope=negative_slope, inplace=inplace).as_returnn_torch_functional()(input)
 
