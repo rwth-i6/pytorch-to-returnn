@@ -1,8 +1,8 @@
 
 from ...tensor import Tensor
 from .module import Module
-from typing import Union, Tuple, Optional, List, Dict
 from returnn.tf.layers.basic import LayerBase
+from typing import Union, Tuple, Optional, List, Dict
 from .utils import _pair, _quadruple, _ntuple
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 from ....naming import Naming
@@ -65,8 +65,7 @@ class GenericPadNd(Module):
   def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
-    The basic returnn_axis_from_torch_axis should be correct, however, the torch shape is not adapted in the base method
-    and we fix it here.
+    The size of the dynamic axes might be changed, so we have to take care of this here for the torch shape.
     """
     torch_shape, returnn_axis_from_torch_axis = super(GenericPadNd, self)._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
