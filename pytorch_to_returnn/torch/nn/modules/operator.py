@@ -294,6 +294,27 @@ class Slice(Module):
       "slice_start": self.start, "slice_end": self.stop, "slice_step": self.step,
       "from": self._get_input_layer_name(input)}
 
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    The size of the dynamic axes might be changed, so we have to take care of this here for the torch shape.
+    """
+    torch_shape, returnn_axis_from_torch_axis = super(Slice, self)._get_output_shape_from_returnn(
+      inputs_flat=inputs_flat, layer=layer)
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    start = self.start or 0
+    stop = self.stop or torch_shape[self.axis]
+    step = self.step or 1
+    if start < 0:
+      start += torch_shape[self.axis]
+    if stop < 0:
+      stop += torch_shape[self.axis]
+    assert 0 <= start <= torch_shape[self.axis] - 1
+    assert 0 <= stop <= torch_shape[self.axis]
+    torch_shape[self.axis] = len(range(start, stop, step))
+    return tuple(torch_shape), returnn_axis_from_torch_axis
+
 
 class Stack(Module):
   """
