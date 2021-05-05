@@ -783,12 +783,12 @@ class Module:
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
       if x.returnn_data.have_batch_axis():
-        batch_size = input.shape[x.returnn_axis_from_torch_axis[x.returnn_data.batch_dim_axis]]
+        batch_size = input.shape[x.torch_axis_from_returnn_axis[x.returnn_data.batch_dim_axis]]
       for i in x.returnn_data.get_dynamic_axes():
         dim_tag_ext = _get_spatial_dim_tag_and_single_index(x.returnn_data, i)
         assert i in x.returnn_data.get_spatial_batch_axes()
         spatial_idx = x.returnn_data.get_spatial_batch_axes().index(i)
-        torch_dim = input.shape[x.returnn_axis_from_torch_axis[i]]
+        torch_dim = input.shape[x.torch_axis_from_returnn_axis[i]]
         if dim_tag_ext not in dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim:
           dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim[dim_tag_ext] = (spatial_idx, torch_dim)
 
