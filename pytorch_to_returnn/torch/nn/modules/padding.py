@@ -1,7 +1,8 @@
 
 from ...tensor import Tensor
 from .module import Module
-from typing import Union, Tuple, Optional
+from returnn.tf.layers.basic import LayerBase
+from typing import Union, Tuple, Optional, List, Dict
 from .utils import _pair, _quadruple, _ntuple
 from ..common_types import _size_2_t, _size_4_t, _size_6_t
 
@@ -35,6 +36,19 @@ class GenericPadNd(Module):
     if self.mode == "constant":
       d["value"] = self.value
     return d
+
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    The size of the dynamic axes might be changed, so we have to take care of this here for the torch shape.
+    It is assumed here that the order of the axes will not change by this layer, so we simply take
+    returnn_axis_from_torch_axis from the input.
+    """
+    assert len(inputs_flat) == 1
+    torch_shape = list(inputs_flat[0].shape)
+    for idx in range(len(self.padding) // 2):
+      torch_shape[-1 - idx] += self.padding[2 * idx] + self.padding[2 * idx + 1]
+    return tuple(torch_shape), inputs_flat[0].returnn_naming_entry.returnn_axis_from_torch_axis
 
 
 class _ConstantPadNd(GenericPadNd):
