@@ -41,14 +41,14 @@ class GenericPadNd(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
     The size of the dynamic axes might be changed, so we have to take care of this here for the torch shape.
+    It is assumed here that the order of the axes will not change by this layer, so we simply take
+    returnn_axis_from_torch_axis from the input.
     """
-    torch_shape, returnn_axis_from_torch_axis = super(GenericPadNd, self)._get_output_shape_from_returnn(
-      inputs_flat=inputs_flat, layer=layer)
     assert len(inputs_flat) == 1
     torch_shape = list(inputs_flat[0].shape)
     for idx in range(len(self.padding) // 2):
       torch_shape[-1 - idx] += self.padding[2 * idx] + self.padding[2 * idx + 1]
-    return tuple(torch_shape), returnn_axis_from_torch_axis
+    return tuple(torch_shape), inputs_flat[0].returnn_naming_entry.returnn_axis_from_torch_axis
 
 
 class _ConstantPadNd(GenericPadNd):
