@@ -225,6 +225,34 @@ def test_naming_inner_func_functional_with_buffer():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_naming_reassign_attribute():
+  n_batch, n_time = 3, 7
+  n_in, n_out = 11, 13
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class MyModel(torch.nn.Module):
+      def __init__(self):
+        super(MyModel, self).__init__()
+        self.model = torch.nn.Linear(n_in, n_out)
+        self.model = torch.nn.Sequential(self.model, torch.nn.GELU())
+
+      def forward(self, x):
+        return self.model(x)
+
+    model = MyModel()
+    out = model(inputs.transpose(1, 2))
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
     for k, v in sorted(globals().items()):
