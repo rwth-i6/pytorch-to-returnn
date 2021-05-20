@@ -381,6 +381,21 @@ def test_reshape_a_b_F_to_b_aF():
       "shape": (n_feature_1, None, n_feature_2), "batch_dim_axis": 0, "time_dim_axis": 2, "feature_dim_axis": 3})
 
 
+def test_pad():
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch.nn.functional as F
+    else:
+      F = wrapped_import("torch.nn.functional")
+
+    inputs = F.pad(inputs, (1, 1, 2, 2))
+    inputs = F.pad(inputs, (1, 1))
+    return inputs
+
+  x = numpy.zeros((1, 1, 4, 4)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
