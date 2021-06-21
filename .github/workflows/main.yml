@@ -61,14 +61,14 @@ jobs:
         chmod +x ~/nosetests
         mv ~/nosetests ~/.local/bin/nosetests
 
-    - name: Test Python/Numpy/TF/RETURNN versions.
+    - name: Test Python/Numpy/TF/PyTorch/RETURNN versions.
       run: |
         echo "Python env: $(type python) $(python --version)"
         python -c "import numpy; print('NumPy:', numpy.version.full_version)"
         python -c "import tensorflow as tf; print('TensorFlow:', tf.__git_version__, tf.__version__, tf.__file__)"
         python -c "import tensorflow as tf; assert tf.__version__ == '${{ matrix.tf-version }}'"
         python -c "import torch; print('PyTorch:', torch.__version__, torch.__file__)"
-        python -c "import torch; assert torch.__version__.startswith('${{ matrix.tf-version }}')"
+        python -c "import torch; assert torch.__version__.startswith('${{ matrix.torch-version }}')"
         python -c "import returnn; print('RETURNN:', returnn.__long_version__, returnn.__version__, returnn.__file__)"
 
         echo "Nosetests env: $(type nosetests)"
