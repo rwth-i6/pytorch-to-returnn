@@ -15,6 +15,8 @@ jobs:
           - 3.8
         tf-version:
           - 2.3.1
+        torch-version:
+          - 1.8.1
         action:
           # just order by name
           - TEST=converter
@@ -48,6 +50,7 @@ jobs:
 
         pip install --user --upgrade pip setuptools wheel
         pip install --user --upgrade tensorflow==${{ matrix.tf-version }} | cat
+        pip install --user --upgrade torch==${{ matrix.torch-version }} | cat
         pip install --user --upgrade returnn
         pip install --user nose
         pip install --user -r requirements.txt | cat
