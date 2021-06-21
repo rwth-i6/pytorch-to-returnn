@@ -38,7 +38,7 @@ jobs:
         path: |
           ~/.cache
           ~/.local
-        key: cache-${{ runner.os }}-py${{ matrix.python-version }}-tf${{ matrix.tf-version }}
+        key: cache-${{ runner.os }}-py${{ matrix.python-version }}-tf${{ matrix.tf-version }}-torch${{ matrix.torch-version }}
         restore-keys: |
           cache-${{ runner.os }}-py${{ matrix.python-version }}-
 
@@ -68,6 +68,7 @@ jobs:
         python -c "import tensorflow as tf; print('TensorFlow:', tf.__git_version__, tf.__version__, tf.__file__)"
         python -c "import tensorflow as tf; assert tf.__version__ == '${{ matrix.tf-version }}'"
         python -c "import torch; print('PyTorch:', torch.__version__, torch.__file__)"
+        python -c "import torch; assert torch.__version__.startswith('${{ matrix.tf-version }}')"
         python -c "import returnn; print('RETURNN:', returnn.__long_version__, returnn.__version__, returnn.__file__)"
 
         echo "Nosetests env: $(type nosetests)"
