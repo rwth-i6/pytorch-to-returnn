@@ -17,6 +17,14 @@ class Copy(Module):
     assert len(inputs_flat) == 1
     return inputs_flat[0]
 
+
+class Range(Module):
+  is_original_torch_module = False
+
+  def create_returnn_layer_dict(self, limit, start, delta, dtype, sparse=False) -> Dict[str, Any]:
+    return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
+
+
 class Cat(Module):
   is_original_torch_module = False
 
@@ -36,6 +44,7 @@ class Cat(Module):
       returnn_axis = input_naming.returnn_axis_from_torch_axis[dim]
       assert returnn_axis == input_naming.returnn_data.feature_dim_axis, "Concatenation in dimensions other than the feature dimension is currently not supported."
     return {"class": "copy", "from": [self._get_input_layer_name(input) for input in inputs]}
+
 
 class GetSublayer(Module):
   is_original_torch_module = False
