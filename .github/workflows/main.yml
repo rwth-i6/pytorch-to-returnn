@@ -64,6 +64,7 @@ jobs:
         python -c "import numpy; print('NumPy:', numpy.version.full_version)"
         python -c "import tensorflow as tf; print('TensorFlow:', tf.__git_version__, tf.__version__, tf.__file__)"
         python -c "import tensorflow as tf; assert tf.__version__ == '${{ matrix.tf-version }}'"
+        python -c "import torch; print('PyTorch:', torch.__version__, torch.__file__)"
         python -c "import returnn; print('RETURNN:', returnn.__long_version__, returnn.__version__, returnn.__file__)"
 
         echo "Nosetests env: $(type nosetests)"
