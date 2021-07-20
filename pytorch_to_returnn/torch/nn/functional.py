@@ -144,6 +144,10 @@ def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
   return modules.Flatten(start_dim=start_dim, end_dim=end_dim).as_returnn_torch_functional()(input)
 
 
+def unsqueeze(input: Tensor, dim: int) -> Tensor:
+  return input.unsqueeze(dim)
+
+
 def reshape(input: Tensor, shape: Tuple[int, ...]) -> Tensor:
   if any(dim == -1 for dim in shape):
     num = input.numel()
