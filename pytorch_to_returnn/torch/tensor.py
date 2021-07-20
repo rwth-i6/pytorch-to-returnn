@@ -50,6 +50,9 @@ class Tensor:
   def dim(self):
     return len(self._shape)
 
+  def ndimension(self):
+    return self.dim()
+
   @property
   def ndim(self):
     return self.dim()
