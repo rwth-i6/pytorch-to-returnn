@@ -20,6 +20,14 @@ class GELU(_ActivationReturnn):
   func_name = "gelu3"
 
 
+class PReLU(_ActivationReturnn):
+  pass
+
+
+class ELU(_ActivationReturnn):
+  pass
+
+
 class Abs(_ActivationReturnn):
   func_name = "abs"
 

@@ -94,6 +94,10 @@ class Tensor:
   def clone(self):
     return self  # ignore
 
+  def cpu(self):
+    return self  # ignore
+
+  @property
   def device(self):
     return None  # ignore
 
@@ -291,3 +295,9 @@ class LongTensor(Tensor):
 class FloatTensor(Tensor):
   def __init__(self, *args):
     super(FloatTensor, self).__init__(dtype="float32", *args)
+
+
+class IntTensor(Tensor):
+  def __init__(self, *args):
+    super(FloatTensor, self).__init__(dtype="int32", *args)
+
