@@ -2,6 +2,7 @@
 
 import tensorflow as tf
 import torch
+import contextlib
 import numpy
 import types
 import tempfile
@@ -15,6 +16,16 @@ from pytorch_to_returnn.naming import Naming
 
 
 ModelFuncType = Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor]
+
+
+@contextlib.contextmanager
+def make_scope():
+  """
+  :rtype: tf.compat.v1.Session
+  """
+  with tf.Graph().as_default() as graph:
+    with tf.compat.v1.Session(graph=graph) as session:
+      yield session
 
 
 class Converter:
@@ -177,7 +188,7 @@ class Converter:
     print(">>> Running with wrapped Torch import, wrapping replacement for PyTorch...")
     torch.manual_seed(42)
     numpy.random.seed(42)
-    with tf.compat.v1.Session() as session:
+    with make_scope() as session:
       with Naming.make_instance(
             wrap_to_returnn_enabled=True,
             returnn_train_flag=self.train,
@@ -232,7 +243,7 @@ class Converter:
 
   def _run_returnn_standalone_net_dict(self):
     print(">>> Constructing RETURNN model, load TF checkpoint, run...")
-    with tf.compat.v1.Session() as session:
+    with make_scope() as session:
       from returnn.config import Config
       from returnn.tf.network import TFNetwork
       config = Config({
@@ -255,7 +266,7 @@ class Converter:
 
   def _run_returnn_standalone_python(self):
     print(">>> Constructing RETURNN model via Python code, load TF checkpoint, run...")
-    with tf.compat.v1.Session() as session:
+    with make_scope() as session:
       with Naming.make_instance() as naming:  # we expect this to work with the default settings
         model_func = self._model_func
 
