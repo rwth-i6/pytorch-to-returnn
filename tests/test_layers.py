@@ -938,6 +938,7 @@ def test_forward_with_kwargs():
 
       def forward(self, x, *, add_bias=None):
         assert isinstance(add_bias, bool)
+        x = x.detach().clone()
         if add_bias:
           x += self.bias
         return x
@@ -1040,6 +1041,65 @@ def test_dummy_input_shape():
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_dummy_input_shape=x.shape)
+
+
+def test_dict_in_forward():
+  n_in, n_out = 12, 24
+  n_batch, n_time = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class TensorToDict(torch.nn.Module):
+      def __init__(self):
+        super().__init__()
+
+      def forward(self, x):
+        return {"x": x, "y": x + 1}
+
+    class DictToTensor(torch.nn.Module):
+      def __init__(self):
+        super().__init__()
+
+      def forward(self, x):
+        return x["x"] + x["y"]
+
+    model_1 = TensorToDict()
+    model_2 = DictToTensor()
+    return model_2(model_1(inputs))
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_dict_input():
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    return inputs["x"] + inputs["y"]
+
+  x = numpy.zeros((3, 5, 7)).astype("float32")
+  y = numpy.zeros((3, 5, 7)).astype("float32")
+
+  verify_torch_and_convert_to_returnn(model_func, inputs={"x": x, "y": y})
+
+
+def test_list_input():
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+    return F.relu(inputs[0]) + F.relu(inputs[1])
+
+  x = numpy.zeros((3, 5, 7)).astype("float32")
+  y = numpy.zeros((3, 5, 7)).astype("float32")
+
+  verify_torch_and_convert_to_returnn(model_func, inputs=[x, y])
 
 
 if __name__ == "__main__":
