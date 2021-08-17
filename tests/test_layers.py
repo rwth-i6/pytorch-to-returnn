@@ -1008,7 +1008,7 @@ def test_depth_wise_conv1d():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
-def test_pad():
+def test_constant_pad_1d():
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
       import torch
