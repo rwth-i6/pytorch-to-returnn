@@ -12,6 +12,7 @@ from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming, CallEntry, TensorEntry
+from ....converter import InputType
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from returnn.tf.util.data import Data, DimensionTag
 
@@ -933,27 +934,35 @@ class Module:
         shape[j] = some_primes[i]
     return numpy.zeros(shape, dtype=data.dtype)
 
-  def _returnn_dummy_call(self, *returnn_inputs: Dict[str, Any]) -> Naming:
+  def _returnn_dummy_call(self, returnn_inputs: Dict[Any, Dict[str, Any]], original_inputs: InputType) -> Naming:
     from pytorch_to_returnn.torch import from_numpy
     naming = Naming.get_instance()
     returnn_datas = []
-    for i, kwargs in enumerate(returnn_inputs):
+    for i, kwargs in enumerate(returnn_inputs.values()):
       kwargs = kwargs.copy()
       if "name" not in kwargs:
-        kwargs["name"] = "data" if i == 0 else f"data:{i}"
+        kwargs["name"] = "data" if i == 0 else f"data_{i}"
       x = Data(**kwargs)
       returnn_datas.append(x)
     dummy_inputs_np = [self._make_returnn_dummy_input(x) for x in returnn_datas]
     dummy_inputs_torch = [from_numpy(x) for x in dummy_inputs_np]
     for i in range(len(returnn_inputs)):
       naming.register_input(tensor=dummy_inputs_torch[i], returnn_data=returnn_datas[i])
-    out = self(*dummy_inputs_torch)
+    if isinstance(original_inputs, numpy.ndarray):
+      dummy_inputs_torch = dummy_inputs_torch[0]
+    if isinstance(original_inputs, dict):
+      dummy_inputs_torch = {k: v for k, v in zip(original_inputs.keys(), dummy_inputs_torch)}
+    out = self(dummy_inputs_torch)
     assert isinstance(out, Tensor)
     naming.register_output(out)
     return naming
 
-  def as_returnn_net_dict(self, *returnn_inputs: Dict[str, Any]):
-    return self._returnn_dummy_call(*returnn_inputs).root_namespace.dump_as_returnn_net_dict()
+  def as_returnn_net_dict(
+    self, returnn_inputs: Dict[Any, Dict[str, Any]], original_inputs: InputType
+  ) -> Dict[str, Dict[str, Any]]:
+    return self._returnn_dummy_call(returnn_inputs, original_inputs).root_namespace.dump_as_returnn_net_dict()
 
-  def as_returnn_layer_dict(self, *returnn_inputs: Dict[str, Any]):
-    return self._returnn_dummy_call(*returnn_inputs).root_namespace.dump_as_returnn_layer_dict()
+  def as_returnn_layer_dict(
+    self, returnn_inputs: Dict[Any, Dict[str, Any]], original_inputs: InputType
+  ) -> Dict[str, Dict[str, Any]]:
+    return self._returnn_dummy_call(returnn_inputs, original_inputs).root_namespace.dump_as_returnn_layer_dict()

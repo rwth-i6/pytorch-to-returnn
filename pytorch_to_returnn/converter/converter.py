@@ -7,7 +7,7 @@ import numpy
 import types
 import tempfile
 from pytorch_to_returnn.pprint import pprint
-from typing import Callable, Optional, Dict, Any, Tuple
+from typing import Callable, Optional, Dict, Any, Tuple, List, Union
 from returnn.tf.util.data import Data
 from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
@@ -16,6 +16,7 @@ from pytorch_to_returnn.naming import Naming
 
 
 ModelFuncType = Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor]
+InputType = Union[numpy.ndarray, Dict[Any, numpy.ndarray], List[numpy.ndarray]]
 
 
 @contextlib.contextmanager
@@ -62,7 +63,7 @@ class Converter:
 
   def __init__(self,
                model_func: ModelFuncType, *,
-               inputs: numpy.ndarray,
+               inputs: InputType,
                inputs_data_kwargs: Optional[Dict[str, Any]] = None,
                returnn_dummy_input_shape: Optional[Tuple[int]] = None,
                use_non_wrapped_reference: bool = True,
@@ -81,17 +82,37 @@ class Converter:
     """
     self._model_func = model_func
     self._inputs_np = inputs
-    inputs_data_kwargs = {} if inputs_data_kwargs is None else inputs_data_kwargs.copy()
-    if "feature_dim_axis" not in inputs_data_kwargs and not inputs_data_kwargs.get("sparse", False):
-      assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
-      if inputs_data_kwargs.get("batch_dim_axis", 0) == 0:
-        inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
-    if "shape" not in inputs_data_kwargs:
-      # Assume feature is static, all other dynamic.
-      # Assume batch-major.
-      inputs_data_kwargs["shape"] = [
-        inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
-        for i in range(1, len(inputs.shape))]
+    assert type(self._inputs_np) in (numpy.ndarray, dict, list), (
+      "Type not supported as input: {}".format(type(inputs_data_kwargs)))
+    # inputs_data_kwargs should always be of type Dict[str|int, Dict[str, Any]].
+    # If input is array, the only key is "data". If input is a list, the keys are 0, 1, ...
+    if inputs_data_kwargs is None:
+      if isinstance(self._inputs_np, numpy.ndarray):
+        inputs_data_kwargs = {"data": {}}
+      elif isinstance(self._inputs_np, dict):
+        inputs_data_kwargs = {k: {} for k in self._inputs_np}
+      elif isinstance(self._inputs_np, list):
+        inputs_data_kwargs = {k: {} for k in range(len(self._inputs_np))}
+    if isinstance(inputs_data_kwargs, list):
+      inputs_data_kwargs = {i: x for i, x in enumerate(inputs_data_kwargs)}
+    if isinstance(self._inputs_np, numpy.ndarray) and inputs_data_kwargs.keys() != {"data"}:
+      inputs_data_kwargs = {"data": inputs_data_kwargs}
+    assert isinstance(inputs_data_kwargs, dict)
+
+    for k, kwargs_ in inputs_data_kwargs.items():
+      if type(self._inputs_np) in (dict, list):
+        inputs = self._inputs_np[k]
+      assert isinstance(inputs, numpy.ndarray)
+      if "feature_dim_axis" not in kwargs_ and not kwargs_.get("sparse", False):
+        assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
+        if kwargs_.get("batch_dim_axis", 0) == 0:
+          kwargs_["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
+      if "shape" not in kwargs_:
+        # Assume feature is static, all other dynamic.
+        # Assume batch-major.
+        kwargs_["shape"] = [
+          inputs.shape[i] if i == kwargs_["feature_dim_axis"] else None
+          for i in range(1, len(inputs.shape))]
     self._returnn_in_data_dict = inputs_data_kwargs
     self._returnn_dummy_input_shape = returnn_dummy_input_shape
     self.use_non_wrapped_reference = use_non_wrapped_reference
@@ -122,14 +143,36 @@ class Converter:
     assert self._returnn_net_dict, "Call run() first."
     return self._returnn_net_dict
 
-  def _make_tf_feed_dict(self, input: Data):
-    assert input.batch_ndim == len(self._inputs_np.shape)
-    assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
-    n_batch = self._inputs_np.shape[input.batch_dim_axis]
-    d = {input.placeholder: self._inputs_np}
-    for i, size in input.size_placeholder.items():
-      d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
+  def _make_tf_feed_dict(self, inputs: Dict[Any, Data]):
+    def _as_list(obj):
+      if isinstance(obj, list):
+        return obj
+      elif isinstance(obj, dict):
+        return list(obj.values())
+      else:
+        return [obj]
+
+    d = {}
+    for input_, input_np in zip(_as_list(inputs), _as_list(self._inputs_np)):
+      assert input_.batch_ndim == len(input_np.shape)
+      assert all(input_.batch_shape[i] in {None, input_np.shape[i]} for i in range(input_.batch_ndim))
+      n_batch = input_np.shape[input_.batch_dim_axis]
+      d[input_.placeholder] = input_np
+      for i, size in input_.size_placeholder.items():
+        d[size] = [input_np.shape[input_.get_batch_axis(i)]] * n_batch  # not so relevant
     return d
+
+  def _get_torch_inputs(self, torch_module, inputs=None):
+    if inputs is None:
+      inputs = self._inputs_np
+    if isinstance(inputs, numpy.ndarray):
+      return torch_module.from_numpy(inputs)
+    elif isinstance(inputs, dict):
+      return {k: self._get_torch_inputs(torch_module, inputs=v) for k, v in inputs.items()}
+    elif isinstance(inputs, list):
+      return [self._get_torch_inputs(torch_module, inputs=x) for x in inputs]
+    else:
+      raise ValueError("Input type not supported: {}".format(type(inputs)))
 
   def _run_reference(self):
     """
@@ -145,7 +188,7 @@ class Converter:
     torch.manual_seed(42)
     numpy.random.seed(42)
     with torch.no_grad():
-      out_ref = self._model_func(None, torch.from_numpy(self._inputs_np.copy()))
+      out_ref = self._model_func(None, self._get_torch_inputs(torch))
       assert isinstance(out_ref, torch.Tensor)
       out_ref_np = out_ref.cpu().numpy()
     self._out_ref_np = out_ref_np
@@ -167,7 +210,7 @@ class Converter:
             wrap_to_returnn_enabled=False,
             keep_orig_module_io_tensors=self.verify_individual_model_io) as naming:
         wrapped_torch = wrapped_import_torch_traced("torch")
-        out_wrapped = self._model_func(wrapped_import_torch_traced, wrapped_torch.from_numpy(self._inputs_np.copy()))
+        out_wrapped = self._model_func(wrapped_import_torch_traced, self._get_torch_inputs(wrapped_torch))
         assert isinstance(out_wrapped, WrappedTorchTensor)
         out_wrapped_np = out_wrapped.cpu().numpy()
         print(">>>> Module naming hierarchy:")
@@ -197,9 +240,21 @@ class Converter:
             keep_orig_module_io_tensors=True,  # it's only symbolic anyway in TF
             import_params_from_torch_namespace=self._torch_namespace) as naming:
         assert isinstance(naming, Naming)
-        in_returnn = torch_returnn.from_numpy(self._inputs_np.copy())
-        assert isinstance(in_returnn, torch_returnn.Tensor)
-        x = naming.register_input(in_returnn, Data("data", **self._returnn_in_data_dict))
+        in_returnn = self._get_torch_inputs(torch_returnn)
+        if isinstance(in_returnn, torch_returnn.Tensor):
+          x = naming.register_input(in_returnn, Data("data", **self._returnn_in_data_dict["data"]))
+          print("RETURNN input:", x)
+          x = {"data": x}
+        elif isinstance(in_returnn, dict):
+          x = {}
+          for k, v in in_returnn.items():
+            assert isinstance(v, torch_returnn.Tensor)
+            x[k] = naming.register_input(v, Data("data_{}".format(k), **self._returnn_in_data_dict[k]))
+        elif isinstance(in_returnn, list):
+          x = {}
+          for i, v in enumerate(in_returnn):
+            assert isinstance(v, torch_returnn.Tensor)
+            x[i] = naming.register_input(v, Data("data_{}".format(i), **self._returnn_in_data_dict[i]))
         print("RETURNN input:", x)
         out_returnn = self._model_func(wrapped_import_torch_returnn, in_returnn)
         assert isinstance(out_returnn, torch_returnn.Tensor)
@@ -248,17 +303,19 @@ class Converter:
     with make_scope() as session:
       from returnn.config import Config
       from returnn.tf.network import TFNetwork
+      extern_data = {
+        str(i) if i else "data": dict({"available_for_inference": True}, **v)
+        for i, v in enumerate(self._returnn_in_data_dict.values())}
       config = Config({
-        "extern_data": {"data": self._returnn_in_data_dict},
+        "extern_data": extern_data,
         "debug_print_layer_output_template": True,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(self._returnn_net_dict)
       network.load_params_from_file(filename=self._tf_checkpoint_save_path, session=session)
 
-      x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
-      feed_dict = self._make_tf_feed_dict(x)
+      feed_dict = self._make_tf_feed_dict(network.extern_data.data)
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
@@ -285,21 +342,23 @@ class Converter:
             return model_func(wrapped_import_torch_returnn, *inputs)
 
         dummy_mod = DummyModule()
-        net_dict = dummy_mod.as_returnn_net_dict(self._returnn_in_data_dict)
+        net_dict = dummy_mod.as_returnn_net_dict(self._returnn_in_data_dict, self._inputs_np)
 
       from returnn.config import Config
       from returnn.tf.network import TFNetwork
+      extern_data = {
+        str(i) if i else "data": dict({"available_for_inference": True}, **v)
+        for i, v in enumerate(self._returnn_in_data_dict.values())}
       config = Config({
-        "extern_data": {"data": self._returnn_in_data_dict},
+        "extern_data": extern_data,
         "debug_print_layer_output_template": True,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(net_dict)
       network.load_params_from_file(filename=self._tf_checkpoint_save_path, session=session)
 
-      x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
-      feed_dict = self._make_tf_feed_dict(x)
+      feed_dict = self._make_tf_feed_dict(network.extern_data.data)
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
