@@ -12,7 +12,6 @@ from ...tensor import Tensor
 from ...autograd import no_grad
 from ...utils.hooks import RemovableHandle
 from ....naming import Naming, CallEntry, TensorEntry
-from ....converter import InputType
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from returnn.tf.util.data import Data, DimensionTag
 
@@ -20,6 +19,7 @@ from returnn.tf.util.data import Data, DimensionTag
 # of `T` to annotate `self`. Many methods of `Module` return `self` and we want those return values to be
 # the type of the subclass, not the looser type of `Module`.
 T = TypeVar('T', bound='Module')
+InputType = Union[numpy.ndarray, Dict[Any, numpy.ndarray], List[numpy.ndarray]]
 
 
 class Module:
