@@ -561,7 +561,7 @@ class Module:
     session = tf.compat.v1.get_default_session()
     returnn_output_np_, output_sizes = session.run(
       (tensor.returnn_data.placeholder,
-       tensor.returnn_data.size_placeholder),
+       tensor.returnn_data.size_placeholder.as_dict()),
       feed_dict=feed_dict)
     assert isinstance(returnn_output_np_, numpy.ndarray)
     tensor.validated_to_torch = True
@@ -617,8 +617,8 @@ class Module:
     for i, x in enumerate(call.outputs_flat):
       idx_repr = f" {i + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""
       print(f"**** validate: add call {call} output{idx_repr} tensor {x}")
-    out, _ = session.run(
-      ([(x.returnn_data.placeholder, x.returnn_data.size_placeholder) for x in call.outputs_flat], update_ops),
+    out, _ = session.run((
+      [(x.returnn_data.placeholder, x.returnn_data.size_placeholder.as_dict()) for x in call.outputs_flat], update_ops),
       feed_dict=feed_dict)
     for out_idx, returnn_output_tensor_entry in enumerate(call.outputs_flat):
       idx_repr = f" {out_idx + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""
