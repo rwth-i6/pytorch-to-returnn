@@ -102,7 +102,6 @@ class TensorEntry:
     if axis == self.returnn_data.feature_dim_axis:
       return "F"
     dim_tag = self.returnn_data.get_dim_tag(axis)
-    assert dim_tag.kind == DimensionTag.Types.Spatial
     if dim_tag.dyn_size is not None:
       axes_with_same_dim_tag = [ax for ax in range(ndim) if dim_tag == self.returnn_data.get_dim_tag(ax)]
       if len(axes_with_same_dim_tag) == 1:
