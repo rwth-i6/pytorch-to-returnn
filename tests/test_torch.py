@@ -21,7 +21,7 @@ def test_base_get_output_shape_from_returnn_conv2d_static():
 
     net = TFNetwork(extern_data=ExternData())
     # E.g. conv layer, with padding "valid", kernel size 3.
-    layer = InternalLayer(name="layer", network=net, out_type={"shape": (9, 11, 32)})
+    layer = InternalLayer(name="layer", network=net, output=Data("layer_output", shape=(9, 11, 32)))
 
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
       inputs_flat=[x], layer=layer)
@@ -39,7 +39,7 @@ def test_base_get_output_shape_from_returnn_conv2d_dynamic():
 
     net = TFNetwork(extern_data=ExternData())
     # E.g. conv layer, with padding "same".
-    layer = InternalLayer(name="layer", network=net, out_type={"shape": (None, None, 32)})
+    layer = InternalLayer(name="layer", network=net, output=Data("layer_output", shape=(None, None, 32)))
 
     torch_shape, returnn_axis_from_torch_axis = torch.nn.Module._base_get_output_shape_from_returnn(
       inputs_flat=[x], layer=layer)
