@@ -402,6 +402,24 @@ def test_reshape_a_b_F_to_b_aF():
       "shape": (n_feature_1, None, n_feature_2), "batch_dim_axis": 0, "time_dim_axis": 2, "feature_dim_axis": 3})
 
 
+def test_view():
+  #n_in, n_out = 11, 13
+  n_batch, n_time, n_feature = 2, 20, 1
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    out = inputs.view(inputs.shape[:2]) # (B, T, F)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feature)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_dummy_input_shape=x.shape, inputs_data_kwargs={
+      "shape": (None, n_feature), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_pad():
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
