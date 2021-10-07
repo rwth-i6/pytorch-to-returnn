@@ -402,11 +402,12 @@ def test_reshape_a_b_F_to_b_aF():
       "shape": (n_feature_1, None, n_feature_2), "batch_dim_axis": 0, "time_dim_axis": 2, "feature_dim_axis": 3})
 
 
-def test_view():
+def test_reshape_a_b_1_to_a_b():
   #n_in, n_out = 11, 13
   n_batch, n_time, n_feature = 2, 20, 1
 
   def model_func(wrapped_import, inputs: torch.Tensor):
+    # test case (a, b, 1) -> (a, b)
     if typing.TYPE_CHECKING or not wrapped_import:
       import torch
     else:
