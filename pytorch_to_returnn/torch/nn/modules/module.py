@@ -848,8 +848,8 @@ class Module:
     rem_torch_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.values()))
     rem_returnn_axes = set(range(layer.output.batch_ndim)).difference(set(out_returnn_axis_to_torch_axis.keys()))
     assert len(rem_torch_axes) == len(rem_returnn_axes)
-    rem_torch_axes_ = sorted(rem_torch_axes)
-    rem_returnn_axes_ = sorted(rem_returnn_axes)
+    rem_torch_spatial_axes = sorted([ax for ax in rem_torch_axes if ax in layer.output.get_dynamic_axes()])
+    rem_returnn_spatial_axes = sorted([ax for ax in rem_returnn_axes if ax in layer.output.get_dynamic_axes()])
 
     out_shape = list(layer.output.batch_shape)
     if layer.output.have_batch_axis():
@@ -862,11 +862,11 @@ class Module:
         if dim_tag_ext in dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim:
           in_spatial_idx, out_shape[i] = dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim[dim_tag_ext]
           if i in rem_returnn_axes:
-            out_spatial_idx = rem_returnn_axes_.index(i)
+            out_spatial_idx = rem_returnn_spatial_axes.index(i)
             if in_spatial_idx != out_spatial_idx:
-              out_returnn_axis_to_torch_axis[i] = rem_torch_axes_[in_spatial_idx]
+              out_returnn_axis_to_torch_axis[i] = rem_torch_spatial_axes[in_spatial_idx]
               rem_returnn_axes.remove(i)
-              rem_torch_axes.remove(rem_torch_axes_[in_spatial_idx])
+              rem_torch_axes.remove(rem_torch_spatial_axes[in_spatial_idx])
         else:
           # Assume same order.
           assert len(layer.output.get_dynamic_axes()) == len(dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim)
