@@ -417,6 +417,20 @@ def test_pad():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_constant_pad_1d():
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    mod = torch.nn.ConstantPad1d((4, 1), 0)
+    return mod(inputs)
+
+  x = numpy.zeros((3, 5, 7)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_functional_conv():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
@@ -1026,20 +1040,6 @@ def test_depth_wise_conv1d():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  verify_torch_and_convert_to_returnn(model_func, inputs=x)
-
-
-def test_pad():
-  def model_func(wrapped_import, inputs: torch.Tensor):
-    if typing.TYPE_CHECKING or not wrapped_import:
-      import torch
-    else:
-      torch = wrapped_import("torch")
-
-    mod = torch.nn.ConstantPad1d((4, 1), 0)
-    return mod(inputs)
-
-  x = numpy.zeros((3, 5, 7)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
