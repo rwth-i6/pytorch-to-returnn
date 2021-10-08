@@ -49,6 +49,7 @@ def cast(input: Union[_T, Tensor, _number], dtype: Union[str, _dtype]) -> Union[
     return input
   return modules.Cast(dtype=dtype)(input)
 
+
 def cat(tensors, dim=0):
   from .modules.operator import Cat
   return Cat(dim).as_returnn_torch_functional()(*tensors)
