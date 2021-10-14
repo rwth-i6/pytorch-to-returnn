@@ -1,4 +1,9 @@
 
+"""
+This wraps PyTorch ``torch.nn.modules.module``.
+"""
+
+
 from __future__ import annotations
 import tensorflow as tf
 from tensorflow.python.util import nest
