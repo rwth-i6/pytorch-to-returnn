@@ -783,7 +783,7 @@ def test_broadcast_with_different_axes_types():
 
 
 def test_broadcast_add_bias():
-  n_batch, n_feature, n_time = 3, 5, 17
+  n_batch, n_feature = 3, 5
 
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
