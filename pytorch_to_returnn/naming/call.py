@@ -185,5 +185,4 @@ class CallEntry:
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
-    if not exc_type:
-      _naming.Naming.get_instance().pop_module_call(self)
+    _naming.Naming.get_instance().pop_module_call(self)
