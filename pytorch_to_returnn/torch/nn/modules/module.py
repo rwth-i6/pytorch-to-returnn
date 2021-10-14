@@ -843,8 +843,18 @@ class Module:
           for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
             if returnn_in_axis is not None:
               out_returnn_axis_to_torch_axis[returnn_out_axis] = x.torch_axis_from_returnn_axis[returnn_in_axis]
-
-        pass  # should be covered below
+        elif layer.output.batch_ndim < x.returnn_data.batch_ndim:  # dim removed
+          assert all(v is not None for k, v in mapping_out_to_in.items())  # None implies new dim, which is wrong
+          if set(mapping_out_to_in.keys()) == set(range(layer.output.batch_ndim)):  # all out dims mapped to input
+            covered_in_returnn_axes = set(mapping_out_to_in.values())
+            removed_in_returnn_axes = [i for i in range(x.returnn_data.batch_ndim) if i not in covered_in_returnn_axes]
+            removed_in_torch_axes = set(x.torch_axis_from_returnn_axis[i] for i in removed_in_returnn_axes)
+            for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
+              if returnn_in_axis is not None:
+                in_torch_axis = x.torch_axis_from_returnn_axis[returnn_in_axis]
+                assert in_torch_axis not in removed_in_torch_axes
+                in_torch_axis -= len([i for i in range(in_torch_axis) if i in removed_in_torch_axes])
+                out_returnn_axis_to_torch_axis[returnn_out_axis] = in_torch_axis
 
       break
     assert all(0 <= d < layer.output.batch_ndim for d in out_returnn_axis_to_torch_axis.values())
