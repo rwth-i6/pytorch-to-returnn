@@ -791,7 +791,7 @@ def test_broadcast_add_bias():
     else:
       torch = wrapped_import("torch")
     rnd = numpy.random.RandomState(42)
-    bias = rnd.normal(0., 1., (n_feature)).astype("float32")
+    bias = rnd.normal(0., 1., (n_feature,)).astype("float32")
     bias = torch.from_numpy(bias)
     return inputs + bias
 
