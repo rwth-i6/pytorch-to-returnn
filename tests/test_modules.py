@@ -6,7 +6,9 @@ from typing import Dict, Any
 import numpy
 import contextlib
 import tensorflow as tf
+from pytorch_to_returnn.naming import Naming
 from pytorch_to_returnn import torch
+from pytorch_to_returnn.torch import Tensor
 from pytorch_to_returnn.pprint import pformat
 
 
@@ -86,7 +88,21 @@ def make_feed_dict(data_list, same_time=False, n_batch=3, n_time=7):
 
 
 def test_Squeeze():
-  mod = torch.nn.Squeeze(2)
+  class Mod(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+      print("x:", x)
+      naming = Naming.get_instance()
+      x_meta = naming.get_tensor(x)
+      assert x_meta.returnn_axis_from_torch_axis == {0: 0, 1: 1, 2: 2}  # id, no reordering
+      squeeze_mod = torch.nn.Squeeze(2)
+      y = squeeze_mod(x)
+      print("y:", y)
+      assert y.shape == x.shape[:2]
+      y_meta = naming.get_tensor(y)
+      assert y_meta.returnn_axis_from_torch_axis == {0: 0, 1: 1}  # id, no reordering
+      return y
+
+  mod = Mod()
   run_returnn(module=mod, returnn_data_dict={"shape": (None, 1)})
 
 
