@@ -927,7 +927,7 @@ class Module:
 
   @classmethod
   def _make_returnn_dummy_input(cls, data: Data) -> numpy.ndarray:
-    if cls.returnn_dummy_input_shape is not None:
+    if getattr(cls, "returnn_dummy_input_shape", None) is not None:
       shape = cls.returnn_dummy_input_shape
     else:
       some_primes = (3, 5, 7, 11, 13)  # use primes for dynamic dims, just nicer to identify in logs
