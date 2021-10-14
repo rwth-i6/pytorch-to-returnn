@@ -21,6 +21,7 @@ jobs:
           # just order by name
           - TEST=converter
           - TEST=layers
+          - TEST=modules
           - TEST=pprint
           - TEST=torch
           - TEST=wrapper
