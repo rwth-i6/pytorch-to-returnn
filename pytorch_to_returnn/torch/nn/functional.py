@@ -18,6 +18,7 @@ from ...naming import Naming
 
 _number = Union[int, float, numpy.ndarray, numpy.number]
 _size = Union[Size, List[int], Tuple[int, ...]]
+_shape_t = Union[int, List[int], Size]
 _T = TypeVar("_T")
 _default_float_type = "float32"
 
@@ -423,6 +424,19 @@ def norm(input: Tensor,
 
 def norm_except_dim(v: Tensor, pow: int = 2, dim: int = 0) -> Tensor:
   return modules.Norm(p=pow, axes=[i for i in range(v.dim()) if i != dim], keepdims=True)(v)
+
+
+def layer_norm(input: Tensor, normalized_shape: _shape_t, weight: Optional[Tensor] = None,
+               bias: Optional[Tensor] = None, eps: float = 1e-5) -> Tensor:
+  module = modules.LayerNorm(normalized_shape=normalized_shape, eps=eps, elementwise_affine=False)
+  out = module.as_returnn_torch_functional()(input)
+  if weight is not None:
+    assert (out.shape[-1],) == weight.shape, "data should be of shape (B, *, F) and weights should be of shape (F,)"
+    out *= weight
+  if bias is not None:
+    assert (out.shape[-1],) == bias.shape, "data should be of shape (B, *, F) and bias should be of shape (F,)"
+    out += bias
+  return out
 
 
 def group_norm(input: Tensor, num_groups: int, weight: Optional[Tensor] = None, bias: Optional[Tensor] = None,
