@@ -85,7 +85,7 @@ class Tensor:
   def type_as(self, tensor) -> Tensor:
     return self.type(tensor.type())
 
-  def to(self, opt):
+  def to(self, opt=None, device=None):
     return self  # ignore
 
   def contiguous(self):
@@ -108,6 +108,9 @@ class Tensor:
       shape = tuple(shape[0])
     assert isinstance(shape, tuple)
     return reshape(self, shape)
+
+  def reshape(self, *shape):
+    return self.view(*shape)
 
   def unsqueeze(self, dim: int):
     assert -len(self._shape) <= dim <= len(self._shape)
