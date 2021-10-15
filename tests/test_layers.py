@@ -616,6 +616,44 @@ def test_batch_norm_running_stats():
   numpy.testing.assert_allclose(mean_returnn, mean_torch, rtol=0, atol=1e-5)
 
 
+def test_fp32_layer_norm():
+  n_in, n_batch, n_time = 11, 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.nn.functional as F
+    else:
+      torch = wrapped_import("torch")
+      F = wrapped_import("torch.nn.functional")
+
+    # copy of Fp32LayerNorm from fairseq
+    class Fp32LayerNorm(torch.nn.LayerNorm):
+      def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+      def forward(self, input):
+        output = F.layer_norm(
+          input.float(),
+          self.normalized_shape,
+          self.weight.float() if self.weight is not None else None,
+          self.bias.float() if self.bias is not None else None,
+          self.eps
+        )
+        return output.type_as(input)
+
+    model = Fp32LayerNorm(n_in, elementwise_affine=True)
+    out = inputs.transpose(-2, -1)
+    out = model(out)
+    out = out.transpose(-2, -1)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "batch_dim_axis": 0, "time_dim_axis": 2, "feature_dim_axis": 1, "shape": (n_in, None)})
+
+
 def test_group_norm():
   n_batch, n_time = 4, 20
   for num_groups, num_channels in [(1, 5), (5, 5)]:
