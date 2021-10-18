@@ -193,8 +193,9 @@ class Naming:
       entry.orig_inputs_kwargs = inputs_kwargs
       entry.orig_inputs_flat = inputs_flat
     entry.inputs_flat = [self._make_tensor(x) for x in inputs_flat]
-    entry.inputs_args, entry.inputs_kwargs = nest.pack_sequence_as(
-      structure=(inputs_args, inputs_kwargs), flat_sequence=entry.inputs_flat)
+    if self.wrap_to_returnn_enabled:
+      entry.inputs_args, entry.inputs_kwargs = nest.pack_sequence_as(
+        structure=(inputs_args, inputs_kwargs), flat_sequence=entry.inputs_flat)
     entry.level = len(self.module_call_stack)
     if self.module_call_stack:
       recent_entry = self.module_call_stack[-1]
