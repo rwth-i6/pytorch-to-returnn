@@ -181,15 +181,33 @@ class LSTM(RNNBase):
     return apply_permutation(hx[0], permutation), apply_permutation(hx[1], permutation)
 
   def create_returnn_layer_dict(self, input: Tensor, hx: Optional[Tensor] = None) -> Dict[str, Any]:
-    assert not self.bidirectional
-    if self.num_layers > 1:
+    if not self.bidirectional and self.num_layers == 1:
+      d = {
+        "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
+        "n_out": self.hidden_size}
+      if hx is not None:
+        assert isinstance(hx, (list, tuple)) and len(hx) == 2
+        h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
+        h_, c_ = h_0[0], c_0[0]  # (batch,hidden) each
+        d["initial_state"] = {
+          "h": self._get_input_layer_name(h_),
+          "c": self._get_input_layer_name(c_)}
+    else:
       input_layer_name = self._get_input_layer_name(input)  # call now, to have nicer order of "data"
       subnet_dict = {}
       for i in range(self.num_layers):
-        layer_dict = {
-          "class": "rec", "unit": "nativelstm2", "from": "data" if i == 0 else f"layer{i - 1}",
-          "n_out": self.hidden_size}
-        subnet_dict[f"layer{i}"] = layer_dict
+        if not self.bidirectional:
+          layer_dict = {
+            "class": "rec", "unit": "nativelstm2", "from": "data" if i == 0 else f"layer{i - 1}",
+            "n_out": self.hidden_size}
+          subnet_dict[f"layer{i}"] = layer_dict
+        else:
+          layer_dict = {
+            "class": "rec", "unit": "nativelstm2", "direction": 1,
+            "from": "data" if i == 0 else [f"layer{i - 1}_fwd", f"layer{i - 1}_bwd"], "n_out": self.hidden_size}
+          subnet_dict[f"layer{i}_fwd"] = layer_dict.copy()
+          layer_dict["direction"] = -1
+          subnet_dict[f"layer{i}_bwd"] = layer_dict.copy()
         if hx is not None:
           assert isinstance(hx, (list, tuple)) and len(hx) == 2
           h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
@@ -197,101 +215,105 @@ class LSTM(RNNBase):
           layer_dict["initial_state"] = {
             "h": f"base:{self._get_input_layer_name(h_)}",
             "c": f"base:{self._get_input_layer_name(c_)}"}
-      subnet_dict["output"] = {"class": "copy", "from": f"layer{self.num_layers - 1}"}
+      subnet_dict["output"] = {
+        "class": "copy", "from": f"layer{self.num_layers - 1}" if not self.bidirectional else [
+          f"layer{self.num_layers - 1}_fwd", f"layer{self.num_layers - 1}_bwd"
+        ]}
       return {
         "class": "subnetwork", "from": input_layer_name, "subnetwork": subnet_dict}
-    d = {
-      "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
-      "n_out": self.hidden_size}
-    if hx is not None:
-      assert isinstance(hx, (list, tuple)) and len(hx) == 2
-      h_0, c_0 = hx  # h_0/c_0 of shape (num_layers * num_directions, batch, hidden_size)
-      h_, c_ = h_0[0], c_0[0]  # (batch,hidden) each
-      d["initial_state"] = {
-        "h": self._get_input_layer_name(h_),
-        "c": self._get_input_layer_name(c_)}
     return d
 
   def make_structured_returnn_output(self, output: Tensor) -> Union[Tensor, Tuple[Tensor], Any]:
-    assert not self.bidirectional
     hs, cs = [], []
-    if self.num_layers > 1:
-      for i in range(self.num_layers):
-        hs.append(GetLastHiddenState(sub_layer=f"layer{i}", key="h")(output))
-        cs.append(GetLastHiddenState(sub_layer=f"layer{i}", key="c")(output))
+    dim = output.shape[-1]
+    if not self.bidirectional and self.num_layers == 1:
+      hs.append(GetLastHiddenState(dim=dim, key="h")(output))
+      cs.append(GetLastHiddenState(dim=dim, key="c")(output))
     else:
-      hs.append(GetLastHiddenState(key="h")(output))
-      cs.append(GetLastHiddenState(key="c")(output))
+      for i in range(self.num_layers):
+        if not self.bidirectional:
+          hs.append(GetLastHiddenState(dim=dim, sub_layer=f"layer{i}", key="h")(output))
+          cs.append(GetLastHiddenState(dim=dim, sub_layer=f"layer{i}", key="c")(output))
+        else:
+          hs.append(GetLastHiddenState(dim=dim // 2, sub_layer=f"layer{i}_fwd", key="h")(output))
+          hs.append(GetLastHiddenState(dim=dim // 2, sub_layer=f"layer{i}_bwd", key="h")(output))
+          cs.append(GetLastHiddenState(dim=dim // 2, sub_layer=f"layer{i}_fwd", key="c")(output))
+          cs.append(GetLastHiddenState(dim=dim // 2, sub_layer=f"layer{i}_bwd", key="c")(output))
     from .operator import Stack
     h = Stack(dim=0)(*hs)
     c = Stack(dim=0)(*cs)
     return output, (h, c)
 
   def check_returnn_layer(self, layer: LayerBase):
-    if self.num_layers > 1:
-      assert isinstance(layer, SubnetworkLayer)
-      assert layer.subnetwork_.construct_layer("data").output.dim == self.input_size
-    else:
+    if not self.bidirectional and self.num_layers == 1:
       assert isinstance(layer, RecLayer)
       assert layer.input_data.dim == self.input_size
+    else:
+      assert isinstance(layer, SubnetworkLayer)
+      assert layer.subnetwork_.construct_layer("data").output.dim == self.input_size
 
   def import_params_torch_to_returnn(self, *, layer: LayerBase, torch_module: LSTM):
     import torch
     import numpy
     session = tf.compat.v1.get_default_session()
     for i in range(self.num_layers):
-      if self.num_layers > 1:
-        assert isinstance(layer, SubnetworkLayer)
-        sub_layer = layer.subnetwork.layers[f"layer{i}"]
-        assert isinstance(sub_layer, RecLayer)
-      else:
-        assert isinstance(layer, RecLayer)
-        sub_layer = layer
-      # i = input_gate, j = new_input, f = forget_gate, o = output_gate
-      # RETURNN NativeLstm2 H order: j, i, f, o
-      # Torch H order: i, f, j, o  ("W_ii|W_if|W_ig|W_io" in their docs, g==j)
-      weight_hh = getattr(torch_module, f"weight_hh_l{i}")  # (H, out)
-      weight_ih = getattr(torch_module, f"weight_ih_l{i}")  # (H, in)
-      bias_hh = getattr(torch_module, f"bias_hh_l{i}")  # (H,)
-      bias_ih = getattr(torch_module, f"bias_ih_l{i}")  # (H,)
-      assert isinstance(weight_hh, torch.nn.Parameter)
-      assert isinstance(weight_ih, torch.nn.Parameter)
-      assert isinstance(bias_hh, torch.nn.Parameter)
-      assert isinstance(bias_ih, torch.nn.Parameter)
-      bias_np = bias_hh.detach().cpu().numpy() + bias_ih.detach().cpu().numpy()  # RETURNN has single bias
-      weight_hh_np = weight_hh.detach().cpu().numpy().transpose()  # (out, H)
-      weight_ih_np = weight_ih.detach().cpu().numpy().transpose()  # (in, H)
+      for layer_suffix in ["_fwd", "_bwd"] if self.bidirectional else [""]:
+        if not self.bidirectional and self.num_layers == 1:
+          assert isinstance(layer, RecLayer)
+          sub_layer = layer
+        else:
+          assert isinstance(layer, SubnetworkLayer)
+          sub_layer = layer.subnetwork.layers[f"layer{i}{layer_suffix}"]
+          assert isinstance(sub_layer, RecLayer)
+        # i = input_gate, j = new_input, f = forget_gate, o = output_gate
+        # RETURNN NativeLstm2 H order: j, i, f, o
+        # Torch H order: i, f, j, o  ("W_ii|W_if|W_ig|W_io" in their docs, g==j)
+        parameter_suffix = "_reverse" if layer_suffix == "_bwd" else ""
+        weight_hh = getattr(torch_module, f"weight_hh_l{i}{parameter_suffix}")  # (H, out)
+        weight_ih = getattr(torch_module, f"weight_ih_l{i}{parameter_suffix}")  # (H, in)
+        assert isinstance(weight_hh, torch.nn.Parameter)
+        assert isinstance(weight_ih, torch.nn.Parameter)
+        bias_np = None
+        if self.bias:
+          bias_hh = getattr(torch_module, f"bias_hh_l{i}{parameter_suffix}")  # (H,)
+          bias_ih = getattr(torch_module, f"bias_ih_l{i}{parameter_suffix}")  # (H,)
+          assert isinstance(bias_hh, torch.nn.Parameter)
+          assert isinstance(bias_ih, torch.nn.Parameter)
+          bias_np = bias_hh.detach().cpu().numpy() + bias_ih.detach().cpu().numpy()  # RETURNN has single bias
+        weight_hh_np = weight_hh.detach().cpu().numpy().transpose()  # (out, H)
+        weight_ih_np = weight_ih.detach().cpu().numpy().transpose()  # (in, H)
 
-      def _torch_to_returnn(x: numpy.ndarray, axis: int) -> numpy.ndarray:
-        x_ = numpy.split(x, 4, axis=axis)  # (i,f,j,o)
-        y = numpy.concatenate([x_[2], x_[0], x_[1], x_[3]], axis=axis)  # -> (j,i,f,o)
-        return y
+        def _torch_to_returnn(x: numpy.ndarray, axis: int) -> numpy.ndarray:
+          x_ = numpy.split(x, 4, axis=axis)  # (i,f,j,o)
+          y = numpy.concatenate([x_[2], x_[0], x_[1], x_[3]], axis=axis)  # -> (j,i,f,o)
+          return y
 
-      bias_np = _torch_to_returnn(bias_np, axis=0)
-      weight_hh_np = _torch_to_returnn(weight_hh_np, axis=1)
-      weight_ih_np = _torch_to_returnn(weight_ih_np, axis=1)
+        if self.bias:
+          bias_np = _torch_to_returnn(bias_np, axis=0)
+        weight_hh_np = _torch_to_returnn(weight_hh_np, axis=1)
+        weight_ih_np = _torch_to_returnn(weight_ih_np, axis=1)
 
-      # RETURNN sub_layer.params: W (in, X), W_re (out, X), b (X,)
-      sub_layer.params["W"].load(weight_ih_np, session=session)
-      sub_layer.params["W_re"].load(weight_hh_np, session=session)
-      sub_layer.params["b"].load(bias_np, session=session)
+        # RETURNN sub_layer.params: W (in, X), W_re (out, X), b (X,)
+        sub_layer.params["W"].load(weight_ih_np, session=session)
+        sub_layer.params["W_re"].load(weight_hh_np, session=session)
+        if self.bias:
+          sub_layer.params["b"].load(bias_np, session=session)
 
 
 class GetLastHiddenState(Module):
   is_original_torch_module = False
 
-  def __init__(self, *, sub_layer: Optional[str] = None, key: Optional[str] = None):
+  def __init__(self, *, dim: int, sub_layer: Optional[str] = None, key: Optional[str] = None):
     super(GetLastHiddenState, self).__init__()
     self.sub_layer = sub_layer
     self.key = key
+    self.dim = dim
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     layer = self._get_input_layer_name(input)
     if self.sub_layer:
       layer = f"{layer}/{self.sub_layer}"
-    d = {
-      "class": "get_last_hidden_state", "from": layer,
-      "n_out": input.shape[-1]}
+    d = {"class": "get_last_hidden_state", "from": layer, "n_out": self.dim}
     if self.key:
       d["key"] = self.key
     return d
