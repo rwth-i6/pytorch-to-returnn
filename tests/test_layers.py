@@ -798,6 +798,22 @@ def test_broadcast_with_different_axes_types():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_broadcast_after_transpose():
+  n_batch, n_time, n_feature = 3, 7, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    weight = torch.ones(n_feature)
+    return inputs.transpose(1, 2) * weight
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_broadcast_add_bias():
   n_batch, n_feature = 3, 5
 
