@@ -104,6 +104,10 @@ def as_tensor(data: Union[Tensor, _number],
   return data
 
 
+def is_tensor(obj) -> bool:
+  return isinstance(obj, Tensor)
+
+
 def add(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="add")(cast(x, dtype), cast(y, dtype))
@@ -395,6 +399,10 @@ def log_softmax(input: Tensor, dim: Optional[int] = None, dtype=None):
 
 def log(input: Tensor):
   return modules.Log().as_returnn_torch_functional()(input)
+
+
+def log1p(input, *, out=None):
+  return log(input + 1)
 
 
 def sigmoid(input: Tensor):
