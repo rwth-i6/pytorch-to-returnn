@@ -36,6 +36,22 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
   return tensor(numpy.ones(size, dtype=dtype))
 
 
+def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None, 
+           requires_grad: bool=False) -> Tensor:
+  assert 1 <= len(args) <= 3
+  if len(args) == 3:
+    start, end, step = args
+  elif len(args) == 2:
+    start, end = args
+    step = 1
+  elif len(args) == 1:
+    end, = args
+    start = 0
+    step = 1
+  mod = modules.Range()
+  return mod(end, start, step, dtype, False)
+
+
 def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
   from .._C import from_numpy
   x = from_numpy(data)
