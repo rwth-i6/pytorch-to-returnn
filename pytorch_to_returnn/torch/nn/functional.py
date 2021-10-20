@@ -719,3 +719,23 @@ def multi_head_attention_forward(
     return attn_output, attn_output_weights.sum(dim=1) / num_heads
   else:
     return attn_output, None
+
+
+def mse_loss():
+  raise NotImplementedError
+
+
+def ceil():
+  raise NotImplementedError
+
+
+def clamp():
+  raise NotImplementedError
+
+
+def exp():
+  raise NotImplementedError
+
+
+def log10():
+  raise NotImplementedError
