@@ -125,7 +125,7 @@ class Converter:
   def _make_tf_feed_dict(self, input: Data):
     assert input.batch_ndim == len(self._inputs_np.shape)
     assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
-    n_batch = self._inputs_np.shape[input.batch_dim_axis]
+    n_batch = 1 if input.batch_dim_axis is None else self._inputs_np.shape[input.batch_dim_axis]
     d = {input.placeholder: self._inputs_np}
     for i, size in input.size_placeholder.items():
       d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
