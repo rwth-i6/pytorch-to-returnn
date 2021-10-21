@@ -43,7 +43,9 @@ class GenericPadNd(Module):
       return {"class": "copy", "from": self._get_input_layer_name(input)}
 
     d = {
-      "class": "pad", "mode": self.mode, "axes": axes_returnn, "padding": padding_returnn,
+      "class": "pad", "mode": self.mode,
+      "axes": [self._get_input_axis_to_returnn(input, a) for a in axes_returnn],
+      "padding": padding_returnn,
       "from": self._get_input_layer_name(input)}
     if self.mode == "constant":
       d["value"] = self.value
