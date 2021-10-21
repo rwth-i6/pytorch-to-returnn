@@ -433,6 +433,24 @@ def test_pad():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_pad_time_btf():
+  n_batch, n_time, n_feat = 3, 7, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch.nn.functional as F
+    else:
+      F = wrapped_import("torch.nn.functional")
+
+    inputs = F.pad(inputs, (0, 0, 2, 2))
+    return inputs
+
+  x = numpy.ones((n_batch, n_time, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2, "shape": (None, n_feat)})
+
+
 def test_constant_pad_1d():
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
