@@ -315,7 +315,7 @@ class Split(Module):
       d["size_splits"] = self.size_splits
     return d
 
-  def make_structured_returnn_output(self, output: Tensor) -> List[Tensor]:
+  def make_structured_returnn_output(self, output: Tensor, input: Tensor) -> List[Tensor]:
     from .operator import GetSublayer
     if self.num_splits is not None:
       num_splits = self.num_splits
