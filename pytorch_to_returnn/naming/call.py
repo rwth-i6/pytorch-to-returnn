@@ -71,13 +71,15 @@ class CallEntry:
       self.orig_outputs = outputs
       self.orig_outputs_flat = outputs_flat
     if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
-      entry_outputs = [naming.tensors[x] for x in outputs_flat]
+      # we might get None, e.g. from flattened PackedSequence
+      entry_outputs = [naming.tensors[x] if x is not None else None for x in outputs_flat]
       self.outputs_flat = entry_outputs
       self.outputs = nest.pack_sequence_as(structure=outputs, flat_sequence=entry_outputs)
       for x in entry_outputs:
-        if self not in x.output_from_calls:
-          x.output_from_calls.append(self)
-          x.output_from_modules.append(self.module)
+        if x is not None:
+          if self not in x.output_from_calls:
+            x.output_from_calls.append(self)
+            x.output_from_modules.append(self.module)
       if entry_outputs:
         if self.namespace not in entry_outputs[0].names:
           entry_outputs[0].names.append(self.namespace)
