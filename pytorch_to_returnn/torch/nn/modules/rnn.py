@@ -205,6 +205,8 @@ class LSTM(RNNBase):
     return apply_permutation(hx[0], permutation), apply_permutation(hx[1], permutation)
 
   def create_returnn_layer_dict(self, input: Tensor, hx: Optional[Tensor] = None) -> Dict[str, Any]:
+    if isinstance(input, PackedSequence):
+      input = input.get_batched_tensor()
     if not self.bidirectional and self.num_layers == 1:
       d = {
         "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
@@ -247,7 +249,19 @@ class LSTM(RNNBase):
         "class": "subnetwork", "from": input_layer_name, "subnetwork": subnet_dict}
     return d
 
-  def make_structured_returnn_output(self, output: Tensor) -> Union[Tensor, Tuple[Tensor], Any]:
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    naming = Naming.get_instance()
+    call_entry = naming.module_call_stack[-1]
+    assert call_entry.module.module is self
+    orig_input = call_entry.orig_inputs_args[0]
+    if isinstance(orig_input, PackedSequence):
+      orig_input = orig_input.get_batched_tensor()
+    return self._base_get_output_shape_from_returnn(inputs_flat=[orig_input], layer=layer)
+
+  def make_structured_returnn_output(self, output: Tensor, input: Tensor, hx: Optional[Tensor] = None
+                                     ) -> Union[Tensor, Tuple[Tensor], Any]:
     hs, cs = [], []
     dim = output.shape[-1]
     if not self.bidirectional and self.num_layers == 1:
@@ -266,6 +280,9 @@ class LSTM(RNNBase):
     from .operator import Stack
     h = Stack(dim=0)(*hs)
     c = Stack(dim=0)(*cs)
+    if isinstance(input, PackedSequence):
+      from ..utils.rnn import pack_padded_sequence_with_batch_sizes
+      output = pack_padded_sequence_with_batch_sizes(output, input.batch_sizes)
     return output, (h, c)
 
   def check_returnn_layer(self, layer: LayerBase):
