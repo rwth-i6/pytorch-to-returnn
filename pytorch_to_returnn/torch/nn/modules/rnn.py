@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 import numbers
+from collections import namedtuple
 from typing import Dict, Any, Optional, List, Tuple, Union
 import tensorflow as tf
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
@@ -11,10 +12,33 @@ from .module import Module
 from ..parameter import Parameter
 from ...tensor import Tensor
 from .. import init
+from ....naming import Naming, TensorEntry
 
 
-class PackedSequence:  # dummy -- not yet implemented...
-  pass
+PackedSequence_ = namedtuple(
+  'PackedSequence',
+  ['data', 'batch_sizes', 'sorted_indices', 'unsorted_indices'],
+  defaults=[None] * 4)
+
+
+class PackedSequence(PackedSequence_):
+  """
+  Wrapper for torch's PackedSequence
+
+  We connect each PackedSequence with a batched RETURNN tensor. This currently contains some assumptions which might not
+  always be satisfied.
+  """
+
+  def get_batched_tensor(self) -> Tensor:
+    from .shape import FlattenBatch
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[self.data]
+    assert isinstance(tensor_entry, TensorEntry)
+    for call_entry in tensor_entry.output_from_calls:
+      if isinstance(call_entry.module.module, FlattenBatch):
+        return call_entry.orig_inputs_args[0]
+    from .shape import UnflattenBatch
+    return UnflattenBatch()(self.data)
 
 
 def apply_permutation(tensor: Tensor, permutation: Tensor, dim: int = 1) -> Tensor:

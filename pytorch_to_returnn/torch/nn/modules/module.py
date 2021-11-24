@@ -54,6 +54,7 @@ class Module:
   # All derived classes here, which exist in PyTorch as well (e.g. torch.nn.Conv1d etc),
   # should have this set to True.
   is_original_torch_module: bool = True
+  _forward_feed_dict_deps: bool = False  # for internal usage
 
   _wrapped_class_cache = {}  # cls -> WrappedClass
 
@@ -459,8 +460,8 @@ class Module:
       def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
         return self_.create_returnn_layer_dict(*inputs, **kwargs)
 
-      def make_structured_returnn_output(self, output):
-        return self_.make_structured_returnn_output(output)
+      def make_structured_returnn_output(self, output, *inputs_args, **inputs_kwargs):
+        return self_.make_structured_returnn_output(output, *inputs_args, **inputs_kwargs)
 
       def get_returnn_name(self) -> str:
         return self_.get_returnn_name()
@@ -473,7 +474,8 @@ class Module:
   def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
     raise Exception("should not get here")
 
-  def make_structured_returnn_output(self, output: Tensor) -> Union[Tensor, Tuple[Tensor], Any]:
+  def make_structured_returnn_output(self, output: Tensor, *inputs: Tensor, **inputs_kwargs
+                                     ) -> Union[Tensor, Tuple[Tensor], Any]:
     """
     This can be overridden alongside with `create_returnn_layer_dict`.
     In case the original `forward` would return not a single tensor but some tuple or dict or other nested structure,
@@ -578,7 +580,8 @@ class Module:
     out_size_feed_dict.update(sizes_feed_dict)
     tensor.validated_to_torch_tf_feed_dict.update(out_size_feed_dict)
     tensor.validated_to_torch_tf_sizes_feed_dict = out_size_feed_dict
-
+    if any(call_.module.module._forward_feed_dict_deps for call_ in tensor.output_from_calls):
+      tensor.validated_to_torch_tf_feed_dict.update(feed_dict)
     # Check now against Torch reference.
     torch_axis_from_returnn_axis = {i: j for (j, i) in tensor.returnn_axis_from_torch_axis.items()}
     assert len(torch_values.shape) == tensor.returnn_data.batch_ndim
@@ -623,15 +626,20 @@ class Module:
       idx_repr = f" {i + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""
       print(f"**** validate: add call {call} output{idx_repr} tensor {x}")
     out, _ = session.run((
-      [(x.returnn_data.placeholder, x.returnn_data.size_placeholder.as_dict()) for x in call.outputs_flat], update_ops),
+      [(x.returnn_data.placeholder, x.returnn_data.size_placeholder.as_dict()) if x is not None else () for
+       x in call.outputs_flat], update_ops),
       feed_dict=feed_dict)
     for out_idx, returnn_output_tensor_entry in enumerate(call.outputs_flat):
+      if returnn_output_tensor_entry is None:
+        continue
       idx_repr = f" {out_idx + 1}/{len(call.outputs_flat)}" if len(call.outputs_flat) > 1 else ""
       returnn_output_np_, output_sizes = out[out_idx]
       assert isinstance(returnn_output_np_, numpy.ndarray)
       returnn_output_tensor_entry.validated_to_torch = True
       returnn_output_tensor_entry.validated_to_torch_tf_feed_dict = {
         returnn_output_tensor_entry.returnn_data.placeholder: returnn_output_np_}
+      if call.module.module._forward_feed_dict_deps:
+        returnn_output_tensor_entry.validated_to_torch_tf_feed_dict.update(feed_dict)
       out_size_feed_dict = {
         returnn_output_tensor_entry.returnn_data.size_placeholder[i]: output_sizes[i]
         for i in returnn_output_tensor_entry.returnn_data.size_placeholder}

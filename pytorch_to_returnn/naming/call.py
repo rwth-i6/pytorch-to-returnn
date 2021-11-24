@@ -145,7 +145,7 @@ class CallEntry:
       self.namespace.assign_tensor(res_entry)
       res_entry.output_from_calls.append(self)  # do now, in case it gets lost after make_structured_returnn_output
 
-      res = module.make_structured_returnn_output(res)
+      res = module.make_structured_returnn_output(res, *inputs_args, **inputs_kwargs)
 
     self.set_returnn_layer(layer=layer, layer_dict=layer_dict)
     self.set_outputs(res)
