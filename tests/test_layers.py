@@ -341,6 +341,116 @@ def test_bmm():
       "shape": (None, n_in), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_packed_sequence_1():
+  """
+  Regular packing and unpacking from batched, padded tensor
+  """
+  n_batch, n_time, n_feat = 3, 5, 7
+  seq_lens = [5, 4, 3]
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    h = torch.nn.utils.rnn.pack_padded_sequence(inputs, seq_lens)
+    output, _ = torch.nn.utils.rnn.pad_packed_sequence(h)
+    return output + 1
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_input_seq_lens={0: seq_lens}, inputs_data_kwargs={
+      "shape": (None, n_feat), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
+
+
+def test_packed_sequence_2():
+  """
+  Packing and unpacking from batched, padded tensor, where the packing is done with :func:`pack_sequence` which actually
+  requires a list of tensors as input.
+  """
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    h = torch.nn.utils.rnn.pack_sequence(inputs)
+    output, _ = torch.nn.utils.rnn.pad_packed_sequence(h, batch_first=True)
+    return output + 1
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
+def test_packed_sequence_3():
+  """
+  Pack and return packed .data
+  """
+  n_batch, n_time, n_feat = 3, 5, 7
+  seq_lens = [5, 4, 3]
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    h = torch.nn.utils.rnn.pack_padded_sequence(inputs, seq_lens)
+    return h.data
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_input_seq_lens={0: seq_lens}, inputs_data_kwargs={
+      "shape": (None, n_feat), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
+
+
+def test_packed_sequence_4():
+  """
+  Initialize :class:`PackedSequence` directly using its init
+  """
+  n_batch, n_time, n_feat = 3, 5, 7
+  seq_lens = [5, 4, 3]
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    h = torch.nn.utils.rnn.pack_padded_sequence(inputs, seq_lens)
+    h = torch.nn.utils.rnn.PackedSequence(h.data, h.batch_sizes)
+    return h.data
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, returnn_input_seq_lens={0: seq_lens}, inputs_data_kwargs={
+      "shape": (None, n_feat), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
+
+
+def test_lstm_with_packed_sequence_input():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    h = torch.nn.utils.rnn.pack_padded_sequence(inputs, [n_time] * n_batch)
+    output, _ = torch.nn.LSTM(n_feat, n_feat)(h)
+    return output.data
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_time, n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_feat), "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_t():
   n_batch, n_feature, n_time = 3, 5, 17
 
