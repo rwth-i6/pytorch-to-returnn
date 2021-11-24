@@ -7,7 +7,7 @@ import numpy
 import types
 import tempfile
 from pytorch_to_returnn.pprint import pprint
-from typing import Callable, Optional, Dict, Any, Tuple
+from typing import Callable, Optional, Dict, Any, Tuple, List
 from returnn.tf.util.data import Data
 from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
@@ -65,6 +65,7 @@ class Converter:
                inputs: numpy.ndarray,
                inputs_data_kwargs: Optional[Dict[str, Any]] = None,
                returnn_dummy_input_shape: Optional[Tuple[int]] = None,
+               returnn_input_seq_lens: Optional[Dict[int, List[int]]] = None,
                use_non_wrapped_reference: bool = True,
                verify_with_torch: bool = True,
                verify_individual_model_io: bool = True,
@@ -94,6 +95,7 @@ class Converter:
         for i in range(1, len(inputs.shape))]
     self._returnn_in_data_dict = inputs_data_kwargs
     self._returnn_dummy_input_shape = returnn_dummy_input_shape
+    self._returnn_input_seq_lens = returnn_input_seq_lens
     self.use_non_wrapped_reference = use_non_wrapped_reference
     self.verify_with_torch = verify_with_torch
     self.verify_individual_model_io = verify_individual_model_io
@@ -127,8 +129,13 @@ class Converter:
     assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
     n_batch = 1 if input.batch_dim_axis is None else self._inputs_np.shape[input.batch_dim_axis]
     d = {input.placeholder: self._inputs_np}
-    for i, size in input.size_placeholder.items():
-      d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
+    if self._returnn_input_seq_lens is not None:
+      assert tuple(self._returnn_input_seq_lens.keys()) == tuple(input.size_placeholder.keys())
+      for i, size in input.size_placeholder.items():
+        d[size] = self._returnn_input_seq_lens[i]
+    else:
+      for i, size in input.size_placeholder.items():
+        d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
     return d
 
   def _run_reference(self):
@@ -227,7 +234,23 @@ class Converter:
       y_torch = y_.transpose(*[returnn_axis_from_torch_axis[i] for i in range(y_.ndim)])
       print("Output shape (converted to Torch):", y_torch.shape)
       if self._out_ref_np is not None:
-        numpy.testing.assert_allclose(self._out_ref_np, y_torch, **naming.validate_allclose_kwargs)
+        if self._returnn_input_seq_lens is not None and y_size:
+          # ignore padded elements in comparison
+          assert tuple(y_size.keys()) == tuple(self._returnn_input_seq_lens.keys())
+          assert self._out_ref_np.shape == y_torch.shape, "Mismatching shapes"
+          for ax in y.get_spatial_axes():
+            assert y_size[0].tolist() == self._returnn_input_seq_lens[0], (
+              "Mismatch of sequence lens, not yet implemented")
+            torch_axis_from_returnn_axis = {j: i for i, j in returnn_axis_from_torch_axis.items()}
+            batch_dim_axis = torch_axis_from_returnn_axis[y.batch_dim_axis]
+            spatial_axis = torch_axis_from_returnn_axis[ax]
+            for seq_idx, seq_len in enumerate(y_size[ax]):
+              slc = [slice(None)] * len(y_torch.shape)
+              slc[batch_dim_axis] = seq_idx
+              slc[spatial_axis] = slice(seq_len, y_torch.shape[spatial_axis])
+              self._out_ref_np[tuple(slc)] = numpy.nan
+        m = ~numpy.isnan(self._out_ref_np)
+        numpy.testing.assert_allclose(self._out_ref_np[m], y_torch[m], **naming.validate_allclose_kwargs)
         print(">>>> Looks good!")
 
       if self.export_tf_checkpoint_save_path or self.verify_returnn_standalone_model:
