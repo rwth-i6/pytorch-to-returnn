@@ -125,6 +125,7 @@ class SizeValue(int):
   We extend this, to store extra information, e.g. such that this reflects the batch-dim.
   """
   is_batch_dim: bool = False
+  merged_dims: list[SizeValue] = []
 
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
