@@ -23,6 +23,12 @@ def make_wrapped_class(cls: type, name: str, ctx: WrapCtx):
         obj = cls(*unwrap(args), **unwrap(kwargs))
         WrappedObject.__init__(self, orig_obj=obj, name="%s(...)" % name, ctx=ctx)
 
+      for special in ["__len__", "__iter__"]:
+        if hasattr(cls, special):
+          func = getattr(cls, special)
+          wrapped_func = wrap(func, name="%s.%s" % (name, special), ctx=ctx)
+          setattr(self, special, wrapped_func)  # make explicitly available
+
     # Use __getattribute__ because we might have added `cls` as a base,
     # and want to catch all getattr, also to existing methods.
     def __getattribute__(self, item):

@@ -38,6 +38,11 @@ def wrap(obj, *, name: str, ctx: WrapCtx):
       pass  # keep as-is
     elif type(obj) != type:  # explicitly do not check sub-types, e.g. pybind11_type
       pass
+    elif issubclass(obj, tuple):  # e.g. namedtuple
+      # Don't wrap this object. This was covered already in _nested_transform().
+      # We might run into issues with e.g. namedtuple otherwise because the __bases__ cannot always be added to the
+      # WrappedClass and we just ignore that, then subsequently isinstance(wrapped_object, tuple) would return False
+      pass
     elif obj.__module__ and ctx.should_wrap_mod(obj.__module__):
       # If this is an indirect module, but the type is part of a submodule which we want to transform,
       # explicitly check the import.
@@ -51,6 +56,11 @@ def wrap(obj, *, name: str, ctx: WrapCtx):
       obj = make_wrapped_object(obj, name=name, ctx=ctx)
     elif not getattr(type(obj), "__module__", None) or not ctx.should_wrap_mod(type(obj).__module__):
       pass  # Don't wrap this object.
+    elif issubclass(type(obj), tuple):  # e.g. namedtuple
+      # Don't wrap this object. This was covered already in _nested_transform().
+      # We might run into issues with e.g. namedtuple otherwise because the __bases__ cannot always be added to the
+      # WrappedClass and we just ignore that, then subsequently isinstance(wrapped_object, tuple) would return False
+      pass
     elif isinstance(obj, ctx.keep_as_is_types):  # blacklist
       pass  # keep as-is
     else:
@@ -75,9 +85,12 @@ def unwrap(obj):
 
 
 def _nested_transform(obj, transform):
+  if isinstance(obj, WrappedObject):
+    return obj
   if type(obj) == tuple:
     return tuple([transform(item) for item in obj])
-  assert not isinstance(obj, tuple)  # namedtuple or so not implemented yet...
+  if issubclass(type(obj), tuple) and type(obj) is not tuple:
+    return type(obj)(*(transform(item) for item in obj))
   if type(obj) == list:
     return [transform(item) for item in obj]
   assert not isinstance(obj, list)  # custom subclasses of list not implemented yet...
