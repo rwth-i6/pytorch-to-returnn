@@ -15,6 +15,7 @@ import operator
 from returnn.tf.layers.basic import LayerBase, MergeDimsLayer, FlattenBatchLayer
 from .module import Module
 from ...tensor import Tensor, Size
+from ..._C import SizeValue
 from ....naming import Naming
 
 
@@ -321,6 +322,67 @@ class Split(Module):
     else:
       num_splits = len(self.size_splits)
     return [GetSublayer(sub_layer=f"{i}")(output) for i in range(num_splits)]
+
+
+class FlattenBatch(Module):
+  is_original_torch_module = False
+  _forward_feed_dict_deps = True  # in some instances (e.g. LSTM), we directly use the input
+
+  def __init__(self, axis="T", batch_major=True, seq_lens=None):
+    super(FlattenBatch, self).__init__()
+    self.axis = axis
+    self.batch_major = batch_major
+    self._seq_lens = seq_lens
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "flatten_batch", "axis": self.axis, "batch_major": self.batch_major,
+      "from": self._get_input_layer_name(input)}
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Tensor], layer: Union[MergeDimsLayer, FlattenBatchLayer]
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    naming = Naming.get_instance()
+    assert len(inputs_flat) == 1
+    x = inputs_flat[0]
+    x_entry = naming.register_tensor(x)
+
+    batch_dim_idx = x_entry.returnn_data.get_axes_from_description("B")
+    merge_dim_idx = x_entry.returnn_data.get_axes_from_description(self.axis)
+    assert len(batch_dim_idx) == 1
+    assert len(merge_dim_idx) == 1
+    dims_to_merge = [
+      dim for i, dim in enumerate(x.shape) if i in x_entry.returnn_data.get_axes_from_description(["B" + self.axis])]
+    assert len(dims_to_merge) == 2
+    if self._seq_lens is not None:
+      merged_dim = SizeValue(sum(self._seq_lens))
+    else:
+      merged_dim = SizeValue(x.shape[batch_dim_idx[0]] * x.shape[merge_dim_idx[0]])
+    merged_dim.merged_dims = dims_to_merge
+    torch_shape = (merged_dim,) + tuple(
+      dim for i, dim in enumerate(x.shape) if i not in x_entry.returnn_data.get_axes_from_description("BT"))
+    returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+    return torch_shape, returnn_axis_from_torch_axis
+
+
+class UnflattenBatch(Module):
+  is_original_torch_module = False
+
+  def __init__(self):
+    super(UnflattenBatch, self).__init__()
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {"class": "unflatten_batch", "from": self._get_input_layer_name(input)}
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Tensor], layer: Union[MergeDimsLayer, FlattenBatchLayer]
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    assert len(inputs_flat) == 1
+    x = inputs_flat[0]
+    assert x.shape[0].merged_dims
+    torch_shape = tuple(x.shape[0].merged_dims) + x.shape[1:]
+    returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+    return torch_shape, returnn_axis_from_torch_axis
 
 
 __all__ = [
