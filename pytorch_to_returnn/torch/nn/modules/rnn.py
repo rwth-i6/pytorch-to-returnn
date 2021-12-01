@@ -29,16 +29,22 @@ class PackedSequence(PackedSequence_):
   always be satisfied.
   """
 
-  def get_batched_tensor(self) -> Tensor:
+  def get_padded_tensor(self, batch_first: bool) -> Tensor:
     from .shape import FlattenBatch
     naming = Naming.get_instance()
     tensor_entry = naming.tensors[self.data]
     assert isinstance(tensor_entry, TensorEntry)
     for call_entry in tensor_entry.output_from_calls:
       if isinstance(call_entry.module.module, FlattenBatch):
-        return call_entry.orig_inputs_args[0]
+        out_tensor = call_entry.orig_inputs_args[0]
+        if batch_first != out_tensor.shape[0].is_batch_dim:
+          # batch_first refers to whether the output should be batch major or not. Since the input to the PackedSequence
+          # was not batch major in this case, we need to transpose.
+          out_tensor = out_tensor.transpose(0, 1)
+        assert batch_first == out_tensor.shape[0].is_batch_dim
+        return out_tensor
     from .shape import UnflattenBatch
-    return UnflattenBatch()(self.data)
+    return UnflattenBatch(batch_first=batch_first)(self.data)
 
 
 def apply_permutation(tensor: Tensor, permutation: Tensor, dim: int = 1) -> Tensor:
@@ -206,7 +212,7 @@ class LSTM(RNNBase):
 
   def create_returnn_layer_dict(self, input: Tensor, hx: Optional[Tensor] = None) -> Dict[str, Any]:
     if isinstance(input, PackedSequence):
-      input = input.get_batched_tensor()
+      input = input.get_padded_tensor(batch_first=False)
     if not self.bidirectional and self.num_layers == 1:
       d = {
         "class": "rec", "unit": "nativelstm2", "from": self._get_input_layer_name(input),
@@ -257,7 +263,7 @@ class LSTM(RNNBase):
     assert call_entry.module.module is self
     orig_input = call_entry.orig_inputs_args[0]
     if isinstance(orig_input, PackedSequence):
-      orig_input = orig_input.get_batched_tensor()
+      orig_input = orig_input.get_padded_tensor(batch_first=False)
     return self._base_get_output_shape_from_returnn(inputs_flat=[orig_input], layer=layer)
 
   def make_structured_returnn_output(self, output: Tensor, input: Tensor, hx: Optional[Tensor] = None

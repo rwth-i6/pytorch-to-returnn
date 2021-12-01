@@ -14,14 +14,18 @@ def pack_padded_sequence(input: Tensor, lengths, batch_first=False, enforce_sort
 
 
 def pack_padded_sequence_with_batch_sizes(input: Tensor, batch_sizes: Tensor, batch_first=False) -> PackedSequence:
-  return PackedSequence(FlattenBatch(batch_major=batch_first)(input), batch_sizes)
+  # `batch_first` refers to whether the input is a batch major tensor. In the `PackedSequence`, it is always flattened
+  # as time major, so we just ignore `batch_first` because RETURNN does not need this information about the input for
+  # packing.
+  assert batch_first == input.shape[0].is_batch_dim
+  return PackedSequence(FlattenBatch(batch_major=False)(input), batch_sizes)
 
 
 def pad_packed_sequence(sequence: PackedSequence, batch_first=False, padding_value=0.0, total_length=None):
   assert padding_value == 0.0, "not implemented yet"
   assert total_length is None, "not implemented yet"
 
-  return sequence.get_batched_tensor(), sequence.batch_sizes
+  return sequence.get_padded_tensor(batch_first=batch_first), sequence.batch_sizes
 
 
 def pack_sequence(sequences, enforce_sorted=True):
@@ -37,7 +41,8 @@ def pack_sequence(sequences, enforce_sorted=True):
     batch_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.batch_dim_axis]]
     time_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.time_dim_axis]]
     lengths = [time_dim] * batch_dim
-    return pack_padded_sequence(sequences, lengths, enforce_sorted=enforce_sorted)
+    # batch_first is always True because we assume batch-time-major tensor, see above
+    return pack_padded_sequence(sequences, lengths, enforce_sorted=enforce_sorted, batch_first=True)
   else:
     raise NotImplementedError
 

@@ -368,8 +368,9 @@ class FlattenBatch(Module):
 class UnflattenBatch(Module):
   is_original_torch_module = False
 
-  def __init__(self):
+  def __init__(self, batch_first: bool):
     super(UnflattenBatch, self).__init__()
+    self.batch_first = batch_first
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     return {"class": "unflatten_batch", "from": self._get_input_layer_name(input)}
@@ -382,6 +383,12 @@ class UnflattenBatch(Module):
     assert x.shape[0].merged_dims
     torch_shape = tuple(x.shape[0].merged_dims) + x.shape[1:]
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+    if self.batch_first != torch_shape[0].is_batch_dim:
+      torch_shape = (torch_shape[1], torch_shape[0]) + torch_shape[2:]
+    if self.batch_first != layer.output.is_batch_major:
+      # batch and unflattened axis are always the first two, so just swap them
+      returnn_axis_from_torch_axis[0] = 1
+      returnn_axis_from_torch_axis[1] = 0
     return torch_shape, returnn_axis_from_torch_axis
 
 
