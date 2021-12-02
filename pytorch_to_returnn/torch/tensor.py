@@ -127,6 +127,14 @@ class Tensor:
     from .nn.functional import transpose
     return transpose(self, dim0=dim0, dim1=dim1)
 
+  def permute(self, *dims):
+    if dims and isinstance(dims[0], (tuple, list)):
+      assert len(dims) == 1
+      dims = tuple(dims[0])
+    assert isinstance(dims, tuple)
+    from .nn.functional import permute
+    return permute(self, dims=dims)
+
   def t(self):
     from .nn.functional import t
     return t(self)

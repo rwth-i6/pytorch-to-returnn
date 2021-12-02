@@ -36,7 +36,7 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
   return tensor(numpy.ones(size, dtype=dtype))
 
 
-def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None, 
+def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None,
            requires_grad: bool=False) -> Tensor:
   assert 1 <= len(args) <= 3
   if len(args) == 3:
@@ -266,6 +266,10 @@ def movedim(input: Tensor, source: Union[int, Tuple[int, ...]], destination: Uni
 
 def transpose(input: Tensor, dim0: int, dim1: int):
   return tensorflow_transpose(input, perm={dim0: dim1, dim1: dim0})
+
+
+def permute(input: Tensor, dims: Tuple[int]):
+  return tensorflow_transpose(input, perm=dims)
 
 
 def t(input: Tensor):
