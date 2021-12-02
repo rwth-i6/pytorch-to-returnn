@@ -239,13 +239,18 @@ class Tensor:
       return Slice(axis=0, start=item.start, stop=item.stop, step=item.step)(self)
     elif isinstance(item, tuple):
       assert len(item) == self.ndim
+      from .nn import Gather
       from .nn import Slice
       out = self
       for ax, ax_slice in enumerate(item):
-        assert isinstance(ax_slice, slice)
-        if not ax_slice.start and not ax_slice.stop and ax_slice.step in {1, None}:
-          continue
-        out = Slice(axis=ax, start=ax_slice.start, stop=ax_slice.stop, step=ax_slice.step)(out)
+        if isinstance(ax_slice, int):
+          out = Gather(dim=ax, pos=ax_slice)(out)
+        elif isinstance(ax_slice, slice):
+          if not ax_slice.start and not ax_slice.stop and ax_slice.step in {1, None}:
+            continue
+          out = Slice(axis=ax, start=ax_slice.start, stop=ax_slice.stop, step=ax_slice.step)(out)
+        else:
+          raise TypeError("Slicing with tuple containing {} not supported".format(type(item)))
       return out
     else:
       raise NotImplementedError
