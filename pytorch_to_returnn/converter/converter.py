@@ -243,7 +243,7 @@ class Converter:
               "Mismatch of sequence lens, not yet implemented")
             torch_axis_from_returnn_axis = {j: i for i, j in returnn_axis_from_torch_axis.items()}
             batch_dim_axis = torch_axis_from_returnn_axis[y.batch_dim_axis]
-            spatial_axis = torch_axis_from_returnn_axis[ax]
+            spatial_axis = torch_axis_from_returnn_axis[y.get_batch_axis(ax)]
             for seq_idx, seq_len in enumerate(y_size[ax]):
               slc = [slice(None)] * len(y_torch.shape)
               slc[batch_dim_axis] = seq_idx
