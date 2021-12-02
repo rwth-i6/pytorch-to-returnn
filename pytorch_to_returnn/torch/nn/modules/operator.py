@@ -260,9 +260,10 @@ class Transpose(Module):
     assert tensor_entry.returnn_data and tensor_entry.returnn_axis_from_torch_axis
     assert tensor_entry.returnn_data.batch_ndim == ndim
 
+    inv_perm = {j: i for i, j in perm.items()}
     out_torch_shape = [input.shape[perm[i]] for i in range(ndim)]
     out_returnn_axis_from_torch_axis = {
-      perm[i]: j for (i, j) in tensor_entry.returnn_axis_from_torch_axis.items()}
+      inv_perm[i]: j for (i, j) in tensor_entry.returnn_axis_from_torch_axis.items()}
     return tuple(out_torch_shape), out_returnn_axis_from_torch_axis
 
 
