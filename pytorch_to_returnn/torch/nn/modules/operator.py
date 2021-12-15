@@ -362,6 +362,22 @@ class Tile(Module):
       "from": self._get_input_layer_name(input)}
 
 
+class Reduce(Module):
+  """
+  Wraps RETURNN ReduceLayer.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, mode: str, axes: Union[str, int]):
+    assert mode in ["sum", "max", "argmin", "min", "argmax", "mean", "logsumexp"]
+    super(Reduce, self).__init__()
+    self.mode = mode
+    self.axes = axes
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {"class": "reduce", "mode": self.mode, "axes": self.axes, "from": self._get_input_layer_name(input)}
+
+
 def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
   """
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),

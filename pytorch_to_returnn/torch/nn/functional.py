@@ -124,6 +124,11 @@ def is_tensor(obj) -> bool:
   return isinstance(obj, Tensor)
 
 
+def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  assert dim is not None, "not implemented yet"
+  return modules.Reduce(mode="sum", axes=dim)(input)
+
+
 def add(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="add")(cast(x, dtype), cast(y, dtype))

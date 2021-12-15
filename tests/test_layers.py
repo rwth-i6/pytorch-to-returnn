@@ -1110,6 +1110,18 @@ def test_flatten_batch():
   assert converter.returnn_net_dict["Flatten"]["class"] == "flatten_batch", pformat(converter.returnn_net_dict)
 
 
+def test_reduce_sum():
+  n_batch, n_time, n_feature = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    out = inputs.sum(dim=1)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_slice_1d():
   n_batch, n_time = 3, 7
 

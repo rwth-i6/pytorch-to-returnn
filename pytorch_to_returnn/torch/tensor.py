@@ -237,6 +237,10 @@ class Tensor:
     from .nn.functional import matmul
     return matmul(self, tensor2)
 
+  def sum(self, dim: Optional[int] = None) -> Tensor:
+    from .nn.functional import sum
+    return sum(self, dim=dim)
+
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
     if isinstance(item, int):
