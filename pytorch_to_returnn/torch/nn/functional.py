@@ -749,3 +749,7 @@ def exp():
 
 def log10():
   raise NotImplementedError
+
+
+def hann_window():
+  raise NotImplementedError

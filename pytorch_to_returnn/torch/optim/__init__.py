@@ -12,3 +12,7 @@ class Adadelta:
 
 class SGD:
   pass
+
+
+class Optimizer:
+  pass
