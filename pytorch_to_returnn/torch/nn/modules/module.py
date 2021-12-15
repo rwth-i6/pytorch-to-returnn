@@ -393,6 +393,24 @@ class Module:
     for elem in gen:
       yield elem
 
+  def modules(self) -> Iterator['Module']:
+    for _, module in self.named_modules():
+      yield module
+
+  def named_modules(self, memo: Optional[Set['Module']] = None, prefix: str = '', remove_duplicate: bool = True):
+    if memo is None:
+      memo = set()
+    if self not in memo:
+      if remove_duplicate:
+        memo.add(self)
+      yield prefix, self
+      for name, module in self._modules.items():
+        if module is None:
+          continue
+        submodule_prefix = prefix + ('.' if prefix else '') + name
+        for m in module.named_modules(memo, submodule_prefix, remove_duplicate):
+          yield m
+
   def eval(self):
     return self  # ignore
 
