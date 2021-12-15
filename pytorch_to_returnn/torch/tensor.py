@@ -99,7 +99,9 @@ class Tensor:
 
   @property
   def device(self):
-    return None  # ignore
+    class DeviceDummy:
+      type = None
+    return DeviceDummy()
 
   def flatten(self):
     from .nn.functional import flatten
