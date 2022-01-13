@@ -239,7 +239,7 @@ class Tensor:
 
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
-    if isinstance(item, int):
+    if isinstance(item, (int, Tensor)):
       from .nn import Gather
       return Gather(dim=0, pos=item)(self)
     elif isinstance(item, slice):
@@ -251,14 +251,14 @@ class Tensor:
       from .nn import Slice
       out = self
       for ax, ax_slice in enumerate(item):
-        if isinstance(ax_slice, int):
+        if isinstance(ax_slice, (int, Tensor)):
           out = Gather(dim=ax, pos=ax_slice)(out)
         elif isinstance(ax_slice, slice):
           if not ax_slice.start and not ax_slice.stop and ax_slice.step in {1, None}:
             continue
           out = Slice(axis=ax, start=ax_slice.start, stop=ax_slice.stop, step=ax_slice.step)(out)
         else:
-          raise TypeError("Slicing with tuple containing {} not supported".format(type(item)))
+          raise TypeError("Slicing with tuple containing {} not supported".format(type(ax_slice)))
       return out
     else:
       raise NotImplementedError

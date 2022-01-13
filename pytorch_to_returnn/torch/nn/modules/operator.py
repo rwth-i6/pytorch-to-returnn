@@ -273,12 +273,14 @@ class Gather(Module):
   """
   is_original_torch_module = False
 
-  def __init__(self, dim: int, pos: int):
+  def __init__(self, dim: int, pos: Union[int, Tensor]):
     super(Gather, self).__init__()
     self.dim = dim
     self.pos = pos
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    if isinstance(self.pos, Tensor):
+      self.pos = self._get_input_layer_name(self.pos)
     return {
       "class": "gather", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
