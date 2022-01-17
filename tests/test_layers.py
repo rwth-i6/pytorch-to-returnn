@@ -113,14 +113,32 @@ def test_load_params_in_returnn_with_initializer():
 def test_cat():
 
   def model_func(wrapped_import, inputs: torch.Tensor):
-      if wrapped_import:
-        torch = wrapped_import("torch")
-      else:
-        import torch
-      return torch.cat((inputs, inputs), dim=-1)
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+    return torch.cat((inputs, inputs), dim=-1)
 
   rnd = numpy.random.RandomState(42)
-  x = rnd.normal(0., 1., (3,3)).astype("float32")
+  x = rnd.normal(0., 1., (3, 3)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_cat_non_feature():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    x = inputs.expand(1, n_batch, n_feat, n_time)
+    y = inputs.expand(3, n_batch, n_feat, n_time)
+    return torch.cat([x, y], dim=0)
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 

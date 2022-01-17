@@ -34,16 +34,15 @@ class Cat(Module):
 
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
     naming = Naming.get_instance()
+    sources = []
     for input in inputs:
       dim = self.dim
-      assert -len(input.shape) <= dim < len(input.shape)
       if dim < 0:
         dim += len(input.shape)
       assert 0 <= dim < len(input.shape)
-      input_naming = naming.tensors[input]
-      returnn_axis = input_naming.returnn_axis_from_torch_axis[dim]
-      assert returnn_axis == input_naming.returnn_data.feature_dim_axis, "Concatenation in dimensions other than the feature dimension is currently not supported."
-    return {"class": "copy", "from": [self._get_input_layer_name(input) for input in inputs]}
+      returnn_axis = self._get_input_axis_to_returnn(input, axis=dim)
+      sources.append((self._get_input_layer_name(input), returnn_axis))
+    return {"class": "concat", "from": sources}
 
 
 class GetSublayer(Module):
