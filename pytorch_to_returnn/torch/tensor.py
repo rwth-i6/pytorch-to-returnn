@@ -252,6 +252,8 @@ class Tensor:
     elif isinstance(item, slice):
       from .nn import Slice
       return Slice(axis=0, start=item.start, stop=item.stop, step=item.step)(self)
+    elif item is None:
+      return self.unsqueeze(0)
     elif isinstance(item, tuple):
       assert len(item) == self.ndim
       from .nn import Gather, GatherTensor, Slice
