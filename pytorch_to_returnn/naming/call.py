@@ -172,7 +172,8 @@ class CallEntry:
               print(
                 f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
                 f"importing params {[name for name, _ in module.named_parameters(recurse=False)]} ...")
-              module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
+              if layer.reuse_params is None:
+                module.import_params_torch_to_returnn(layer=layer, torch_module=torch_mod)
 
             print(
               f"*** {layer_abs_repr_name} {layer.__class__.__name__} "
