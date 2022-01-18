@@ -1137,8 +1137,7 @@ def test_flatten_batch():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
-  converter = verify_torch_and_convert_to_returnn(model_func, inputs=x)
-  assert converter.returnn_net_dict["Flatten"]["class"] == "flatten_batch", pformat(converter.returnn_net_dict)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
 def test_reduce_sum():
