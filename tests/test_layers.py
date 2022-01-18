@@ -1011,6 +1011,19 @@ def test_unsqueeze2():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_transpose_unsqueeze():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    x = inputs.transpose(1, 2)
+    x = x.unsqueeze(0)
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_broadcast_with_different_axes_types():
   n_batch, n_time, n_feature = 3, 7, 5
 

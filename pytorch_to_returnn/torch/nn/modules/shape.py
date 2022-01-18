@@ -269,7 +269,7 @@ class Unflatten(Module):
       unflatten_idx = None
       if i < dim:
         old_torch_axis = i
-      elif i > dim + len(unflatten_size):
+      elif i >= dim + len(unflatten_size):
         old_torch_axis = i - len(unflatten_size) + 1
       else:  # i >= dim and ..., within the unflattened dims
         unflatten_idx = i - dim
