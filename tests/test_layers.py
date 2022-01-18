@@ -1197,6 +1197,18 @@ def test_slice_tensor():
     "shape": (None, n_in), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_index_none():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    x = inputs[None]
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_expand():
   n_batch, n_feat = 5, 1
 
