@@ -284,6 +284,23 @@ class Gather(Module):
       "position": self.pos}
 
 
+class GatherTensor(Module):
+  """
+  Basically x[pos] but in specific dim (axis) where pos is a tensor.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: int):
+    super(GatherTensor, self).__init__()
+    self.dim = dim
+
+  def create_returnn_layer_dict(self, input: Tensor, pos: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "gather", "from": self._get_input_layer_name(input),
+      "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
+      "position": self._get_input_layer_name(pos)}
+
+
 class Slice(Module):
   """
   Slicing of tensors. Wraps RETURNN's SliceLayer.
