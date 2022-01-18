@@ -273,18 +273,34 @@ class Gather(Module):
   """
   is_original_torch_module = False
 
-  def __init__(self, dim: int, pos: Union[int, Tensor]):
+  def __init__(self, dim: int, pos: int):
     super(Gather, self).__init__()
     self.dim = dim
     self.pos = pos
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
-    if isinstance(self.pos, Tensor):
-      self.pos = self._get_input_layer_name(self.pos)
     return {
       "class": "gather", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
       "position": self.pos}
+
+
+class GatherTensor(Module):
+  """
+  Basically x[pos] but in specific dim (axis) where pos is a tensor.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: int):
+    super(GatherTensor, self).__init__()
+    self.dim = dim
+
+  def create_returnn_layer_dict(self, input: Tensor, pos: Tensor) -> Dict[str, Any]:
+    pos = self._get_input_layer_name(pos)
+    return {
+      "class": "gather", "from": self._get_input_layer_name(input),
+      "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
+      "position": pos}
 
 
 class Slice(Module):
