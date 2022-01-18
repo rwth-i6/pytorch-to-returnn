@@ -4,7 +4,8 @@ Dummies...
 """
 
 from __future__ import annotations
-from typing import Union, Any, Tuple
+from typing import Union, Any, Tuple, List, Optional
+from returnn.tf.util.data import Dim
 
 
 def device(name):
@@ -122,15 +123,44 @@ class Size(tuple):  # type: Tuple[SizeValue, ...]
 
 class SizeValue(int):
   """
-  We extend this, to store extra information, e.g. such that this reflects the batch-dim.
+  We extend this, to store extra information, e.g. corresponding RETURNN dim tags.
   """
-  is_batch_dim: bool = False
-  merged_dims: list[SizeValue] = []
+  def __new__(cls, x, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None):
+    res = super(SizeValue, cls).__new__(cls, x)
+    res.dim_tag = dim_tag or Dim(dimension=x, description="static_dim")
+    res.merged_dims = merged_dims or []
+    return res
+
+  @property
+  def is_batch_dim(self):
+    if self.dim_tag is None:
+      return False
+    return self.dim_tag.is_batch_dim()
 
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
     if self.is_batch_dim:
       res = f"Batch({res})"
+    return res
+
+  def __mul__(self, other):
+    if not isinstance(other, int):  # e.g. a list
+      return int(self) * other
+    if type(other) == int and other == 1:
+      return self
+    res = SizeValue(super(SizeValue, self).__mul__(other))
+    res.merged_dims = [self, other]
+    res.dim_tag = self.dim_tag * getattr(other, "dim_tag", other)
+    return res
+
+  def __rmul__(self, other):
+    if not isinstance(other, int):  # e.g. a list
+      return other * int(self)
+    if type(other) == int and other == 1:
+      return self
+    res = SizeValue(super(SizeValue, self).__rmul__(other))
+    res.merged_dims = [other, self]
+    res.dim_tag = getattr(other, "dim_tag", other) * self.dim_tag
     return res
 
 

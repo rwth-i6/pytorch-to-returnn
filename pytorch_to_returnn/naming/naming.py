@@ -325,8 +325,8 @@ class Naming:
       feature_dim_axis=returnn_data.feature_dim_axis_or_unspecified,
       available_for_inference=True)
     entry.returnn_axis_from_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
-    if entry.returnn_data.have_batch_axis():
-      tensor.shape[entry.returnn_data.batch_dim_axis].is_batch_dim = True
+    for dim in range(returnn_data.batch_ndim):
+      tensor.shape[dim].dim_tag = entry.returnn_data.dim_tags[dim]
     self.root_namespace.register_input(tensor=entry)
     assert entry.returnn_data
     return entry.returnn_data
