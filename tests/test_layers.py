@@ -1209,6 +1209,32 @@ def test_index_none():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_index_merged_dim():
+  n_batch, n_time, n_in = 3, 5, 7
+  n_index = 2
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    n_b, n_t, n_f = inputs.shape
+    y = inputs.view(-1, n_f)
+    idx = torch.arange(n_b * n_t)
+    idx = torch.cat([idx] * n_index).reshape(n_b, n_t * n_index)
+    x = y[idx.view(-1)]
+    x = x.view(n_b, n_t, n_index, n_f)
+    x = x.permute(2, 0, 1, 3)
+    out = torch.cat([inputs.unsqueeze(0), x])
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None, n_in), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_expand():
   n_batch, n_feat = 5, 1
 
