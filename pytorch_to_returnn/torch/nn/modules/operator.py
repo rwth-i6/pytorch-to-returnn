@@ -296,11 +296,10 @@ class GatherTensor(Module):
     self.dim = dim
 
   def create_returnn_layer_dict(self, input: Tensor, pos: Tensor) -> Dict[str, Any]:
-    pos = self._get_input_layer_name(pos)
     return {
       "class": "gather", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
-      "position": pos}
+      "position": self._get_input_layer_name(pos)}
 
 
 class Slice(Module):
