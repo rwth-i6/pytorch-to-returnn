@@ -21,6 +21,7 @@ _size = Union[Size, List[int], Tuple[int, ...]]
 _shape_t = Union[int, List[int], Size]
 _T = TypeVar("_T")
 _default_float_type = "float32"
+_builtin_sum = sum
 
 
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -122,6 +123,11 @@ def as_tensor(data: Union[Tensor, _number],
 
 def is_tensor(obj) -> bool:
   return isinstance(obj, Tensor)
+
+
+def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  assert dim is not None, "not implemented yet"
+  return modules.Reduce(mode="sum", axes=dim)(input)
 
 
 def add(x: Tensor, y: Tensor) -> Tensor:
@@ -330,7 +336,7 @@ def chunk(input: Tensor, chunks: int, dim: int = 0) -> List[Tensor]:
     size_splits[-1] -= chunk_size * chunks - input.shape[dim]
   else:
     size_splits = [chunk_size] * chunks
-  assert sum(size_splits) == input.shape[dim] and len(size_splits) == chunks
+  assert _builtin_sum(size_splits) == input.shape[dim] and len(size_splits) == chunks
   return modules.Split(dim=dim, size_splits=size_splits).as_returnn_torch_functional()(input)
 
 
