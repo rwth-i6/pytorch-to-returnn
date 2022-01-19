@@ -68,7 +68,7 @@ class Constant(Module):
       value = numpy.moveaxis(value, batch_axis, 0)
       for i in range(1, value.shape[0]):
         numpy.testing.assert_equal(value[0], value[i])
-      value = value[0]  # remove batch axis
+      value = numpy.array(value[0])  # remove batch axis
     assert isinstance(value, numpy.ndarray)
     # Simplify representation in these simple cases.
     if not value.shape:  # scalar
