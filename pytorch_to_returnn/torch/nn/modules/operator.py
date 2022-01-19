@@ -35,7 +35,7 @@ class Range(Module):
     limit, start, delta, *_ = inputs_flat
     if isinstance(limit, Tensor):
       limit = limit.numpy()
-    torch_shape = ((int(limit) - int(start)) // delta,)
+    torch_shape = ((int(limit) - int(start)) // int(delta),)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
 

@@ -151,7 +151,10 @@ class SizeValue(int):
   def as_tensor(self):
     assert self.originating_tensor is not None
     from .nn.modules import Length
-    return Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
+    axis = self.originating_tensor_axis
+    tensor = Length(axis=axis).as_returnn_torch_functional()(self.originating_tensor)
+    tensor.fill_(self.originating_tensor.shape[axis])
+    return tensor
 
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
