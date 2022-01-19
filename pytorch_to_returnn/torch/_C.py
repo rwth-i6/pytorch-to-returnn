@@ -148,20 +148,18 @@ class SizeValue(int):
       return int(self) * other
     if type(other) == int and other == 1:
       return self
-    res = SizeValue(super(SizeValue, self).__mul__(other))
-    res.merged_dims = [self, other]
-    res.dim_tag = self.dim_tag * getattr(other, "dim_tag", other)
-    return res
+    merged_dims = [self, other]
+    dim_tag = self.dim_tag * (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
   def __rmul__(self, other):
     if not isinstance(other, int):  # e.g. a list
       return other * int(self)
     if type(other) == int and other == 1:
       return self
-    res = SizeValue(super(SizeValue, self).__rmul__(other))
-    res.merged_dims = [other, self]
-    res.dim_tag = getattr(other, "dim_tag", other) * self.dim_tag
-    return res
+    merged_dims = [other, self]
+    dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) * self.dim_tag
+    return SizeValue(super(SizeValue, self).__rmul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
 
 def zeros(*shape):
