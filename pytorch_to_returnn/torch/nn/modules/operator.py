@@ -2,7 +2,9 @@
 from typing import Optional, Tuple, Any, List, Dict, Union
 from collections import OrderedDict
 from returnn.tf.layers.basic import LayerBase
+from returnn.tf.util.data import Dim
 from .module import Module
+from ..._C import SizeValue
 from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
 
@@ -22,7 +24,17 @@ class Range(Module):
   is_original_torch_module = False
 
   def create_returnn_layer_dict(self, limit, start, delta, dtype, sparse=False) -> Dict[str, Any]:
-    return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
+    if isinstance(limit, SizeValue):
+      limit = Length(axis=limit.axis)(limit.tensor)
+      return {"class": "range_from_length", "from": self._get_input_layer_name(limit)}
+    else:
+      return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
+
+  def _get_output_shape_from_returnn(self, inputs_flat: List, layer: LayerBase
+                                          ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    torch_shape = ((int(inputs_flat[0]) - int(inputs_flat[1])) // inputs_flat[2],)
+    returnn_axis_from_torch_axis = {0: 0}
+    return torch_shape, returnn_axis_from_torch_axis
 
 
 class Cat(Module):
@@ -392,6 +404,22 @@ class Reduce(Module):
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     return {"class": "reduce", "mode": self.mode, "axes": self.axes, "from": self._get_input_layer_name(input)}
+
+
+class Length(Module):
+  """
+  Wraps RETURNN LengthLayer.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, axis: Union[str, Dim]):
+    super(Length, self).__init__()
+    self.axis = axis
+
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    return {
+      "class": "length", "axis": self._get_input_axis_to_returnn(input, self.axis),
+      "from": self._get_input_layer_name(input)}
 
 
 def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
