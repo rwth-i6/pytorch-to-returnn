@@ -285,7 +285,7 @@ class Naming:
     self.const_tensor_cache.append(x)
     return self.tensors[x]
 
-  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, Any]
+  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, SizeValue, Any]
                    ) -> Optional[_tensor.TensorEntry]:
     """
     We have to decide which objects we keep as-is (as constant),
@@ -294,6 +294,9 @@ class Naming:
     """
     if x is None:
       return None
+    from ..torch._C import SizeValue
+    if isinstance(x, SizeValue):
+      x = x.as_tensor()
     if isinstance(x, (int, float, bool, numpy.number)):
       return x  # keep as-is for now. would be handled via `get_tensor` later on
     if not self.wrap_to_returnn_enabled:
