@@ -6,6 +6,7 @@ Dummies...
 from __future__ import annotations
 from typing import Union, Any, Tuple, List, Optional
 from returnn.tf.util.data import Dim
+from ..naming import Naming
 
 
 def device(name):
@@ -125,12 +126,12 @@ class SizeValue(int):
   """
   We extend this, to store extra information, e.g. corresponding RETURNN dim tags.
   """
-  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None, tensor=None, axis=None):
+  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None,
+              originating_tensor=None):
     res = super(SizeValue, cls).__new__(cls, x)
     res.dim_tag = dim_tag or Dim(dimension=x, description="static_dim")
     res.merged_dims = merged_dims or []
-    res.tensor = tensor
-    res.axis = axis
+    res.originating_tensor = originating_tensor
     return res
 
   @property
@@ -139,6 +140,15 @@ class SizeValue(int):
       return False
     return self.dim_tag.is_batch_dim()
 
+  @property
+  def axis(self):
+    naming = Naming.get_instance()
+    return naming.tensors[self.originating_tensor].returnn_data.get_axis_by_tag_name(self.dim_tag.description)
+
+  def as_tensor(self):
+    from .nn.modules import Length
+    return Length(axis=self.axis).as_returnn_torch_functional()(self.originating_tensor)
+
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
     if self.is_batch_dim:
@@ -146,7 +156,7 @@ class SizeValue(int):
     return res
 
   def __mul__(self, other):
-    assert isinstance(other, (int, SizeValue)), (
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
       "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
       "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:
@@ -156,7 +166,7 @@ class SizeValue(int):
     return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
   def __rmul__(self, other):
-    assert isinstance(other, (int, SizeValue)), (
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
       "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
       "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:

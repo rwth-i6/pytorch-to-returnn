@@ -327,8 +327,6 @@ class Naming:
     entry.returnn_axis_from_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
     for axis in range(returnn_data.batch_ndim):
       tensor.shape[axis].dim_tag = entry.returnn_data.dim_tags[axis]
-      tensor.shape[axis].tensor = tensor
-      tensor.shape[axis].axis = axis
     self.root_namespace.register_input(tensor=entry)
     assert entry.returnn_data
     return entry.returnn_data

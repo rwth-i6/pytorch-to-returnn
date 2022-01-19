@@ -25,7 +25,7 @@ class Range(Module):
 
   def create_returnn_layer_dict(self, limit, start, delta, dtype, sparse=False) -> Dict[str, Any]:
     if isinstance(limit, SizeValue):
-      limit = Length(axis=limit.axis)(limit.tensor)
+      limit = limit.as_tensor()
       return {"class": "range_from_length", "from": self._get_input_layer_name(limit)}
     else:
       return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
