@@ -295,7 +295,7 @@ class Naming:
     if x is None:
       return None
     from ..torch._C import SizeValue
-    if isinstance(x, SizeValue):
+    if isinstance(x, SizeValue) and x.dim_tag.dimension is None:
       x = x.as_tensor()
     if isinstance(x, (int, float, bool, numpy.number)):
       return x  # keep as-is for now. would be handled via `get_tensor` later on
