@@ -144,8 +144,9 @@ class SizeValue(int):
     return res
 
   def __mul__(self, other):
-    if not isinstance(other, int):  # e.g. a list
-      return int(self) * other
+    assert isinstance(other, (int, SizeValue)), (
+      "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:
       return self
     merged_dims = [self, other]
@@ -153,8 +154,9 @@ class SizeValue(int):
     return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
   def __rmul__(self, other):
-    if not isinstance(other, int):  # e.g. a list
-      return other * int(self)
+    assert isinstance(other, (int, SizeValue)), (
+      "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:
       return self
     merged_dims = [other, self]
