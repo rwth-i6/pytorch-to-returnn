@@ -412,14 +412,16 @@ class Length(Module):
   """
   is_original_torch_module = False
 
-  def __init__(self, axis: Union[str, Dim]):
+  def __init__(self, axis: Union[str, Dim, int]):
     super(Length, self).__init__()
     self.axis = axis
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    axis = self.axis
+    if isinstance(axis, int):
+      axis = self._get_input_axis_to_returnn(input, axis)
     return {
-      "class": "length", "axis": self._get_input_axis_to_returnn(input, self.axis),
-      "from": self._get_input_layer_name(input)}
+      "class": "length", "axis": axis, "from": self._get_input_layer_name(input)}
 
 
 def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
