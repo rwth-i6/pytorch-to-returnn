@@ -1,4 +1,5 @@
 import numpy
+from ..functional import full
 from ..modules.rnn import PackedSequence
 from ..modules.shape import FlattenBatch
 from ...tensor import Tensor
@@ -40,7 +41,7 @@ def pack_sequence(sequences, enforce_sorted=True):
     torch_axis_from_returnn_axis = {j: i for i, j in tensor_entry.returnn_axis_from_torch_axis.items()}
     batch_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.batch_dim_axis]]
     time_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.time_dim_axis]]
-    lengths = [time_dim] * batch_dim
+    lengths = full((batch_dim,), time_dim)
     # batch_first is always True because we assume batch-time-major tensor, see above
     return pack_padded_sequence(sequences, lengths, enforce_sorted=enforce_sorted, batch_first=True)
   else:
