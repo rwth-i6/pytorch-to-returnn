@@ -37,6 +37,10 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
   return tensor(numpy.ones(size, dtype=dtype))
 
 
+def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, requires_grad=False) -> Tensor:
+  return Tensor(*size, dtype=dtype) + fill_value
+
+
 def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None,
            requires_grad: bool=False) -> Tensor:
   assert 1 <= len(args) <= 3
