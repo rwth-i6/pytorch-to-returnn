@@ -125,7 +125,7 @@ class SizeValue(int):
   """
   We extend this, to store extra information, e.g. corresponding RETURNN dim tags.
   """
-  def __new__(cls, x, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None):
+  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None):
     res = super(SizeValue, cls).__new__(cls, x)
     res.dim_tag = dim_tag or Dim(dimension=x, description="static_dim")
     res.merged_dims = merged_dims or []
