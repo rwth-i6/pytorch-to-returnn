@@ -142,10 +142,14 @@ class SizeValue(int):
 
   @property
   def originating_tensor_axis(self) -> int:
+    assert self.originating_tensor is not None
     naming = Naming.get_instance()
-    return naming.tensors[self.originating_tensor].returnn_data.get_axis_by_tag_name(self.dim_tag.description)
+    tensor_entry = naming.tensors[self.originating_tensor]
+    returnn_axis = tensor_entry.returnn_data.get_axis_from_description(self.dim_tag)
+    return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
 
   def as_tensor(self):
+    assert self.originating_tensor is not None
     from .nn.modules import Length
     return Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
 

@@ -28,10 +28,12 @@ class Range(Module):
       limit = limit.as_tensor()
       return {"class": "range_from_length", "from": self._get_input_layer_name(limit)}
     else:
+      assert isinstance(limit, int)
       return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
 
-  def _get_output_shape_from_returnn(self, inputs_flat: List, layer: LayerBase
-                                          ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+  def _get_output_shape_from_returnn(self,
+                                    inputs_flat: List, layer: LayerBase
+                                    ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     torch_shape = ((int(inputs_flat[0]) - int(inputs_flat[1])) // inputs_flat[2],)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
@@ -412,16 +414,14 @@ class Length(Module):
   """
   is_original_torch_module = False
 
-  def __init__(self, axis: Union[str, Dim, int]):
+  def __init__(self, axis: int):
     super(Length, self).__init__()
     self.axis = axis
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
-    axis = self.axis
-    if isinstance(axis, int):
-      axis = self._get_input_axis_to_returnn(input, axis)
     return {
-      "class": "length", "axis": axis, "from": self._get_input_layer_name(input)}
+      "class": "length", "axis": self._get_input_axis_to_returnn(input, self.axis),
+      "from": self._get_input_layer_name(input)}
 
 
 def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
