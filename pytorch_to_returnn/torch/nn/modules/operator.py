@@ -30,9 +30,12 @@ class Range(Module):
       return {"class": "range", "limit": limit, "start": start, "delta": delta, "dtype": dtype, "sparse": sparse}
 
   def _get_output_shape_from_returnn(self,
-                                     inputs_flat: List[Tensor, int, None, bool], layer: LayerBase
+                                     inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
-    torch_shape = ((int(inputs_flat[0]) - int(inputs_flat[1])) // inputs_flat[2],)
+    limit, start, delta, *_ = inputs_flat
+    if isinstance(limit, Tensor):
+      limit = limit.numpy()
+    torch_shape = ((int(limit) - int(start)) // delta,)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
 
