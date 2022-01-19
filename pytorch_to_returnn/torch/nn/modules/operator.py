@@ -24,7 +24,7 @@ class Range(Module):
   is_original_torch_module = False
 
   def create_returnn_layer_dict(self, limit, start, delta, dtype, sparse=False) -> Dict[str, Any]:
-    if isinstance(limit, SizeValue):
+    if isinstance(limit, SizeValue) and limit.dim_tag.dimension is None:
       limit = limit.as_tensor()
       return {"class": "range_from_length", "from": self._get_input_layer_name(limit)}
     else:
