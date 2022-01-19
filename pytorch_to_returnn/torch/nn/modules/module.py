@@ -765,6 +765,8 @@ class Module:
         feed_dict[x.returnn_data.placeholder] = value
       numpy_array = session.run(layer.output.placeholder, feed_dict=feed_dict)
       numpy_array = numpy.transpose(numpy_array, [returnn_axis_from_torch_axis[i] for i in range(numpy_array.ndim)])
+      if not isinstance(numpy_array, numpy.ndarray):
+        numpy_array = numpy.array(numpy_array)
       is_const = True
     tensor = Tensor(*torch_shape, numpy_array=numpy_array, dtype=layer.output.dtype)
     tensor_entry = naming.register_tensor(tensor)
