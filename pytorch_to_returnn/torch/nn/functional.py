@@ -49,7 +49,9 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
       raise NotImplementedError
     else:
       dtype = torch.get_default_dtype()
-  return zeros(*size, dtype=dtype) + fill_value
+  out = zeros(*size, dtype=dtype) + fill_value
+  out.fill_(fill_value)
+  return out
 
 
 def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None,
@@ -152,6 +154,7 @@ def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
       out = modules.Reduce(mode="max", axes=0)(out)
   else:
     out = modules.Reduce(mode="max", axes=dim)(out)
+  out.fill_(input._numpy_buffer.max(dim))
   return out
 
 
