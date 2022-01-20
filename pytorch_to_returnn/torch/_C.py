@@ -153,6 +153,10 @@ class SizeValue(int):
     from .nn.modules import Length
     tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
     tensor.fill_(int(self))
+    tensor.is_defined = True
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[self.originating_tensor]
+    tensor_entry.is_const = True
     return tensor
 
   def __repr__(self):

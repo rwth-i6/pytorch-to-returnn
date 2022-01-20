@@ -101,7 +101,6 @@ class Constant(Module):
           return old_axis + 1
         return old_axis
       entry.returnn_axis_from_torch_axis = {i: _new_axis(i) for i in range(tensor.ndim)}
-      entry.is_const = False  # this depends on the (dynamic) batch dim
     else:
       entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
     return tensor
