@@ -24,6 +24,10 @@ _default_float_type = "float32"
 _builtin_sum = sum
 
 
+def get_default_dtype():
+  return "float32"
+
+
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
   return Tensor(*size, dtype=dtype)
 
@@ -41,6 +45,8 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
   if dtype is None:
     if isinstance(fill_value, int) or isinstance(fill_value, numpy.integer):
       dtype = "int64"
+    elif isinstance(fill_value, (bool, numpy.bool, complex, numpy.complex)):
+      raise NotImplementedError
     else:
       dtype = torch.get_default_dtype()
   return zeros(*size, dtype=dtype) + fill_value
