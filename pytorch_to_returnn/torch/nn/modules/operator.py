@@ -137,11 +137,6 @@ class Reciprocal(Module):
       "from": self._get_input_layer_name(input)}
 
 
-class Max(Module):
-  is_original_torch_module = False
-  pass  # TODO
-
-
 class ReturnnReinterpretSameSizeAs(Module):
   """
   Used by :func:`_unify_tensor_axes_returnn_meta`.

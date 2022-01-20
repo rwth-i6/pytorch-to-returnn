@@ -139,6 +139,16 @@ def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
   return modules.Reduce(mode="sum", axes=dim)(input)
 
 
+def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  out = input
+  if dim is None:
+    for i in range(len(input.shape)):
+      out = modules.Reduce(mode="max", axes=0)(out)
+  else:
+    out = modules.Reduce(mode="max", axes=dim)(out)
+  return out
+
+
 def add(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="add")(cast(x, dtype), cast(y, dtype))
@@ -351,10 +361,6 @@ def chunk(input: Tensor, chunks: int, dim: int = 0) -> List[Tensor]:
 
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value).as_returnn_torch_functional()(input)
-
-
-def max(*inputs: Tensor) -> Tensor:
-  return modules.Max()(*inputs)
 
 
 def linear(input: Tensor, weight: Tensor, bias: Optional[Tensor] = None):
