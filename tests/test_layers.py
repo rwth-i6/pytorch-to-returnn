@@ -1264,10 +1264,12 @@ def test_arange_from_lengths():
     batch_dim, time_dim = inputs.shape
     lengths = torch.full((batch_dim,), time_dim)
     arange = torch.arange(torch.max(lengths))
+    assert arange.shape == (5,)
     return arange
 
   rnd = numpy.random.RandomState(42)
-  x = rnd.randint(0, 10, (n_batch, n_time), dtype="int64")
+  x = rnd.randint(0, 5, (n_batch, n_time), dtype="int64")
+  x[0, 0] = 5
   verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
     "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
 
