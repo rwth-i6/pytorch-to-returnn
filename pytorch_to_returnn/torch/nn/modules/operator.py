@@ -395,17 +395,19 @@ class Reduce(Module):
   """
   is_original_torch_module = False
 
-  def __init__(self, mode: str, axes: Optional[List[int]]):
+  def __init__(self, mode: str, axes: Optional[Union[List[int], int]]):
     assert mode in ["sum", "max", "argmin", "min", "argmax", "mean", "logsumexp"]
     super(Reduce, self).__init__()
     self.mode = mode
     self.axes = axes
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
-    if self.axes is None:
-      axes = [self._get_input_axis_to_returnn(input, axis) for axis in range(input.ndim)]
-    else:
-      axes = [self._get_input_axis_to_returnn(input, axis) for axis in self.axes]
+    axes = self.axes
+    if axes is None:
+      axes = range(input.ndim)
+    if isinstance(axes, int):
+      axes = [axes]
+    axes = [self._get_input_axis_to_returnn(input, axis) for axis in axes]
     return {"class": "reduce", "mode": self.mode, "axes": axes, "from": self._get_input_layer_name(input)}
 
 
