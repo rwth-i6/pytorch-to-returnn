@@ -142,18 +142,11 @@ def is_tensor(obj) -> bool:
 
 
 def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
-  assert dim is not None, "not implemented yet"
-  return modules.Reduce(mode="sum", axes=dim)(input)
+  return modules.Reduce(mode="sum", axes=dim).as_returnn_torch_functional()(input)
 
 
 def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
-  out = input
-  if dim is None:
-    for i in range(len(input.shape)):
-      out = modules.Reduce(mode="max", axes=0)(out)
-  else:
-    out = modules.Reduce(mode="max", axes=dim)(out)
-  return out
+  return modules.Reduce(mode="max", axes=dim).as_returnn_torch_functional()(input)
 
 
 def add(x: Tensor, y: Tensor) -> Tensor:
