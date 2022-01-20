@@ -39,7 +39,10 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
 
 def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, requires_grad=False) -> Tensor:
   if dtype is None:
-    dtype = type(fill_value).__name__ + "32"
+    if isinstance(fill_value, int) or isinstance(fill_value, numpy.integer):
+      dtype = "int64"
+    else:
+      dtype = torch.get_default_dtype()
   return zeros(*size, dtype=dtype) + fill_value
 
 
