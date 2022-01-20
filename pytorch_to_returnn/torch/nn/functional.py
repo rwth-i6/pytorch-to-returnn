@@ -49,7 +49,9 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
       dtype = "bool"
     else:
       dtype = torch.get_default_dtype()
-  out = zeros(*size, dtype=dtype) + cast(fill_value, dtype)
+  zeros_ = zeros(*size, dtype=dtype)
+  fill_value_ = cast(fill_value, dtype)
+  out = zeros_ + fill_value_
   return out
 
 
