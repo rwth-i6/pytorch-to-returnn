@@ -50,7 +50,6 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
     else:
       dtype = torch.get_default_dtype()
   out = zeros(*size, dtype=dtype) + cast(fill_value, dtype)
-  out.fill_(fill_value)
   return out
 
 
@@ -154,7 +153,6 @@ def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
       out = modules.Reduce(mode="max", axes=0)(out)
   else:
     out = modules.Reduce(mode="max", axes=dim)(out)
-  out.fill_(input._numpy_buffer.max(dim))
   return out
 
 
