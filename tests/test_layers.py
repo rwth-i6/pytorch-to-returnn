@@ -1253,6 +1253,25 @@ def test_arange_dyn():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_arange_from_lengths():
+  n_batch, n_time = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    batch_dim, time_dim = inputs.shape
+    lengths = torch.full((batch_dim,), time_dim)
+    arange = torch.arange(torch.max(lengths))
+    return arange
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.randint(0, 10, (n_batch, n_time), dtype="int64")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
+
+
 def test_full():
   n_batch, n_feat = 3, 5
 
