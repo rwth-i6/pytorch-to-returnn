@@ -45,11 +45,11 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
   if dtype is None:
     if isinstance(fill_value, int) or isinstance(fill_value, numpy.integer):
       dtype = "int64"
-    elif isinstance(fill_value, (bool, numpy.bool, complex, numpy.complex)):
-      raise NotImplementedError
+    elif isinstance(fill_value, (bool, numpy.bool)):
+      dtype = "bool"
     else:
       dtype = torch.get_default_dtype()
-  out = zeros(*size, dtype=dtype) + fill_value
+  out = zeros(*size, dtype=dtype) + cast(fill_value, dtype)
   out.fill_(fill_value)
   return out
 

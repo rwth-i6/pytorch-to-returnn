@@ -18,14 +18,7 @@ def _batch_sizes_from_lengths(lengths: Tensor) -> Tensor:
 
 
 def pack_padded_sequence(input: Tensor, lengths, batch_first=False, enforce_sorted=True) -> PackedSequence:
-  batch_sizes = None
-  if isinstance(lengths, Tensor):
-    batch_sizes = _batch_sizes_from_lengths(lengths)
-  else:
-    batch_sizes = []
-    for frame in range(lengths[0]):
-      batch_sizes.append(sum([x > frame for x in lengths]))
-  assert batch_sizes is not None
+  batch_sizes = _batch_sizes_from_lengths(lengths)
   return pack_padded_sequence_with_batch_sizes(input, from_numpy(numpy.array(batch_sizes)), batch_first=batch_first)
 
 
