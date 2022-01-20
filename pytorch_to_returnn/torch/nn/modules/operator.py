@@ -34,6 +34,7 @@ class Range(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     limit, start, delta, *_ = inputs_flat
     if isinstance(limit, Tensor):
+      assert limit.is_defined
       limit = limit.numpy()
     torch_shape = ((int(limit) - int(start)) // int(delta),)
     returnn_axis_from_torch_axis = {0: 0}

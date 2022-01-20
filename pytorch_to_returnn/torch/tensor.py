@@ -37,6 +37,7 @@ class Tensor:
       dtype = "float32"
     self._shape = shape
     self._numpy_buffer = numpy.zeros(shape, dtype=dtype) if numpy_array is None else numpy_array
+    self.is_defined = numpy_array is not None
     self.dtype = _dtype(dtype)
     Naming.get_instance().register_tensor(self)
 
