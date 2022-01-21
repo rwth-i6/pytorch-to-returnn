@@ -1048,8 +1048,9 @@ def test_broadcast_after_transpose():
       import torch
     else:
       torch = wrapped_import("torch")
-    weight = torch.ones(n_feature)
-    return inputs.transpose(1, 2) * weight
+    weight = torch.ones(n_feature)  # [F]
+    x = inputs.transpose(1, 2)  # [B, T, F]
+    return x * weight
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
