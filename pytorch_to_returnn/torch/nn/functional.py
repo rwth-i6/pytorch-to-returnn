@@ -78,7 +78,7 @@ def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, devi
     end, = args
     start = 0
     step = 1
-  mod = modules.Range().as_returnn_torch_functional()
+  mod = modules.Range()
   return mod(end, start, step, dtype, False)
 
 
