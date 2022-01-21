@@ -210,3 +210,17 @@ def from_numpy(arr):
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
   return Tensor(*arr.shape, dtype=str(arr.dtype), numpy_array=arr)
+
+
+def convert_to_tensor(x):
+  import numpy
+  from .tensor import Tensor
+  from .nn.modules.operator import Stack
+  if isinstance(x, Tensor):
+    return x
+  if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
+    return from_numpy(x)
+  if isinstance(x, (list, tuple)):
+    x = [convert_to_tensor(e) for e in x]
+    return Stack(dim=0)(*x)
+  raise TypeError(f"unexpected type {type(x)}")
