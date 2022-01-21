@@ -133,9 +133,13 @@ class FullStatic(Module):
       "value": self.fill_value, "dtype": self.dtype}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    from ..._C import SizeValue
+    naming = Naming.get_instance()
     size = inputs_flat
 
     def _convert_dim(x):
+      if isinstance(x, SizeValue):
+        raise NotImplementedError(f"SizeValue {x} not implemented")
       if isinstance(x, int):
         return x
       if isinstance(x, Tensor):
@@ -146,7 +150,6 @@ class FullStatic(Module):
     size = [_convert_dim(x) for x in size]
     from ..._C import from_numpy
     tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype))
-    naming = Naming.get_instance()
     entry = naming.register_tensor(tensor)
     entry.is_const = True
     entry.returnn_data = layer.output

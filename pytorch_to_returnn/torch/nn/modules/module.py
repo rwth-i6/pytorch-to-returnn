@@ -547,9 +547,12 @@ class Module:
         if t in visited:
           continue
         visited.add(t)
+        call_ = None
+        if t.output_from_calls:
+          call_ = t.output_from_calls[0]
         if t.validated_to_torch:
           pass
-        elif t.is_const:
+        elif t.is_const and not (call_ and call_.inputs_flat):
           print(f"**** validate: add const tensor {t}")
           t.validated_to_torch = True  # Skip check next time.
           # No need to feed, this should be const.
@@ -571,8 +574,7 @@ class Module:
             t.validated_to_torch_tf_sizes_feed_dict[size] = numpy.array([size_] * batch_dim, dtype=numpy.int32)
           t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
         else:
-          assert len(t.output_from_calls) >= 1
-          call_ = t.output_from_calls[0]
+          assert len(t.output_from_calls) >= 1 and call_
           queue_ += call_.inputs_flat
           continue
 
