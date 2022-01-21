@@ -450,7 +450,7 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
   # Collect broadcast dims and out_shape.
   # We will squeeze them out later.
   max_ndim = max(x.returnn_data.batch_ndim for x in tensors)
-  broadcast_dims = [set() for _ in inputs]  # input idx -> set of (negative) broadcast dims
+  broadcast_axes = [set() for _ in inputs]  # input idx -> set of (negative) broadcast Torch axes
   out_shape = []
   for torch_axis in range(max_ndim):
     neg_torch_axis = torch_axis - max_ndim
@@ -464,26 +464,29 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
       if x.returnn_data.batch_ndim < abs(neg_torch_axis):
         dims_for_axis.append(None)
       else:
-        dims_for_axis.append(x.returnn_data.dim_tags[neg_torch_axis])
+        torch_axis = x.returnn_data.batch_ndim + neg_torch_axis
+        assert 0 <= torch_axis < x.returnn_data.batch_ndim
+        returnn_axis = x.returnn_axis_from_torch_axis[torch_axis]
+        dims_for_axis.append(x.returnn_data.dim_tags[returnn_axis])
     assert len(dims_for_axis) == len(inputs)
 
-    broadcast_dims_for_axis = set()  # input idx
+    broadcast_inputs_for_axis = set()  # input indices
     dim_for_axis = None
     for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
       if dim is None:
         continue
       assert isinstance(dim, Dim)
       if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
-        broadcast_dims_for_axis.add(i)
+        broadcast_inputs_for_axis.add(i)
         continue
       assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
-        f"invalid dim {dim} in input {x}")
+        f"invalid input {x} axis {i} dim {dim}")
       if not dim_for_axis:
         dim_for_axis = dim
     assert dim_for_axis
     out_shape.append(dim_for_axis)
-    for idx in broadcast_dims_for_axis:
-      broadcast_dims[idx].add(neg_torch_axis)
+    for idx in broadcast_inputs_for_axis:
+      broadcast_axes[idx].add(neg_torch_axis)
   assert len(set(out_shape)) == len(out_shape) == max_ndim
 
   # Potentially reset dynamic dim tags to reflect same dim.
@@ -525,7 +528,7 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
   # Squeeze out all the broadcast dims.
   from .shape import Squeeze
   for i, x in enumerate(inputs):
-    broadcast_dims_for_input = sorted(broadcast_dims[i])
+    broadcast_dims_for_input = sorted(broadcast_axes[i])
     if broadcast_dims_for_input:
       inputs[i] = Squeeze(dim=broadcast_dims_for_input)(x)
 
