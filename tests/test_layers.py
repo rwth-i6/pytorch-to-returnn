@@ -1273,6 +1273,28 @@ def test_arange_from_lengths():
     "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
 
 
+def test_broadcasting_with_lengths():
+  n_batch, n_time = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    batch_dim, time_dim = inputs.shape
+    lengths = torch.full((batch_dim,), time_dim)
+    indices = torch.arange(torch.max(lengths))
+    indices_bc = indices.unsqueeze(0)  # [1,T]
+    l_bc = lengths.unsqueeze(1)  # [B,1]
+    mask = indices_bc < l_bc  # [B,T]
+    return mask
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.randint(0, 10, (n_batch, n_time), dtype="int64")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
+
+
 def test_full():
   n_batch, n_feat = 3, 5
 
