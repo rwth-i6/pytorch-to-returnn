@@ -1,6 +1,5 @@
 
-from typing import Optional, Tuple, Any, List, Dict, Union
-from collections import OrderedDict
+from typing import Optional, Tuple, Any, List, Dict, Set, Union
 from returnn.tf.layers.basic import LayerBase
 from returnn.tf.util.data import Dim
 from .module import Module
@@ -97,9 +96,9 @@ class BinaryOperator(Module):
     return self.kind
 
   def create_returnn_layer_dict(self, *inputs: Tensor):
-    inputs = _unify_tensor_axes_returnn_meta(*inputs)
+    inputs, out_shape = _unify_tensor_axes_returnn_meta(*inputs)
     return {
-      "class": "combine", "kind": self.kind,
+      "class": "combine", "kind": self.kind, "out_shape": out_shape,
       "from": [self._get_input_layer_name(input) for input in inputs]}
 
 
@@ -113,9 +112,9 @@ class ComparisonOperator(BinaryOperator):
     super(ComparisonOperator, self).__init__(kind=kind)
 
   def create_returnn_layer_dict(self, *inputs: Tensor):
-    inputs = _unify_tensor_axes_returnn_meta(*inputs)
+    inputs, out_shape = _unify_tensor_axes_returnn_meta(*inputs)
     return {
-      "class": "compare", "kind": self.kind,
+      "class": "compare", "kind": self.kind, "out_shape": out_shape,
       "from": [self._get_input_layer_name(input) for input in inputs]}
 
 
@@ -427,33 +426,74 @@ class Length(Module):
       "from": self._get_input_layer_name(input)}
 
 
-def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
+def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
   """
+  This is called when the inputs are supposed to be potentially broadcasted against each other.
+
   You have multiple inputs which can potentially have different dynamic axes (see RETURNN :class:`Data`),
   and this would add ``reinterpret_data`` layers when needed
   to make sure the seq lengths / dim tags are the same.
 
-  It also makes sure that feature_dim_axis and time_dim_axis (the RETURNN flags) are set consistently.
-
-  It also makes sure that broadcasting in the batch-dim axis works correctly
-  by potentially removing such a batch broadcast dim.
+  It also removes any broadcasting dims because RETURNN will handle broadcasting automatically
+  but only reliable when the dim is not present.
   """
-  if len(inputs) <= 1:
-    return inputs
+  assert len(inputs) >= 1
   naming = Naming.get_instance()
   tensors = [naming.tensors[x] for x in inputs if isinstance(x, Tensor)]  # type: List[TensorEntry]
+  if len(inputs) == 1:
+    return inputs, set(tensors[0].returnn_data.dim_tags) if tensors else set()
   tensors = [x for x in tensors if x.returnn_data.batch_ndim > 0]  # filter out scalars
   if len(tensors) <= 1:
-    return inputs
+    return inputs, set(tensors[0].returnn_data.dim_tags) if tensors else set()
   inputs = list(inputs)
 
-  dims = {}  # torch axis -> (tensor, DimensionTag) (static != 1, or dynamic)
+  # Collect broadcast dims and out_shape.
+  # We will squeeze them out later.
+  max_ndim = max(x.returnn_data.batch_ndim for x in tensors)
+  broadcast_dims = [set() for _ in inputs]  # input idx -> set of (negative) broadcast dims
+  out_shape = []
+  for torch_axis in range(max_ndim):
+    neg_torch_axis = torch_axis - max_ndim
+    dims_for_axis = []  # type: List[Union[None, Dim]]  # None -> not existing, dim 1 -> maybe broadcast
+    for x in inputs:
+      if not isinstance(x, Tensor):
+        dims_for_axis.append(None)
+        continue
+      x = naming.tensors[x]
+      assert isinstance(x, TensorEntry)
+      if x.returnn_data.batch_ndim < abs(neg_torch_axis):
+        dims_for_axis.append(None)
+      else:
+        dims_for_axis.append(x.returnn_data.dim_tags[neg_torch_axis])
+    assert len(dims_for_axis) == len(inputs)
+
+    broadcast_dims_for_axis = set()  # input idx
+    dim_for_axis = None
+    for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
+      if dim is None:
+        continue
+      assert isinstance(dim, Dim)
+      if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
+        broadcast_dims_for_axis.add(i)
+        continue
+      assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
+        f"invalid dim {dim} in input {x}")
+      if not dim_for_axis:
+        dim_for_axis = dim
+    assert dim_for_axis
+    out_shape.append(dim_for_axis)
+    for idx in broadcast_dims_for_axis:
+      broadcast_dims[idx].add(neg_torch_axis)
+  assert len(set(out_shape)) == len(out_shape) == max_ndim
+
+  # Potentially reset dynamic dim tags to reflect same dim.
+  dims = {}  # torch axis (negative) -> (TensorEntry, DimensionTag) (static != 1, or dynamic)
   for i, x in enumerate(inputs):
     if not isinstance(x, Tensor):
       continue
     x = naming.tensors[x]
     assert isinstance(x, TensorEntry)
-    if x.returnn_data.batch_ndim == 0:  # scalars are fine
+    if x.returnn_data.batch_ndim == 0:  # scalars are always fine
       continue
     used_reinterpret_same_size = False
     for axis in range(-1, -x.returnn_data.batch_ndim - 1, -1):
@@ -465,7 +505,7 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
         dims[axis] = (x, dim_tag)
       else:
         prev_x, prev_dim_tag = dims[axis]
-        if prev_dim_tag is dim_tag:
+        if prev_dim_tag == dim_tag:
           pass  # ok
         elif prev_dim_tag.dimension is not None:
           # Static dimension, need to match.
@@ -480,78 +520,16 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tensor, ...]:
           assert isinstance(x, TensorEntry)
           inputs[i] = x_
           used_reinterpret_same_size = True
+  del dims
 
-  # Figure out in which axis we have the batch/time/feature axis.
-  special_axes_names = [("B", "batch_dim_axis"), ("T", "time_dim_axis"), ("F", "feature_dim_axis")]
-  torch_special_axes = {}  # "B"|"T"|"F" -> axis->dict
+  # Squeeze out all the broadcast dims.
+  from .shape import Squeeze
   for i, x in enumerate(inputs):
-    if not isinstance(x, Tensor):
-      continue
-    x = naming.tensors[x]
-    assert isinstance(x, TensorEntry)
-    for key, axis_name in special_axes_names:
-      returnn_axis = getattr(x.returnn_data, axis_name)
-      if returnn_axis is None:
-        continue
-      returnn_dim = x.returnn_data.batch_shape[returnn_axis]
-      torch_axis = x.torch_axis_from_returnn_axis[returnn_axis] - x.returnn_data.batch_ndim
-      if key not in torch_special_axes:
-        torch_special_axes[key] = OrderedDict({torch_axis: returnn_dim})
-      elif torch_axis not in torch_special_axes[key] or torch_special_axes[key][torch_axis] == 1:
-        assert key != "B", f"mismatch in batch axis in {inputs!r}"
-        torch_special_axes[key][torch_axis] = returnn_dim
+    broadcast_dims_for_input = sorted(broadcast_dims[i])
+    if broadcast_dims_for_input:
+      inputs[i] = Squeeze(dim=broadcast_dims_for_input)(x)
 
-  axes_remap_per_input = {}  # input idx -> remap dict
-  for key, axis_name in special_axes_names:
-    if key not in torch_special_axes:
-      continue
-    torch_axes = torch_special_axes[key]
-    if len(torch_axes) <= 1:
-      continue
-    assert key != "B"  # should be caught already...
-    if any(d != 1 for _, d in torch_axes.items()):
-      torch_axes = {axis: dim for (axis, dim) in torch_axes.items() if dim != 1}  # filter out broadcast specs
-    torch_ref_axis, torch_ref_dim = list(torch_axes.items())[0]
-    assert all(torch_ref_dim == d for _, d in torch_axes.items())
-    for i, x in enumerate(inputs):
-      if not isinstance(x, Tensor):
-        continue
-      x = naming.tensors[x]
-      assert isinstance(x, TensorEntry)
-      if x.returnn_data.batch_ndim == 0:  # ignore scalars
-        continue
-      returnn_axis = getattr(x.returnn_data, axis_name)
-      if returnn_axis is None or x.torch_axis_from_returnn_axis[returnn_axis] != torch_ref_axis:
-        axes_remap_per_input.setdefault(i, {})[key] = torch_ref_axis
-  for i, axes_remap in axes_remap_per_input.items():
-    x = inputs[i]
-    assert isinstance(x, Tensor)
-    inputs[i] = ReturnnReinterpretSetAxes(dims_by_key=axes_remap)(x)
-
-  if "B" in torch_special_axes:
-    torch_batch_axes = torch_special_axes["B"]
-    assert len(torch_batch_axes) == 1
-    torch_batch_axis = list(torch_batch_axes)[0]
-    # Now (lastly) get rid of potential broadcast batch dims.
-    from .shape import Squeeze
-    for i, x in enumerate(inputs):
-      if not isinstance(x, Tensor):
-        continue
-      x = naming.tensors[x]
-      assert isinstance(x, TensorEntry)
-      if x.returnn_data.batch_ndim == 0:  # ignore scalars
-        continue
-      if not x.returnn_data.have_batch_axis():
-        returnn_batch_axis = x.returnn_axis_from_torch_axis.get(torch_batch_axis + x.returnn_data.batch_ndim, None)
-        if returnn_batch_axis is not None:
-          assert x.returnn_data.batch_shape[returnn_batch_axis] == 1  # expected to be broadcast dim
-          # In RETURNN, that's not needed, and that also must not be done like that,
-          # i.e. broadcasting in the batch dim can only be implicit (i.e. by missing batch-dim).
-          # Note that now the number of dimensions do not match anymore!
-          # But this should not matter for the use cases of this function.
-          inputs[i] = Squeeze(dim=torch_batch_axis)(x.tensor())
-
-  return tuple(inputs)
+  return tuple(inputs), set(out_shape)
 
 
 __all__ = [
