@@ -48,14 +48,16 @@ class Cat(Module):
     self.dim = dim
 
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
-    naming = Naming.get_instance()
+    assert len(inputs) > 0
+    cat_axis = self.dim
+    if cat_axis < 0:
+      cat_axis += len(inputs[0].shape)
+    assert 0 <= cat_axis <= len(inputs[0].shape)
     sources = []
     for input in inputs:
-      dim = self.dim
-      if dim < 0:
-        dim += len(input.shape)
-      assert 0 <= dim < len(input.shape)
-      returnn_axis = self._get_input_axis_to_returnn(input, axis=dim)
+      assert len(inputs[0].shape) == len(input.shape)
+      assert all(d == d0 for i, (d, d0) in enumerate(zip(input.shape, inputs[0].shape)) if i != cat_axis)
+      returnn_axis = self._get_input_axis_to_returnn(input, axis=cat_axis)
       sources.append((self._get_input_layer_name(input), returnn_axis))
     return {"class": "concat", "from": sources}
 
@@ -63,15 +65,15 @@ class Cat(Module):
                                      inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     assert len(inputs_flat) > 0
+    cat_axis = self.dim
+    if cat_axis < 0:
+      cat_axis += len(inputs_flat[0].shape)
+    assert 0 <= cat_axis <= len(inputs_flat[0].shape)
     torch_shape = list(inputs_flat[0].shape)
     for input_ in inputs_flat[1:]:
       assert input_.ndim == len(torch_shape)
-      for dim in range(input_.ndim):
-        if dim == self.dim:
-          torch_shape[dim] += input_.shape[dim]
-        else:
-          assert torch_shape[dim] == input_.shape[dim]  # tensors must have the same shape, except in the cat dim
-    returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+      torch_shape[cat_axis] += input_.shape[cat_axis]
+    _, returnn_axis_from_torch_axis = super(Cat, self)._get_output_shape_from_returnn([inputs_flat[0]], layer=layer)
     return tuple(torch_shape), returnn_axis_from_torch_axis
 
 
