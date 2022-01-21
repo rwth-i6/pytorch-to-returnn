@@ -155,14 +155,13 @@ class SizeValue(int):
     assert self.originating_tensor is not None
     from .nn.modules import Length
     tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
-    naming = Naming.get_instance()
-    tensor_entry = naming.tensors[tensor]
-    if tensor_entry.returnn_data.have_batch_axis():
+    if len(tensor.shape) > 0:
       from . import max
       tensor = max(tensor)
-      tensor_entry = naming.tensors[tensor]
     tensor.fill_(int(self))
     tensor.is_defined = True
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[tensor]
     tensor_entry.is_const = True
     tensor_entry.is_dim = self.dim_tag
     return tensor
