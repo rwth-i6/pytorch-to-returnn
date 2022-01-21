@@ -148,6 +148,7 @@ class FullStatic(Module):
     tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype))
     naming = Naming.get_instance()
     entry = naming.register_tensor(tensor)
+    entry.is_const = True
     entry.returnn_data = layer.output
     entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
     return tensor

@@ -338,7 +338,7 @@ class Naming:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, _tensor.TensorEntry)
-    assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
+    assert not entry.is_param and not entry.is_input  # not implemented, although simple...
     self.outputs.append(entry)
     if self.wrap_to_returnn_enabled:
       self.root_namespace.register_returnn_subnet_output(entry)
