@@ -118,37 +118,15 @@ class FullStatic(Module):
   def create_returnn_layer_dict(self, size):
     # We require the size to contain some static information.
     assert isinstance(size, (tuple, list))  # not implemented otherwise
-    naming = Naming.get_instance()
-
-    def _convert_dim(x):
-      if isinstance(x, int):
-        return x
-      if isinstance(x, Tensor):
-        tensor_entry = naming.tensors[x]
-        assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
-        return tensor_entry.is_dim
-      raise TypeError(f"FullStatic: cannot handle dim {x!r} of type {type(x)}")
-
+    from .shape import _convert_dim_returnn
     return {
-      "class": "constant", "shape": [_convert_dim(x) for x in size],
+      "class": "constant", "shape": [_convert_dim_returnn(x) for x in size],
       "value": self.fill_value, "dtype": self.dtype}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
-    from ..._C import SizeValue
+    from .shape import _convert_dim_torch
     naming = Naming.get_instance()
-    size = inputs_flat
-
-    def _convert_dim(x):
-      if isinstance(x, SizeValue):
-        raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
-      if isinstance(x, int):
-        return x
-      if isinstance(x, Tensor):
-        assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
-        return int(x.numpy())
-      raise TypeError(f"invalid dim {x!r} type {type(x)}")
-
-    size = [_convert_dim(x) for x in size]
+    size = [_convert_dim_torch(x) for x in inputs_flat]
     from ..._C import from_numpy
     tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype))
     entry = naming.register_tensor(tensor)

@@ -206,15 +206,31 @@ class Unflatten(Module):
   Originally in flatten.py.
   """
   def __init__(self,
-               dim: Union[int, str],
-               unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]) -> None:
+               dim: int,
+               unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]):
     super(Unflatten, self).__init__()
     self.dim = dim
     self.unflattened_size = unflattened_size
 
-  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+  def forward(self, input: Tensor) -> Tensor:
+    return _Unflatten(dim=self.dim)(input, unflattened_size=self.unflattened_size)
+
+
+class _Unflatten(Module):
+  """
+  Separate internal module because we need that unflattened_size goes potentially through Naming._make_tensor.
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: int):
+    super(_Unflatten, self).__init__()
+    self.dim = dim
+
+  def create_returnn_layer_dict(self, input: Tensor,
+                                unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]
+                                ) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
-    dims = list(self.unflattened_size)
+    dims = [_convert_dim_returnn(d) for d in unflattened_size]
     # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
     non_one_dims = [d for d in dims if d != 1]
     if len(non_one_dims) == 1:
@@ -233,15 +249,14 @@ class Unflatten(Module):
     :return: (torch_shape, returnn_axis_from_torch_axis).
     """
     naming = Naming.get_instance()
-    assert len(inputs_flat) == 1
-    x = inputs_flat[0]
+    x, *unflattened_size = inputs_flat
     x_entry = naming.register_tensor(x)
     dim = self.dim
     assert -len(x.shape) <= dim < len(x.shape)
     if dim < 0:
       dim += len(x.shape)
     assert 0 <= dim < len(x.shape)
-    unflatten_size = list(self.unflattened_size)
+    unflatten_size = [_convert_dim_torch(d) for d in unflattened_size]
     if any(d == -1 for d in unflatten_size):
       rem_dim = x.shape[dim]
       for d in unflatten_size:
@@ -380,6 +395,30 @@ class UnflattenBatch(Module):
       returnn_axis_from_torch_axis[0] = 1
       returnn_axis_from_torch_axis[1] = 0
     return torch_shape, returnn_axis_from_torch_axis
+
+
+def _convert_dim_returnn(x):
+  if isinstance(x, SizeValue):
+    raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
+  if isinstance(x, int):
+    return x
+  naming = Naming.get_instance()
+  if isinstance(x, Tensor):
+    tensor_entry = naming.tensors[x]
+    assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
+    return tensor_entry.is_dim
+  raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
+
+
+def _convert_dim_torch(x):
+  if isinstance(x, SizeValue):
+    raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
+  if isinstance(x, int):
+    return x
+  if isinstance(x, Tensor):
+    assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
+    return int(x.numpy())
+  raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
 __all__ = [
