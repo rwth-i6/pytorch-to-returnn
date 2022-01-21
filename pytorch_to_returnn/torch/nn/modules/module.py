@@ -804,7 +804,6 @@ class Module:
     out_returnn_axis_to_torch_axis = {}
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
-    batch_size = None
     # dim_tag_ext -> in spatial idx, Torch dim where dim_tag_ext is from _get_spatial_dim_tag_and_single_index
     dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim = OrderedDict()
     for input in inputs_flat:
@@ -815,8 +814,6 @@ class Module:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
-      if x.returnn_data.have_batch_axis():
-        batch_size = input.shape[x.torch_axis_from_returnn_axis[x.returnn_data.batch_dim_axis]]
       for i in x.returnn_data.get_dynamic_axes():
         dim_tag_ext = _get_spatial_dim_tag_and_single_index(x.returnn_data, i)
         assert i in x.returnn_data.get_spatial_batch_axes()
@@ -895,6 +892,18 @@ class Module:
     rem_returnn_axes_ = sorted(rem_returnn_axes)
 
     out_shape = list(layer.output.batch_shape)
+    batch_size = None
+    for input in inputs_flat:
+      if not isinstance(input, Tensor):
+        continue
+      if not input.shape:
+        continue  # skip scalars
+      x = naming.tensors[input]
+      assert isinstance(x, TensorEntry)
+      assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
+      if x.returnn_data.have_batch_axis():
+        batch_size = input.shape[x.torch_axis_from_returnn_axis[x.returnn_data.batch_dim_axis]]
+        break
     if layer.output.have_batch_axis():
       assert batch_size is not None
       out_shape[layer.output.batch_dim_axis] = batch_size
