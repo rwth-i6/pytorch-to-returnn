@@ -155,8 +155,9 @@ class SizeValue(int):
     tensor.fill_(int(self))
     tensor.is_defined = True
     naming = Naming.get_instance()
-    tensor_entry = naming.tensors[self.originating_tensor]
+    tensor_entry = naming.tensors[tensor]
     tensor_entry.is_const = True
+    tensor_entry.is_dim = self.dim_tag
     return tensor
 
   def __repr__(self):

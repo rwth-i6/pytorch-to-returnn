@@ -29,7 +29,11 @@ def get_default_dtype():
 
 
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
-  return Tensor(*size, dtype=dtype)
+  if all(isinstance(x, int) for x in size):
+    return Tensor(*size, dtype=dtype)
+  if not dtype:
+    dtype = _default_float_type
+  return modules.FullStatic(fill_value=0, dtype=dtype)(size=size)
 
 
 def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -38,7 +42,9 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
     size = tuple(size[0])
   if not dtype:
     dtype = _default_float_type
-  return tensor(numpy.ones(size, dtype=dtype))
+  if all(isinstance(x, int) for x in size):
+    return tensor(numpy.ones(size, dtype=dtype))
+  return modules.FullStatic(fill_value=1, dtype=dtype)(size=size)
 
 
 def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, requires_grad=False) -> Tensor:
@@ -49,6 +55,8 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
       dtype = "bool"
     else:
       dtype = torch.get_default_dtype()
+  if isinstance(fill_value, (int, float, numpy.number)):
+    return modules.FullStatic(fill_value=fill_value, dtype=dtype)(size=size)
   zeros_ = zeros(*size, dtype=dtype)
   fill_value_ = cast(fill_value, dtype)
   out = zeros_ + fill_value_
