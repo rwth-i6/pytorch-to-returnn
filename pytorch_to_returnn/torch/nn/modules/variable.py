@@ -84,6 +84,7 @@ class Constant(Module):
       assert call.module.module is self
       # Add some of the network inputs as the dependency, to get the batch-dim.
       call.inputs_flat = [naming.inputs[0]]
+      # Note: I wonder whether we maybe need others here...?
     return d
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
