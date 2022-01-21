@@ -151,13 +151,16 @@ class SizeValue(int):
 
   def as_tensor(self):
     if self.originating_tensor is None and self.merged_dims:
-      return numpy.prod([d.as_tensor() if d.dim_tag.dimension is None else int(d) for d in self.merged_dims])
-    assert self.originating_tensor is not None
-    from .nn.modules import Length
-    tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
-    if len(tensor.shape) > 0:
-      from . import max
-      tensor = max(tensor)
+      tensor = numpy.prod([
+        d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+        for d in self.merged_dims])
+    else:
+      assert self.originating_tensor is not None
+      from .nn.modules import Length
+      tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
+      if len(tensor.shape) > 0:
+        from . import max
+        tensor = max(tensor)
     tensor.fill_(int(self))
     tensor.is_defined = True
     naming = Naming.get_instance()
