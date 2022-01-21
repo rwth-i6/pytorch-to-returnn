@@ -139,7 +139,7 @@ class FullStatic(Module):
 
     def _convert_dim(x):
       if isinstance(x, SizeValue):
-        raise NotImplementedError(f"SizeValue {x} not implemented")
+        raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
       if isinstance(x, int):
         return x
       if isinstance(x, Tensor):
