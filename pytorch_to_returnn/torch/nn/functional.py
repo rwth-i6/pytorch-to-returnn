@@ -29,6 +29,9 @@ def get_default_dtype():
 
 
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+  if size and isinstance(size[0], (tuple, list)):
+    assert len(size) == 1
+    size = tuple(size[0])
   if all(isinstance(x, int) for x in size):
     return Tensor(*size, dtype=dtype)
   if not dtype:
