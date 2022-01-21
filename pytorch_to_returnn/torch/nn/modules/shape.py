@@ -166,14 +166,17 @@ class MergeDims(Module):
 class Squeeze(Module):
   is_original_torch_module = False
 
-  def __init__(self, dim: int):
+  def __init__(self, dim: Union[int, List[int]]):
     super(Squeeze, self).__init__()
     self.dim = dim
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
+    dims = self.dim
+    if isinstance(dims, int):
+      dims = [dims]
     return {
       "class": "squeeze", "from": self._get_input_layer_name(input),
-      "axis": self._get_input_axis_to_returnn(input, self.dim)}
+      "axis": [self._get_input_axis_to_returnn(input, dim) for dim in dims]}
 
 
 class Flatten(Module):
