@@ -204,6 +204,9 @@ def from_numpy(arr):
     arr = numpy.array(arr, dtype='float32')
   if isinstance(arr, numpy.number):
     arr = numpy.array(arr)
+  if isinstance(arr, (list, tuple)):
+    _entry = from_numpy(arr[0])
+    arr = numpy.array(arr, dtype=_entry.dtype.name)
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
   return Tensor(*arr.shape, dtype=str(arr.dtype), numpy_array=arr)
