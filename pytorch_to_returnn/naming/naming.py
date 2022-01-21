@@ -285,7 +285,7 @@ class Naming:
     self.const_tensor_cache.append(x)
     return self.tensors[x]
 
-  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, Any]
+  def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, SizeValue, Any]
                    ) -> Optional[_tensor.TensorEntry]:
     """
     We have to decide which objects we keep as-is (as constant),
@@ -294,6 +294,9 @@ class Naming:
     """
     if x is None:
       return None
+    from ..torch._C import SizeValue
+    if isinstance(x, SizeValue) and x.dim_tag.dimension is None:
+      x = x.as_tensor()
     if isinstance(x, (int, float, bool, numpy.number)):
       return x  # keep as-is for now. would be handled via `get_tensor` later on
     if not self.wrap_to_returnn_enabled:
@@ -325,8 +328,8 @@ class Naming:
       feature_dim_axis=returnn_data.feature_dim_axis_or_unspecified,
       available_for_inference=True)
     entry.returnn_axis_from_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
-    if entry.returnn_data.have_batch_axis():
-      tensor.shape[entry.returnn_data.batch_dim_axis].is_batch_dim = True
+    for axis in range(returnn_data.batch_ndim):
+      tensor.shape[axis].dim_tag = entry.returnn_data.dim_tags[axis]
     self.root_namespace.register_input(tensor=entry)
     assert entry.returnn_data
     return entry.returnn_data
@@ -335,7 +338,7 @@ class Naming:
     assert tensor in self.tensors
     entry = self.tensors[tensor]
     assert isinstance(entry, _tensor.TensorEntry)
-    assert not entry.is_param and not entry.is_const and not entry.is_input  # not implemented, although simple...
+    assert not entry.is_param and not entry.is_input  # not implemented, although simple...
     self.outputs.append(entry)
     if self.wrap_to_returnn_enabled:
       self.root_namespace.register_returnn_subnet_output(entry)

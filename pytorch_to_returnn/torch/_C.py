@@ -4,7 +4,9 @@ Dummies...
 """
 
 from __future__ import annotations
-from typing import Union, Any, Tuple
+from typing import Union, Any, Tuple, List, Optional
+from returnn.tf.util.data import Dim
+from ..naming import Naming
 
 
 def device(name):
@@ -122,16 +124,67 @@ class Size(tuple):  # type: Tuple[SizeValue, ...]
 
 class SizeValue(int):
   """
-  We extend this, to store extra information, e.g. such that this reflects the batch-dim.
+  We extend this, to store extra information, e.g. corresponding RETURNN dim tags.
   """
-  is_batch_dim: bool = False
-  merged_dims: list[SizeValue] = []
+  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None,
+              originating_tensor: Tensor = None):
+    res = super(SizeValue, cls).__new__(cls, x)
+    res.dim_tag = dim_tag or Dim(dimension=x, description="static_dim")
+    res.merged_dims = merged_dims or []
+    res.originating_tensor = originating_tensor
+    return res
+
+  @property
+  def is_batch_dim(self):
+    if self.dim_tag is None:
+      return False
+    return self.dim_tag.is_batch_dim()
+
+  @property
+  def originating_tensor_axis(self) -> int:
+    assert self.originating_tensor is not None
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[self.originating_tensor]
+    returnn_axis = tensor_entry.returnn_data.get_axis_from_description(self.dim_tag)
+    return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
+
+  def as_tensor(self):
+    assert self.originating_tensor is not None
+    from .nn.modules import Length
+    tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
+    tensor.fill_(int(self))
+    tensor.is_defined = True
+    naming = Naming.get_instance()
+    tensor_entry = naming.tensors[tensor]
+    tensor_entry.is_const = True
+    tensor_entry.is_dim = self.dim_tag
+    return tensor
 
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
-    if self.is_batch_dim:
-      res = f"Batch({res})"
-    return res
+    if self.dim_tag is None:
+      return f"?{res}"
+    return f"{self.dim_tag.short_repr()}({res})"
+
+  def __mul__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 1:
+      return self
+    merged_dims = [self, other]
+    dim_tag = self.dim_tag * (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
+
+  def __rmul__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 1:
+      return self
+    merged_dims = [other, self]
+    dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) * self.dim_tag
+    return SizeValue(super(SizeValue, self).__rmul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
 
 def zeros(*shape):
@@ -152,6 +205,23 @@ def from_numpy(arr):
     arr = numpy.array(arr, dtype='float32')
   if isinstance(arr, numpy.number):
     arr = numpy.array(arr)
+  if isinstance(arr, (list, tuple)):
+    _entry = from_numpy(arr[0])
+    arr = numpy.array(arr, dtype=_entry.dtype.name)
   assert isinstance(arr, numpy.ndarray)
   from .tensor import Tensor
   return Tensor(*arr.shape, dtype=str(arr.dtype), numpy_array=arr)
+
+
+def convert_to_tensor(x):
+  import numpy
+  from .tensor import Tensor
+  from .nn.modules.operator import Stack
+  if isinstance(x, Tensor):
+    return x
+  if isinstance(x, (int, float, numpy.number, numpy.ndarray)):
+    return from_numpy(x)
+  if isinstance(x, (list, tuple)):
+    x = [convert_to_tensor(e) for e in x]
+    return Stack(dim=0)(*x)
+  raise TypeError(f"unexpected type {type(x)}")

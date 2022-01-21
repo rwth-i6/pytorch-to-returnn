@@ -547,9 +547,12 @@ class Module:
         if t in visited:
           continue
         visited.add(t)
+        call_ = None
+        if t.output_from_calls:
+          call_ = t.output_from_calls[0]
         if t.validated_to_torch:
           pass
-        elif t.is_const:
+        elif t.is_const and not (call_ and call_.inputs_flat):
           print(f"**** validate: add const tensor {t}")
           t.validated_to_torch = True  # Skip check next time.
           # No need to feed, this should be const.
@@ -571,8 +574,7 @@ class Module:
             t.validated_to_torch_tf_sizes_feed_dict[size] = numpy.array([size_] * batch_dim, dtype=numpy.int32)
           t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
         else:
-          assert len(t.output_from_calls) >= 1
-          call_ = t.output_from_calls[0]
+          assert len(t.output_from_calls) >= 1 and call_
           queue_ += call_.inputs_flat
           continue
 
@@ -765,6 +767,8 @@ class Module:
         feed_dict[x.returnn_data.placeholder] = value
       numpy_array = session.run(layer.output.placeholder, feed_dict=feed_dict)
       numpy_array = numpy.transpose(numpy_array, [returnn_axis_from_torch_axis[i] for i in range(numpy_array.ndim)])
+      if not isinstance(numpy_array, numpy.ndarray):
+        numpy_array = numpy.array(numpy_array)
       is_const = True
     tensor = Tensor(*torch_shape, numpy_array=numpy_array, dtype=layer.output.dtype)
     tensor_entry = naming.register_tensor(tensor)
@@ -802,7 +806,6 @@ class Module:
     out_returnn_axis_to_torch_axis = {}
     # Torch would maybe have operated on [B,D_in,T_in] input, and produce [B,D_out,T_out] output.
     naming = Naming.get_instance()
-    batch_size = None
     # dim_tag_ext -> in spatial idx, Torch dim where dim_tag_ext is from _get_spatial_dim_tag_and_single_index
     dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim = OrderedDict()
     for input in inputs_flat:
@@ -813,8 +816,6 @@ class Module:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
-      if x.returnn_data.have_batch_axis():
-        batch_size = input.shape[x.torch_axis_from_returnn_axis[x.returnn_data.batch_dim_axis]]
       for i in x.returnn_data.get_dynamic_axes():
         dim_tag_ext = _get_spatial_dim_tag_and_single_index(x.returnn_data, i)
         assert i in x.returnn_data.get_spatial_batch_axes()
@@ -893,6 +894,18 @@ class Module:
     rem_returnn_axes_ = sorted(rem_returnn_axes)
 
     out_shape = list(layer.output.batch_shape)
+    batch_size = None
+    for input in inputs_flat:
+      if not isinstance(input, Tensor):
+        continue
+      if not input.shape:
+        continue  # skip scalars
+      x = naming.tensors[input]
+      assert isinstance(x, TensorEntry)
+      assert x.returnn_data and x.returnn_axis_from_torch_axis is not None
+      if x.returnn_data.have_batch_axis():
+        batch_size = input.shape[x.torch_axis_from_returnn_axis[x.returnn_data.batch_dim_axis]]
+        break
     if layer.output.have_batch_axis():
       assert batch_size is not None
       out_shape[layer.output.batch_dim_axis] = batch_size

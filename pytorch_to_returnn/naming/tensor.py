@@ -21,6 +21,7 @@ class TensorEntry:
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
+  is_dim: Optional[DimensionTag] = None
   output_from_modules: List[_module.ModuleEntry]
   output_from_calls: List[_call.CallEntry]
   parent_owning_modules: List[Tuple[_module.ModuleEntry, str]]  # e.g. param or buffer

@@ -24,8 +24,19 @@ _default_float_type = "float32"
 _builtin_sum = sum
 
 
+def get_default_dtype():
+  return "float32"
+
+
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
-  return Tensor(*size, dtype=dtype)
+  if size and isinstance(size[0], (tuple, list)):
+    assert len(size) == 1
+    size = tuple(size[0])
+  if all(isinstance(x, int) for x in size):
+    return Tensor(*size, dtype=dtype)
+  if not dtype:
+    dtype = _default_float_type
+  return modules.FullStatic(fill_value=0, dtype=dtype)(size=size)
 
 
 def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -34,7 +45,25 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
     size = tuple(size[0])
   if not dtype:
     dtype = _default_float_type
-  return tensor(numpy.ones(size, dtype=dtype))
+  if all(isinstance(x, int) for x in size):
+    return tensor(numpy.ones(size, dtype=dtype))
+  return modules.FullStatic(fill_value=1, dtype=dtype)(size=size)
+
+
+def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, requires_grad=False) -> Tensor:
+  if dtype is None:
+    if isinstance(fill_value, int) or isinstance(fill_value, numpy.integer):
+      dtype = "int64"
+    elif isinstance(fill_value, (bool, numpy.bool)):
+      dtype = "bool"
+    else:
+      dtype = torch.get_default_dtype()
+  if isinstance(fill_value, (int, float, numpy.number)):
+    return modules.FullStatic(fill_value=fill_value, dtype=dtype)(size=size)
+  zeros_ = zeros(*size, dtype=dtype)
+  fill_value_ = cast(fill_value, dtype)
+  out = zeros_ + fill_value_
+  return out
 
 
 def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, device=None,
@@ -126,8 +155,11 @@ def is_tensor(obj) -> bool:
 
 
 def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
-  assert dim is not None, "not implemented yet"
   return modules.Reduce(mode="sum", axes=dim)(input)
+
+
+def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  return modules.Reduce(mode="max", axes=dim)(input)
 
 
 def add(x: Tensor, y: Tensor) -> Tensor:
@@ -163,9 +195,24 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
   return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
 
 
+def greater(x: Tensor, y: Tensor) -> Tensor:
+  dtype = result_type(x, y)
+  return modules.ComparisonOperator(kind="greater")(cast(x, dtype), cast(y, dtype))
+
+
 def greater_equal(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.ComparisonOperator(kind="greater_equal")(cast(x, dtype), cast(y, dtype))
+
+
+def less(x: Tensor, y: Tensor) -> Tensor:
+  dtype = result_type(x, y)
+  return modules.ComparisonOperator(kind="less")(cast(x, dtype), cast(y, dtype))
+
+
+def less_equal(x: Tensor, y: Tensor) -> Tensor:
+  dtype = result_type(x, y)
+  return modules.ComparisonOperator(kind="less_equal")(cast(x, dtype), cast(y, dtype))
 
 
 def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
@@ -342,10 +389,6 @@ def chunk(input: Tensor, chunks: int, dim: int = 0) -> List[Tensor]:
 
 def pad(input: Tensor, pad, mode='constant', value=0) -> Tensor:
   return modules.GenericPadNd(padding=pad, mode=mode, value=value).as_returnn_torch_functional()(input)
-
-
-def max(*inputs: Tensor) -> Tensor:
-  return modules.Max()(*inputs)
 
 
 def linear(input: Tensor, weight: Tensor, bias: Optional[Tensor] = None):

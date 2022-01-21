@@ -68,7 +68,7 @@ class Constant(Module):
       value = numpy.moveaxis(value, batch_axis, 0)
       for i in range(1, value.shape[0]):
         numpy.testing.assert_equal(value[0], value[i])
-      value = value[0]  # remove batch axis
+      value = numpy.array(value[0])  # remove batch axis
     assert isinstance(value, numpy.ndarray)
     # Simplify representation in these simple cases.
     if not value.shape:  # scalar
@@ -84,6 +84,7 @@ class Constant(Module):
       assert call.module.module is self
       # Add some of the network inputs as the dependency, to get the batch-dim.
       call.inputs_flat = [naming.inputs[0]]
+      # Note: I wonder whether we maybe need others here...?
     return d
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
@@ -101,9 +102,59 @@ class Constant(Module):
           return old_axis + 1
         return old_axis
       entry.returnn_axis_from_torch_axis = {i: _new_axis(i) for i in range(tensor.ndim)}
-      entry.is_const = False  # this depends on the (dynamic) batch dim
     else:
       entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
+    return tensor
+
+
+class FullStatic(Module):
+  is_original_torch_module = False
+
+  def __init__(self, fill_value, dtype):
+    super(FullStatic, self).__init__()
+    self.fill_value = fill_value
+    self.dtype = dtype
+
+  def create_returnn_layer_dict(self, size):
+    # We require the size to contain some static information.
+    assert isinstance(size, (tuple, list))  # not implemented otherwise
+    naming = Naming.get_instance()
+
+    def _convert_dim(x):
+      if isinstance(x, int):
+        return x
+      if isinstance(x, Tensor):
+        tensor_entry = naming.tensors[x]
+        assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
+        return tensor_entry.is_dim
+      raise TypeError(f"FullStatic: cannot handle dim {x!r} of type {type(x)}")
+
+    return {
+      "class": "constant", "shape": [_convert_dim(x) for x in size],
+      "value": self.fill_value, "dtype": self.dtype}
+
+  def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    from ..._C import SizeValue
+    naming = Naming.get_instance()
+    size = inputs_flat
+
+    def _convert_dim(x):
+      if isinstance(x, SizeValue):
+        raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
+      if isinstance(x, int):
+        return x
+      if isinstance(x, Tensor):
+        assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
+        return int(x.numpy())
+      raise TypeError(f"invalid dim {x!r} type {type(x)}")
+
+    size = [_convert_dim(x) for x in size]
+    from ..._C import from_numpy
+    tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype))
+    entry = naming.register_tensor(tensor)
+    entry.is_const = True
+    entry.returnn_data = layer.output
+    entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
     return tensor
 
 

@@ -26,7 +26,7 @@ class Tensor:
     else:
       shape = args
     assert isinstance(shape, tuple) and all(isinstance(dim, int) for dim in shape)
-    shape = tuple([d if isinstance(d, SizeValue) else SizeValue(d) for d in shape])
+    shape = tuple([d if isinstance(d, SizeValue) else SizeValue(d, originating_tensor=self) for d in shape])
     if numpy_array is not None:
       if dtype is not None:
         numpy_array = numpy_array.astype(dtype)
@@ -37,6 +37,7 @@ class Tensor:
       dtype = "float32"
     self._shape = shape
     self._numpy_buffer = numpy.zeros(shape, dtype=dtype) if numpy_array is None else numpy_array
+    self.is_defined = numpy_array is not None
     self.dtype = _dtype(dtype)
     Naming.get_instance().register_tensor(self)
 
@@ -310,9 +311,21 @@ class Tensor:
     from .nn.functional import truediv
     return truediv(other, self)
 
+  def __gt__(self, other):
+    from .nn.functional import greater
+    return greater(self, other)
+
   def __ge__(self, other):
     from .nn.functional import greater_equal
     return greater_equal(self, other)
+
+  def __lt__(self, other):
+    from .nn.functional import less
+    return less(self, other)
+
+  def __le__(self, other):
+    from .nn.functional import less_equal
+    return less_equal(self, other)
 
 
 class LongTensor(Tensor):

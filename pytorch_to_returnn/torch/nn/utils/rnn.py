@@ -1,16 +1,28 @@
-import numpy
+
+from typing import Union, List
+from ..functional import full
 from ..modules.rnn import PackedSequence
 from ..modules.shape import FlattenBatch
 from ...tensor import Tensor
-from ..._C import from_numpy
+from .... import torch
 from ....naming import Naming
 
 
-def pack_padded_sequence(input: Tensor, lengths, batch_first=False, enforce_sorted=True) -> PackedSequence:
-  batch_sizes = []
-  for frame in range(lengths[0]):
-    batch_sizes.append(sum([x > frame for x in lengths]))
-  return pack_padded_sequence_with_batch_sizes(input, from_numpy(numpy.array(batch_sizes)), batch_first=batch_first)
+def _batch_sizes_from_lengths(lengths: Union[Tensor, List[Union[Tensor, int]]]) -> Tensor:
+  if not isinstance(lengths, Tensor):
+    lengths = torch.convert_to_tensor(lengths)
+  indices = torch.arange(torch.max(lengths))  # [T]
+  indices_bc = indices.unsqueeze(0)  # [1,T]
+  l_bc = lengths.unsqueeze(1)  # [B,1]
+  mask = indices_bc < l_bc  # [B,T]
+  batch_sizes = torch.sum(mask.int(), dim=0)  # [T]
+  return batch_sizes
+
+
+def pack_padded_sequence(input: Tensor, lengths: Union[Tensor, List[Union[Tensor, int]]],
+                         batch_first=False, enforce_sorted=True) -> PackedSequence:
+  batch_sizes = _batch_sizes_from_lengths(lengths)
+  return pack_padded_sequence_with_batch_sizes(input, batch_sizes, batch_first=batch_first)
 
 
 def pack_padded_sequence_with_batch_sizes(input: Tensor, batch_sizes: Tensor, batch_first=False) -> PackedSequence:
@@ -40,7 +52,7 @@ def pack_sequence(sequences, enforce_sorted=True):
     torch_axis_from_returnn_axis = {j: i for i, j in tensor_entry.returnn_axis_from_torch_axis.items()}
     batch_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.batch_dim_axis]]
     time_dim = sequences.shape[torch_axis_from_returnn_axis[tensor_entry.returnn_data.time_dim_axis]]
-    lengths = [time_dim] * batch_dim
+    lengths = full((batch_dim,), time_dim)
     # batch_first is always True because we assume batch-time-major tensor, see above
     return pack_padded_sequence(sequences, lengths, enforce_sorted=enforce_sorted, batch_first=True)
   else:

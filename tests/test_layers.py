@@ -1048,8 +1048,9 @@ def test_broadcast_after_transpose():
       import torch
     else:
       torch = wrapped_import("torch")
-    weight = torch.ones(n_feature)
-    return inputs.transpose(1, 2) * weight
+    weight = torch.ones(n_feature)  # [F]
+    x = inputs.transpose(1, 2)  # [B, T, F]
+    return x * weight
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
@@ -1230,6 +1231,79 @@ def test_arange():
       torch = wrapped_import("torch")
     arange = torch.arange(inputs.shape[1])
     return inputs + torch.reshape(arange, (1, -1))
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_arange_dyn():
+  n_batch, n_feat = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    arange = torch.arange(inputs.shape[0])
+    return arange
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_arange_from_lengths():
+  n_batch, n_time = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    batch_dim, time_dim = inputs.shape
+    lengths = torch.full((batch_dim,), time_dim)
+    arange = torch.arange(torch.max(lengths))
+    assert arange.shape == (n_time,)
+    return arange
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.randint(0, 10, (n_batch, n_time), dtype="int64")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
+
+
+def test_broadcasting_with_lengths():
+  n_batch, n_time = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    batch_dim, time_dim = inputs.shape
+    lengths = torch.full((batch_dim,), time_dim)
+    indices = torch.arange(torch.max(lengths))
+    indices_bc = indices.unsqueeze(0)  # [1,T]
+    l_bc = lengths.unsqueeze(1)  # [B,1]
+    mask = indices_bc < l_bc  # [B,T]
+    return mask
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.randint(0, 10, (n_batch, n_time), dtype="int64")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1})
+
+
+def test_full():
+  n_batch, n_feat = 3, 5
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    return torch.full((inputs.shape[0],), 42)
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
