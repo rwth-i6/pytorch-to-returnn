@@ -59,6 +59,21 @@ class Cat(Module):
       sources.append((self._get_input_layer_name(input), returnn_axis))
     return {"class": "concat", "from": sources}
 
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    assert len(inputs_flat) > 0
+    torch_shape = list(inputs_flat[0].shape)
+    for input_ in inputs_flat[1:]:
+      assert input_.ndim == len(torch_shape)
+      for dim in range(input_.ndim):
+        if dim == self.dim:
+          torch_shape[dim] += input_.shape[dim]
+        else:
+          assert torch_shape[dim] == input_.shape[dim]  # tensors must have the same shape, except in the cat dim
+    returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+    return tuple(torch_shape), returnn_axis_from_torch_axis
+
 
 class GetSublayer(Module):
   is_original_torch_module = False
