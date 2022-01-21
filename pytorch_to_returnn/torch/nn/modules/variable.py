@@ -126,7 +126,7 @@ class FullStatic(Module):
         tensor_entry = naming.tensors[x]
         assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
         return tensor_entry.is_dim
-      raise TypeError(f"invalid dim {x!r} type {type(x)}")
+      raise TypeError(f"FullStatic: cannot handle dim {x!r} of type {type(x)}")
 
     return {
       "class": "constant", "shape": [_convert_dim(x) for x in size],
