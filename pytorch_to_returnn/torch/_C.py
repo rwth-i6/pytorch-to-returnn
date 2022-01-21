@@ -149,6 +149,10 @@ class SizeValue(int):
     return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
 
   def as_tensor(self):
+    if self.merged_dims and self.originating_tensor is None:
+      from functools import reduce
+      from operator import mul
+      return reduce(mul, [dim.as_tensor() for dim in self.merged_dims], 1)
     assert self.originating_tensor is not None
     from .nn.modules import Length
     tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
