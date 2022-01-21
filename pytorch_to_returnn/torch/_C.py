@@ -162,9 +162,9 @@ class SizeValue(int):
 
   def __repr__(self):
     res = super(SizeValue, self).__repr__()
-    if self.is_batch_dim:
-      res = f"Batch({res})"
-    return res
+    if self.dim_tag is None:
+      return f"?{res}"
+    return f"{self.dim_tag.short_repr()}({res})"
 
   def __mul__(self, other):
     assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
