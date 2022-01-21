@@ -194,22 +194,22 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
 
 def greater(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
-  return modules.ComparisonOperator(kind="greater")(cast(x, dtype), cast(y, dtype))
+  return modules.ComparisonOperator(kind="greater").as_returnn_torch_functional()(cast(x, dtype), cast(y, dtype))
 
 
 def greater_equal(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
-  return modules.ComparisonOperator(kind="greater_equal")(cast(x, dtype), cast(y, dtype))
+  return modules.ComparisonOperator(kind="greater_equal").as_returnn_torch_functional()(cast(x, dtype), cast(y, dtype))
 
 
 def less(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
-  return modules.ComparisonOperator(kind="less")(cast(x, dtype), cast(y, dtype))
+  return modules.ComparisonOperator(kind="less").as_returnn_torch_functional()(cast(x, dtype), cast(y, dtype))
 
 
 def less_equal(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
-  return modules.ComparisonOperator(kind="less_equal")(cast(x, dtype), cast(y, dtype))
+  return modules.ComparisonOperator(kind="less_equal").as_returnn_torch_functional()(cast(x, dtype), cast(y, dtype))
 
 
 def flatten(input: Tensor, start_dim=0, end_dim=-1) -> Tensor:
