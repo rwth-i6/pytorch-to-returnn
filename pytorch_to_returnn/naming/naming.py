@@ -527,4 +527,6 @@ def _flatten_namespace_for_mod(mod_entry: _module.ModuleEntry) -> bool:
     # For RETURNN wrapped modules, e.g. it means that it has no forward, but wraps to a RETURNN layer.
     # So, keep this as a separate item, do not flatten it.
     return False
+  if not getattr(mod, "is_original_torch_module", True):
+    return False
   return True

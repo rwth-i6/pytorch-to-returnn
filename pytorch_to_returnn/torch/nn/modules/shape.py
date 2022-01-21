@@ -205,6 +205,8 @@ class Unflatten(Module):
   """
   Originally in flatten.py.
   """
+  is_original_torch_module = False
+
   def __init__(self,
                dim: int,
                unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]):
