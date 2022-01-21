@@ -4,6 +4,7 @@ Dummies...
 """
 
 from __future__ import annotations
+import numpy
 from typing import Union, Any, Tuple, List, Optional
 from returnn.tf.util.data import Dim
 from ..naming import Naming
@@ -149,10 +150,8 @@ class SizeValue(int):
     return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
 
   def as_tensor(self):
-    if self.merged_dims and self.originating_tensor is None:
-      from functools import reduce
-      from operator import mul
-      return reduce(mul, [dim.as_tensor() for dim in self.merged_dims], 1)
+    if self.originating_tensor is None and self.merged_dims:
+      return numpy.prod([d.as_tensor() if d.dim_tag.dimension is None else int(d) for d in self.merged_dims])
     assert self.originating_tensor is not None
     from .nn.modules import Length
     tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
