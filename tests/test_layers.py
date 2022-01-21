@@ -1220,13 +1220,15 @@ def test_index_merged_dim():
       torch = wrapped_import("torch")
 
     n_b, n_t, n_f = inputs.shape
-    y = inputs.view(-1, n_f)
-    idx = torch.arange(n_b * n_t)
-    idx = torch.cat([idx] * n_index).reshape(n_b, n_t * n_index)
-    x = y[idx.view(-1)]
-    x = x.view(n_b, n_t, n_index, n_f)
-    x = x.permute(2, 0, 1, 3)
-    out = torch.cat([inputs.unsqueeze(0), x])
+    y = inputs.view(-1, n_f)  # [B*T, F]
+    idx = torch.arange(n_b * n_t)  # [B*T] -> indices in B*T
+    idx = torch.cat([idx] * n_index)  # [2*B*T]
+    idx = idx.reshape(n_b, n_t * n_index)  # [B, 2*T]
+    idx = idx.view(-1)  # [2*B*T]
+    x = y[idx]  # [2*B*T, F]
+    x = x.view(n_b, n_t, n_index, n_f)  # [B,T,2,F]
+    x = x.permute(2, 0, 1, 3)  # [2,B,T,F]
+    out = torch.cat([inputs.unsqueeze(0), x])  # [3,B,T,F]
     return out
 
   rnd = numpy.random.RandomState(42)
