@@ -258,6 +258,7 @@ class RegisteredName:
           name_.is_alternative_subnet_output = True
           return "/".join([parent.name for parent in reversed(parent_hierarchy[:parent_idx])] + [name_.name]), name_
         parent_indices.append(parent_hierarchy.index(self))
+      # TODO go also up in the hierarchy, via "base:" prefix...
       if not parent_indices:
         # If you get here, check the logic in Module.__call__, Naming.push_module_call.
         raise KeyError(f"namespace {self!r}: {_src_tensor or possible_sub_names!r} not found")

@@ -152,7 +152,9 @@ class Naming:
       assert res_tensor.returnn_data.placeholder is not None
       if x.returnn_data:
         x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-    elif (not x.output_from_calls or x.is_const) and not x.is_input:
+    elif x.is_input:
+      pass
+    elif not x.output_from_calls or x.is_const:
       # Assume this is a constant.
       x.is_const = True
       const_name = x.get_canonical_name(fallback="unnamed_const")
