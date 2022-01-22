@@ -127,6 +127,9 @@ class Naming:
     self.module_context_stack.pop(-1)
 
   def prepare_tensor_as_input(self, x: _tensor.TensorEntry, *, parent_namespace: _namespace.RegisteredName):
+    """
+    Make sure that the given tensor has a name in the given parent namespace.
+    """
     names = [name_ for name_ in x.names if parent_namespace in name_.get_parents_hierarchy()]
     if names:
       return  # ok
@@ -149,7 +152,7 @@ class Naming:
       assert res_tensor.returnn_data.placeholder is not None
       if x.returnn_data:
         x.returnn_data.placeholder = res_tensor.returnn_data.placeholder
-    elif not x.output_from_calls or x.is_const:
+    elif (not x.output_from_calls or x.is_const) and not x.is_input:
       # Assume this is a constant.
       x.is_const = True
       const_name = x.get_canonical_name(fallback="unnamed_const")
