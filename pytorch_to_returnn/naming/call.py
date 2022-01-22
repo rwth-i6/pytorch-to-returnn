@@ -183,8 +183,7 @@ class CallEntry:
     return res
 
   def __enter__(self):
-    # Assume via push_func_call
-    assert _naming.Naming.get_instance().module_call_stack[-1] is self
+    _naming.Naming.get_instance().push_module_call(self)
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):

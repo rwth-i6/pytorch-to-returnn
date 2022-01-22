@@ -89,8 +89,9 @@ class ModuleEntry:
     return prefix + self.module.get_returnn_name()
 
   def __enter__(self):
+    _naming.Naming.get_instance().push_module_context(self)
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
-    _naming.Naming.get_instance().pop_module_context(self.module)
+    _naming.Naming.get_instance().pop_module_context(self)
 

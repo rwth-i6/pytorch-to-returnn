@@ -88,37 +88,42 @@ class Naming:
     self.tmp_eager_root_namespace = self.root_namespace.register_sub_net(suggested_name=".tmp_root")
 
   @contextmanager
-  def push_module_creation(self, module: _types.Module) -> _module.ModuleEntry:
+  def module_creation_scope(self, module: _types.Module) -> _module.ModuleEntry:
     assert module not in self.modules
     entry = _module.ModuleEntry(module=module)
     self.modules[module] = entry
     self.module_creation_stack.append(entry)
-    with self.push_module_context(module):
-      yield entry
-    assert self.module_creation_stack[-1] is entry
-    self.module_creation_stack.pop(-1)
+    try:
+      with self.prepare_module_context(module):
+        yield entry
+    finally:
+      assert self.module_creation_stack[-1] is entry
+      self.module_creation_stack.pop(-1)
 
   @contextmanager
-  def push_module_apply(self, module: _types.Module) -> _module.ModuleEntry:
+  def module_apply_scope(self, module: _types.Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     self.module_apply_stack.append(entry)
-    with self.push_module_context(module):
-      yield entry
-    assert self.module_apply_stack[-1] is entry
-    self.module_apply_stack.pop(-1)
+    try:
+      with self.prepare_module_context(module):
+        yield entry
+    finally:
+      assert self.module_apply_stack[-1] is entry
+      self.module_apply_stack.pop(-1)
 
-  def push_module_context(self, module: _types.Module) -> _module.ModuleEntry:
+  def prepare_module_context(self, module: _types.Module) -> _module.ModuleEntry:
     entry = self.modules[module]
     if self.module_context_stack:
       prev_top = self.module_context_stack[-1]
       if prev_top not in entry.parent_context_modules and prev_top.module is not module:
         entry.parent_context_modules.append(prev_top)
-    self.module_context_stack.append(entry)
     return entry
 
-  def pop_module_context(self, module: _types.Module):
-    entry = self.modules[module]
-    assert self.module_context_stack[-1] is entry
+  def push_module_context(self, module: _module.ModuleEntry):
+    self.module_context_stack.append(module)
+
+  def pop_module_context(self, module: _module.ModuleEntry):
+    assert self.module_context_stack[-1] is module
     self.module_context_stack.pop(-1)
 
   def prepare_tensor_as_input(self, x: _tensor.TensorEntry, *, parent_namespace: _namespace.RegisteredName):
@@ -181,7 +186,7 @@ class Naming:
         continue
       self.prepare_tensor_as_input(x, parent_namespace=call_parent_namespace)
 
-  def push_module_call(self, *, module: _types.Module,
+  def make_module_call(self, *, module: _types.Module,
                        inputs_args: Tuple[Union[_types.Tensor, Any], ...],
                        inputs_kwargs: Dict[str, Union[_types.Tensor, Any]]) -> _call.CallEntry:
     module_entry = self.modules[module]
@@ -232,11 +237,13 @@ class Naming:
       # so make sure we create them in the right (parent) namespace.
       self._prepare_module_call_returnn_inputs(entry)
 
-    self.module_call_stack.append(entry)
     assert entry.namespace
     if not module.has_torch_forward():  # no subnet, so do now, to have better namings
       self._prepare_module_call_returnn_inputs(entry)
     return entry
+
+  def push_module_call(self, call: _call.CallEntry):
+    self.module_call_stack.append(call)
 
   def pop_module_call(self, call: _call.CallEntry):
     assert self.module_call_stack[-1] is call

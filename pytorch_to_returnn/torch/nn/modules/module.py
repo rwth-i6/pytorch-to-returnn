@@ -64,7 +64,7 @@ class Module:
       class WrappedClass(cls):
         def __init__(self, *args, **kwargs):
           self.__class__ = cls  # we don't need this wrapper class anymore
-          with Naming.get_instance().push_module_creation(self):
+          with Naming.get_instance().module_creation_scope(self):
             cls.__init__(self, *args, **kwargs)
       WrappedClass.__name__ = cls.__name__
       WrappedClass.__qualname__ = cls.__qualname__
@@ -100,7 +100,7 @@ class Module:
     obj = super(Module, self).__getattribute__(item)
     if isinstance(obj, types.MethodType):
       def wrapped_func(*args, **kwargs):
-        with Naming.get_instance().push_module_context(self):
+        with Naming.get_instance().prepare_module_context(self):
           return obj(*args, **kwargs)
       wrapped_func.__name__ = obj.__name__
       wrapped_func.__qualname__ = obj.__qualname__
@@ -254,7 +254,7 @@ class Module:
         Naming.get_instance().register_module_child_attr(self, name, tensor)
 
   def apply(self: T, fn: Callable[['Module'], None]) -> T:
-    with Naming.get_instance().push_module_apply(self):
+    with Naming.get_instance().module_apply_scope(self):
       for module in self.children():
         module.apply(fn)
       fn(self)
@@ -426,7 +426,7 @@ class Module:
 
   def __call__(self, *input: Tensor, **kwargs):
     naming = Naming.get_instance()
-    with naming.push_module_context(self):
+    with naming.prepare_module_context(self):
       assert naming.wrap_to_returnn_enabled
       for hook in self._forward_pre_hooks.values():
         result = hook(self, input)
@@ -434,7 +434,7 @@ class Module:
           if not isinstance(result, tuple):
             result = (result,)
           input = result
-      with naming.push_module_call(module=self, inputs_args=input, inputs_kwargs=kwargs) as call_entry:
+      with naming.make_module_call(module=self, inputs_args=input, inputs_kwargs=kwargs) as call_entry:
         res = call_entry.apply_call()
       return res
 
