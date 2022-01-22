@@ -232,18 +232,23 @@ class Naming:
       namespace = parent_namespace.register_sub_call(entry)
     assert module_entry in namespace.modules
 
-    if module.has_torch_forward():
-      # This will get an own subnet, and we might create constants,
-      # so make sure we create them in the right (parent) namespace.
-      self._prepare_module_call_returnn_inputs(entry)
-
-    assert entry.namespace
-    if not module.has_torch_forward():  # no subnet, so do now, to have better namings
-      self._prepare_module_call_returnn_inputs(entry)
     return entry
 
   def push_module_call(self, call: _call.CallEntry):
+    module = call.module.module
+    if module.has_torch_forward():
+      # This will get an own subnet, and we might create constants,
+      # so make sure we create them in the right (parent) namespace.
+      self._prepare_module_call_returnn_inputs(call)
+
     self.module_call_stack.append(call)
+    try:
+      assert call.namespace
+      if not module.has_torch_forward():  # no subnet, so do now, to have better namings
+        self._prepare_module_call_returnn_inputs(call)
+    except BaseException:
+      self.pop_module_call(call)
+      raise
 
   def pop_module_call(self, call: _call.CallEntry):
     assert self.module_call_stack[-1] is call
