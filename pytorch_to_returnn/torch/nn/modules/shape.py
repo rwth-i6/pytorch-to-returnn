@@ -238,7 +238,8 @@ class Unflatten(Module):
     :return: (torch_shape, returnn_axis_from_torch_axis).
     """
     naming = Naming.get_instance()
-    x, *unflattened_size = inputs_flat
+    x, = inputs_flat
+    unflattened_size = self.unflattened_size
     x_entry = naming.register_tensor(x)
     dim = self.dim
     assert -len(x.shape) <= dim < len(x.shape)
