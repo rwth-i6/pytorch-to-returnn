@@ -826,15 +826,23 @@ class Module:
 
       # Find mapping to layer_output_shape_meta.
       mapping_out_to_in = {}
+      x_dim_tags = list(x.returnn_data.dim_tags)
+      # First try exact matches via dim tags.
       for out_axis in range(layer.output.batch_ndim):
+        out_dim = layer.output.dim_tags[out_axis]
+        if out_dim in x_dim_tags:
+          in_axis = x_dim_tags.index(out_dim)
+          x_dim_tags[in_axis] = None  # mark as used
+          mapping_out_to_in[out_axis] = in_axis
+      for out_axis in range(layer.output.batch_ndim):
+        if out_axis in mapping_out_to_in:
+          continue
         if out_axis == layer.output.batch_dim_axis:
-          if x.returnn_data.have_batch_axis():
-            mapping_out_to_in[out_axis] = x.returnn_data.batch_dim_axis
-          else:
-            mapping_out_to_in[out_axis] = None  # new axis
+          mapping_out_to_in[out_axis] = None  # new axis
           continue
         if out_axis == layer.output.feature_dim_axis:
-          if x.returnn_data.have_feature_axis():
+          if x.returnn_data.have_feature_axis() and x_dim_tags[x.returnn_data.feature_dim_axis]:
+            x_dim_tags[x.returnn_data.feature_dim_axis] = None  # mark as used
             mapping_out_to_in[out_axis] = x.returnn_data.feature_dim_axis
           else:
             mapping_out_to_in[out_axis] = None  # new axis
@@ -843,13 +851,19 @@ class Module:
           dim_tag_ext = _get_spatial_dim_tag_and_single_index(layer.output, out_axis)
           if dim_tag_ext in dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim:
             in_spatial_idx, _ = dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim[dim_tag_ext]
-            mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
-            continue
+            in_axis = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
+            if x_dim_tags[in_axis]:
+              x_dim_tags[in_axis] = None  # mark as used
+              mapping_out_to_in[out_axis] = in_axis
+              continue
         assert out_axis in layer.output.get_spatial_batch_axes()
         out_spatial_idx = layer.output.get_spatial_batch_axes().index(out_axis)
         if len(x.returnn_data.get_spatial_batch_axes()) == len(layer.output.get_spatial_batch_axes()):
-          mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[out_spatial_idx]
-          continue
+          in_axis = x.returnn_data.get_spatial_batch_axes()[out_spatial_idx]
+          if x_dim_tags[in_axis]:
+            x_dim_tags[in_axis] = None  # mark as used
+            mapping_out_to_in[out_axis] = in_axis
+            continue
         # Just skip other cases now.
 
       in_values = [j for (i, j) in sorted(mapping_out_to_in.items()) if j is not None]
