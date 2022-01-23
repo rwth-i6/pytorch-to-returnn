@@ -32,10 +32,16 @@ class Range(Module):
                                      inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     limit, start, delta, *_ = inputs_flat
+    limit_dim = None
     if isinstance(limit, Tensor):
       assert limit.is_defined
+      limit_dim = limit.returnn_naming_entry.is_dim
       limit = limit.numpy()
-    torch_shape = ((int(limit) - int(start)) // int(delta),)
+    from .shape import SizeValue
+    size = SizeValue((int(limit) - int(start)) // int(delta))
+    if limit_dim:
+      size.dim_tag = (limit_dim - int(start)) // int(delta)
+    torch_shape = (size,)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
 
