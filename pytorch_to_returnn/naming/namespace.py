@@ -244,6 +244,7 @@ class RegisteredName:
     assert self.is_subnetwork()
     # First try to find in our direct namespace.
     # Only if that fails, search in potential sub namespaces.
+    # We don't need to go up to parent namespaces because all inputs to a module should be via register_input.
     parent_idx = 0
     while True:
       parent_indices = []
@@ -258,7 +259,6 @@ class RegisteredName:
           name_.is_alternative_subnet_output = True
           return "/".join([parent.name for parent in reversed(parent_hierarchy[:parent_idx])] + [name_.name]), name_
         parent_indices.append(parent_hierarchy.index(self))
-      # TODO go also up in the hierarchy, via "base:" prefix...
       if not parent_indices:
         # If you get here, check the logic in Module.__call__, Naming.push_module_call.
         raise KeyError(f"namespace {self!r}: {_src_tensor or possible_sub_names!r} not found")
