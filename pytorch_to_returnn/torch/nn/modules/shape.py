@@ -407,7 +407,9 @@ def _convert_dim_returnn(x):
 
 def _convert_dim_torch(x):
   if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
-    raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
+    # TODO would passing work here? if not, why not?
+    pass
+    # raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
   if isinstance(x, int):
     return x
   if isinstance(x, Tensor):
