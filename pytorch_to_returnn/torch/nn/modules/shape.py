@@ -388,7 +388,12 @@ class UnflattenBatch(Module):
 
 def _convert_dim_returnn(x):
   if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
-    raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
+    # TODO would this work here? if not, why not?
+    # TODO I think this would also need to add the tensor as a dependency?
+    # return x.dim_tag
+    x = x.as_tensor()
+    # TODO or this: x = x.as_tensor()
+    # raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
   if isinstance(x, int):
     return x
   naming = Naming.get_instance()
