@@ -215,6 +215,8 @@ class Unflatten(Module):
     self.unflattened_size = unflattened_size
 
   def forward(self, input: Tensor) -> Tensor:
+    # TODO this will not work because self.unflattened_size is not an argument here, so it does not get registered
+    #  via register_input
     return _Unflatten(dim=self.dim)(input, unflattened_size=self.unflattened_size)
 
 
