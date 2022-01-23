@@ -205,7 +205,6 @@ class Unflatten(Module):
   """
   Originally in flatten.py.
   """
-  is_original_torch_module = False
 
   def __init__(self,
                dim: int,
@@ -214,26 +213,12 @@ class Unflatten(Module):
     self.dim = dim
     self.unflattened_size = unflattened_size
 
-  def forward(self, input: Tensor) -> Tensor:
-    # TODO this will not work because self.unflattened_size is not an argument here, so it does not get registered
-    #  via register_input
-    return _Unflatten(dim=self.dim)(input, unflattened_size=self.unflattened_size)
-
-
-class _Unflatten(Module):
-  """
-  Separate internal module because we need that unflattened_size goes potentially through Naming._make_tensor.
-  """
-  is_original_torch_module = False
-
-  def __init__(self, dim: int):
-    super(_Unflatten, self).__init__()
-    self.dim = dim
-
-  def create_returnn_layer_dict(self, input: Tensor,
-                                unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]
-                                ) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
+    # TODO: we need that unflattened_size goes potentially through Naming._make_tensor,
+    #  and also be registered via register_input
+    #  Using a separate wrapping module does not solve this.
+    unflattened_size = self.unflattened_size
     dims = [_convert_dim_returnn(d) for d in unflattened_size]
     # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
     non_one_dims = [d for d in dims if d != 1]
