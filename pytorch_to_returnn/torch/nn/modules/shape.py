@@ -393,13 +393,8 @@ class UnflattenBatch(Module):
 def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
   naming = Naming.get_instance()
   if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
-    # TODO would this work here? if not, why not?
-    # TODO I think this would also need to add the tensor as a dependency?
-    # return x.dim_tag
     naming.module_call_stack[-1].inputs_tensor_deps.extend([naming.tensors[t] for t in x.get_originating_tensors()])
     x = x.as_tensor()
-    # TODO or this: x = x.as_tensor()
-    # raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
   if isinstance(x, int):
     return int(x)
   if isinstance(x, Tensor):
@@ -410,12 +405,8 @@ def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
 
 
 def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
-  if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
-    # TODO would passing work here? if not, why not?
-    pass
-    # raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
   if isinstance(x, int):
-    return x
+    return int(x)
   if isinstance(x, Tensor):
     assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
     return int(x.numpy())
