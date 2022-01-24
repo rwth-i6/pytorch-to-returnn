@@ -108,6 +108,10 @@ class Constant(Module):
 
 
 class FullStatic(Module):
+  """
+  Similar to :class:`Constant`, the value is static but the shape is dynamic here.
+  E.g. for :func:`torch.nn.functional.full` with a shape that depends on a dynamic axis of another tensor.
+  """
   is_original_torch_module = False
 
   def __init__(self, fill_value, dtype):
