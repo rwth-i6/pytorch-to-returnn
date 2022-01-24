@@ -25,6 +25,7 @@ class CallEntry:
   inputs_args: Optional[Tuple[Union[_tensor.TensorEntry, Any], ...]] = None
   inputs_kwargs: Optional[Dict[str, Union[_tensor.TensorEntry, Any]]] = None
   inputs_flat: Optional[List[Union[_tensor.TensorEntry, int, float, Any]]] = None
+  inputs_tensor_deps: Optional[List[_tensor.TensorEntry]] = None
   outputs: Optional[Union[_tensor.TensorEntry, Any]] = None
   outputs_flat: Optional[List[Union[_tensor.TensorEntry, Any]]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack

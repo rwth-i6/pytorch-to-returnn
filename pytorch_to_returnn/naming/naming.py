@@ -186,9 +186,7 @@ class Naming:
     if not self.wrap_to_returnn_enabled:
       return
     call_parent_namespace = call.namespace.parent or self.root_namespace
-    for x in call.inputs_flat:
-      if not isinstance(x, _tensor.TensorEntry):
-        continue
+    for x in call.inputs_tensor_deps:
       self.prepare_tensor_as_input(x, parent_namespace=call_parent_namespace)
 
   def make_module_call(self, *, module: _types.Module,
@@ -203,6 +201,7 @@ class Naming:
       entry.orig_inputs_kwargs = inputs_kwargs
       entry.orig_inputs_flat = inputs_flat
     entry.inputs_flat = [self._make_tensor(x) for x in inputs_flat]
+    entry.inputs_tensor_deps = [x for x in entry.inputs_flat if isinstance(x, _tensor.TensorEntry)]
     if self.wrap_to_returnn_enabled:
       entry.inputs_args, entry.inputs_kwargs = nest.pack_sequence_as(
         structure=(inputs_args, inputs_kwargs), flat_sequence=entry.inputs_flat)
@@ -303,7 +302,7 @@ class Naming:
     return self.tensors[x]
 
   def _make_tensor(self, x: Union[_types.Tensor, int, float, numpy.number, numpy.ndarray, SizeValue, Any]
-                   ) -> Optional[_tensor.TensorEntry]:
+                   ) -> Optional[Union[_tensor.TensorEntry, int, float, bool, numpy.number]]:
     """
     We have to decide which objects we keep as-is (as constant),
     and which we convert to a TensorEntry.

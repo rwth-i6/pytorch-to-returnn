@@ -83,7 +83,7 @@ class Constant(Module):
       call = naming.module_call_stack[-1]
       assert call.module.module is self
       # Add some of the network inputs as the dependency, to get the batch-dim.
-      call.inputs_flat = [naming.inputs[0]]
+      call.inputs_tensor_deps.append(naming.inputs[0])
       # Note: I wonder whether we maybe need others here...?
     return d
 

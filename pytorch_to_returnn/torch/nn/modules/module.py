@@ -552,7 +552,7 @@ class Module:
           call_ = t.output_from_calls[0]
         if t.validated_to_torch:
           pass
-        elif t.is_const and not (call_ and call_.inputs_flat):
+        elif t.is_const and not (call_ and call_.inputs_tensor_deps):
           print(f"**** validate: add const tensor {t}")
           t.validated_to_torch = True  # Skip check next time.
           # No need to feed, this should be const.
@@ -575,7 +575,7 @@ class Module:
           t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
         else:
           assert len(t.output_from_calls) >= 1 and call_
-          queue_ += call_.inputs_flat
+          queue_ += call_.inputs_tensor_deps
           continue
 
         assert t.validated_to_torch
@@ -637,6 +637,9 @@ class Module:
       torch_input_np = torch_input.detach().cpu().numpy()
       Module._check_call_returnn_input_to_prev_torch(
         call=call, tensor=tensor_entry, torch_values=torch_input_np)
+      feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
+      sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
+    for tensor_entry in call.inputs_tensor_deps:  # there might be additional deps
       feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
       sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
     session = tf.compat.v1.get_default_session()
@@ -746,20 +749,20 @@ class Module:
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
     naming = Naming.get_instance()
+    call = naming.module_call_stack[-1]
+    assert call.module.module is self
     torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
     for i in range(len(torch_shape)):
       assert layer.output.batch_shape[returnn_axis_from_torch_axis[i]] in {None, torch_shape[i]}
     is_const = False
     numpy_array = None
-    inputs_entries = [
-      naming.tensors[x] if isinstance(x, Tensor) else None for x in inputs_flat]  # type: List[Optional[TensorEntry]]
-    if all([x.is_const if x else True for x in inputs_entries]):
+    if all([x.is_const for x in call.inputs_tensor_deps]):
       # Only have const input.
       # Evaluate layer, because this const might be used in certain operation (e.g. predefined filter for conv).
       session = tf.compat.v1.get_default_session()
       feed_dict = {}
-      for x in inputs_entries:
+      for x in call.inputs_tensor_deps:
         if not x:
           continue
         value = x.tensor().numpy()

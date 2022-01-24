@@ -227,6 +227,7 @@ class RegisteredName:
     call.child_calls.append(copy_call)
     copy_call.inputs_args = (tensor,)
     copy_call.inputs_flat = [tensor]
+    copy_call.inputs_tensor_deps = [tensor]
     copy_call.inputs_kwargs = {}
     child.assign_call(copy_call)
     naming.module_call_stack.append(copy_call)
