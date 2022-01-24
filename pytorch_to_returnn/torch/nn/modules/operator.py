@@ -333,6 +333,15 @@ class GatherTensor(Module):
       "axis": self._get_input_axis_to_returnn(input, axis=self.dim),
       "position": self._get_input_layer_name(pos)}
 
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    input, pos = inputs_flat
+    _, returnn_axis_from_torch_axis = super(GatherTensor, self)._get_output_shape_from_returnn(inputs_flat, layer)
+    out_shape = list(input.shape)
+    out_shape[self.dim:self.dim + 1] = pos.shape
+    return tuple(out_shape), returnn_axis_from_torch_axis
+
 
 class Slice(Module):
   """
