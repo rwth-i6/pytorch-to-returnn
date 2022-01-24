@@ -28,14 +28,25 @@ def get_default_dtype():
   return "float32"
 
 
+def _is_static_size(x) -> bool:
+  from .._C import SizeValue
+  if isinstance(x, int) and not isinstance(x, SizeValue):
+    return True
+  if isinstance(x, SizeValue):
+    return x.dim_tag.dimension is not None
+  if isinstance(x, (list, tuple)):
+    return all(_is_static_size(y) for y in x)
+  return False
+
+
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
   if size and isinstance(size[0], (tuple, list)):
     assert len(size) == 1
     size = tuple(size[0])
-  if all(isinstance(x, int) for x in size):
-    return Tensor(*size, dtype=dtype)
   if not dtype:
     dtype = _default_float_type
+  if _is_static_size(size):
+    return Tensor(*size, dtype=dtype)
   return modules.FullStatic(fill_value=0, dtype=dtype)(size=size)
 
 
@@ -45,7 +56,7 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
     size = tuple(size[0])
   if not dtype:
     dtype = _default_float_type
-  if all(isinstance(x, int) for x in size):
+  if _is_static_size(size):
     return tensor(numpy.ones(size, dtype=dtype))
   return modules.FullStatic(fill_value=1, dtype=dtype)(size=size)
 
