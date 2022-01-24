@@ -217,7 +217,9 @@ class Unflatten(Module):
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
     dims = [_convert_dim_returnn(d) for d in self.unflattened_size]
-    if any(isinstance(d, Dim) for d in dims):
+    if len([d for d in dims if isinstance(d, Dim)]) == 1:
+      dims = [-1 if isinstance(d, Dim) else d for d in dims]
+    elif any(isinstance(d, Dim) for d in dims):
       # all must be dim tags
       dims = [d if isinstance(d, Dim) else SpatialDim("static-dim-%i" % i, d) for i, d in enumerate(dims)]
     else:
