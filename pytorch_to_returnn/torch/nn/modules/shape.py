@@ -413,6 +413,15 @@ def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue
   raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
+def _dtype_str(dtype) -> str:
+  from ..._C import dtype as DType
+  if isinstance(dtype, DType):
+    return dtype.name
+  if isinstance(dtype, str):
+    return dtype
+  raise TypeError(f"Invalid dtype {dtype!r} type {type(dtype)}")
+
+
 __all__ = [
   key for (key, value) in sorted(globals().items())
   if not key.startswith("_")
