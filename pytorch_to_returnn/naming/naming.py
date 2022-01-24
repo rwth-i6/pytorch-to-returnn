@@ -335,14 +335,8 @@ class Naming:
     assert tensor.dim() == returnn_data.batch_ndim
     assert all([dim in {tensor.shape[i], None} for i, dim in enumerate(returnn_data.batch_shape)])
     entry.returnn_data = Data(
-      name=returnn_data.name, auto_create_placeholders=True,
-      sparse=returnn_data.sparse,
-      dim=returnn_data.dim,
-      shape=returnn_data.shape,
-      batch_dim_axis=returnn_data.batch_dim_axis,
-      time_dim_axis=returnn_data.time_dim_axis,
-      feature_dim_axis=returnn_data.feature_dim_axis_or_unspecified,
-      available_for_inference=True)
+      **returnn_data.get_kwargs(),
+      auto_create_placeholders=True)
     entry.returnn_axis_from_torch_axis = {i: i for i in range(returnn_data.batch_ndim)}
     for axis in range(returnn_data.batch_ndim):
       tensor.shape[axis].dim_tag = entry.returnn_data.dim_tags[axis]
