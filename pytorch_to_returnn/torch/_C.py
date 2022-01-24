@@ -151,6 +151,16 @@ class SizeValue(int):
     returnn_axis = tensor_entry.returnn_data.get_axis_from_description(self.dim_tag)
     return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
 
+  def get_originating_tensors(self) -> List[Tensor]:
+    if self.originating_tensor is not None:
+      return [self.originating_tensor]
+    if self.merged_dims:
+      return [
+        d.originating_tensor
+        for d in self.merged_dims
+        if isinstance(d, SizeValue) and d.originating_tensor is not None]
+    return []
+
   def as_tensor(self):
     if self.originating_tensor is None and self.merged_dims:
       tensor = numpy.prod([

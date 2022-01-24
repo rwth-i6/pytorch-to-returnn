@@ -13,6 +13,7 @@ from typing import Tuple, List, Union, Collection, Dict, Any, Optional
 from functools import reduce
 import operator
 from returnn.tf.layers.basic import LayerBase, MergeDimsLayer, FlattenBatchLayer
+from returnn.tf.util.data import Dim
 from .module import Module
 from ...tensor import Tensor, Size
 from ..._C import SizeValue
@@ -387,17 +388,18 @@ class UnflattenBatch(Module):
     return torch_shape, returnn_axis_from_torch_axis
 
 
-def _convert_dim_returnn(x):
+def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
+  naming = Naming.get_instance()
   if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
     # TODO would this work here? if not, why not?
     # TODO I think this would also need to add the tensor as a dependency?
     # return x.dim_tag
+    naming.module_call_stack[-1].inputs_tensor_deps.extend([naming.tensors[t] for t in x.get_originating_tensors()])
     x = x.as_tensor()
     # TODO or this: x = x.as_tensor()
     # raise Exception(f"SizeValue {x} not expected, should be a Tensor, via Naming._make_tensor")
   if isinstance(x, int):
-    return x
-  naming = Naming.get_instance()
+    return int(x)
   if isinstance(x, Tensor):
     tensor_entry = naming.tensors[x]
     assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
@@ -405,7 +407,7 @@ def _convert_dim_returnn(x):
   raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
 
 
-def _convert_dim_torch(x):
+def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
   if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
     # TODO would passing work here? if not, why not?
     pass
