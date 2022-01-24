@@ -1075,6 +1075,19 @@ def test_broadcast_add_bias():
   verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={"time_dim_axis": None})
 
 
+def test_new_zeros():
+  n_batch, n_time, n_in = 3, 5, 11
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    x = inputs.new_zeros(inputs.shape)
+    return inputs + x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_in)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None, n_in), "time_dim_axis": 1, "batch_dim_axis": 0, "feature_dim_axis": 2})
+
+
 def test_movedim():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
