@@ -170,6 +170,16 @@ class Tensor:
     # use new_zeros here to avoid errors by uninitialized memory
     return self.new_zeros(size, dtype, device, requires_grad)
 
+  def new_full(self, size, fill_value, dtype=None, device=None, requires_grad=False):
+    if len(size) == 1 and isinstance(size[0], (list, tuple)):
+      size = size[0]
+    if dtype is None:
+      dtype = self.dtype
+    else:
+      dtype = _dtype(dtype)
+    from .nn.functional import full
+    return full(size, fill_value, dtype=dtype)
+
   def new(self, *args, dtype=None, device=None, requires_grad=False):
     if args and isinstance(args[0], Tensor):
       assert len(args) == 1
