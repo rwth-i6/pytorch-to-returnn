@@ -5,9 +5,11 @@ Dummies...
 
 from __future__ import annotations
 import numpy
-from typing import Union, Any, Tuple, List, Optional
+from typing import TYPE_CHECKING, Union, Any, Tuple, List, Optional
 from returnn.tf.util.data import Dim
 from ..naming import Naming
+if TYPE_CHECKING:
+  from .tensor import Tensor
 
 
 def device(name):
