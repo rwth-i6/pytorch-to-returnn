@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy
 import tensorflow as tf
 from returnn.tf.layers.basic import LayerBase, VariableLayer
-from typing import Tuple, List, Dict, Optional
-from ...tensor import Tensor
+from typing import Tuple, List, Optional
+from ...tensor import Tensor, dtype as _DType
 from ..parameter import Parameter
 from .module import Module
 from ....naming import Naming
@@ -113,22 +113,22 @@ class FullStatic(Module):
   def __init__(self, fill_value, dtype):
     super(FullStatic, self).__init__()
     self.fill_value = fill_value
-    self.dtype = dtype
+    self.dtype = _DType(dtype)
 
   def create_returnn_layer_dict(self, size):
     # We require the size to contain some static information.
     assert isinstance(size, (tuple, list))  # not implemented otherwise
-    from .shape import _convert_dim_returnn, _dtype_str
+    from .shape import _convert_dim_returnn
     return {
       "class": "constant", "shape": [_convert_dim_returnn(x) for x in size],
-      "value": self.fill_value, "dtype": _dtype_str(self.dtype)}
+      "value": self.fill_value, "dtype": self.dtype.name}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
-    from .shape import _convert_dim_torch, _dtype_str
+    from .shape import _convert_dim_torch
     naming = Naming.get_instance()
     size = [_convert_dim_torch(x) for x in inputs_flat]
     from ..._C import from_numpy
-    tensor = from_numpy(numpy.full(size, self.fill_value, dtype=_dtype_str(self.dtype)))
+    tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype.name))
     entry = naming.register_tensor(tensor)
     entry.is_const = True
     entry.returnn_data = layer.output
