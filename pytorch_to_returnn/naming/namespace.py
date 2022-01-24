@@ -227,6 +227,7 @@ class RegisteredName:
     call.child_calls.append(copy_call)
     copy_call.inputs_args = (tensor,)
     copy_call.inputs_flat = [tensor]
+    copy_call.inputs_tensor_deps = [tensor]
     copy_call.inputs_kwargs = {}
     child.assign_call(copy_call)
     naming.module_call_stack.append(copy_call)
@@ -244,6 +245,7 @@ class RegisteredName:
     assert self.is_subnetwork()
     # First try to find in our direct namespace.
     # Only if that fails, search in potential sub namespaces.
+    # We don't need to go up to parent namespaces because all inputs to a module should be via register_input.
     parent_idx = 0
     while True:
       parent_indices = []

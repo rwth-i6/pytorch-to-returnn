@@ -64,7 +64,7 @@ class Module:
       class WrappedClass(cls):
         def __init__(self, *args, **kwargs):
           self.__class__ = cls  # we don't need this wrapper class anymore
-          with Naming.get_instance().push_module_creation(self):
+          with Naming.get_instance().module_creation_scope(self):
             cls.__init__(self, *args, **kwargs)
       WrappedClass.__name__ = cls.__name__
       WrappedClass.__qualname__ = cls.__qualname__
@@ -100,7 +100,7 @@ class Module:
     obj = super(Module, self).__getattribute__(item)
     if isinstance(obj, types.MethodType):
       def wrapped_func(*args, **kwargs):
-        with Naming.get_instance().push_module_context(self):
+        with Naming.get_instance().prepare_module_context(self):
           return obj(*args, **kwargs)
       wrapped_func.__name__ = obj.__name__
       wrapped_func.__qualname__ = obj.__qualname__
@@ -254,7 +254,7 @@ class Module:
         Naming.get_instance().register_module_child_attr(self, name, tensor)
 
   def apply(self: T, fn: Callable[['Module'], None]) -> T:
-    with Naming.get_instance().push_module_apply(self):
+    with Naming.get_instance().module_apply_scope(self):
       for module in self.children():
         module.apply(fn)
       fn(self)
@@ -426,7 +426,7 @@ class Module:
 
   def __call__(self, *input: Tensor, **kwargs):
     naming = Naming.get_instance()
-    with naming.push_module_context(self):
+    with naming.prepare_module_context(self):
       assert naming.wrap_to_returnn_enabled
       for hook in self._forward_pre_hooks.values():
         result = hook(self, input)
@@ -434,7 +434,7 @@ class Module:
           if not isinstance(result, tuple):
             result = (result,)
           input = result
-      with naming.push_module_call(module=self, inputs_args=input, inputs_kwargs=kwargs) as call_entry:
+      with naming.make_module_call(module=self, inputs_args=input, inputs_kwargs=kwargs) as call_entry:
         res = call_entry.apply_call()
       return res
 
@@ -552,7 +552,7 @@ class Module:
           call_ = t.output_from_calls[0]
         if t.validated_to_torch:
           pass
-        elif t.is_const and not (call_ and call_.inputs_flat):
+        elif t.is_const and not (call_ and call_.inputs_tensor_deps):
           print(f"**** validate: add const tensor {t}")
           t.validated_to_torch = True  # Skip check next time.
           # No need to feed, this should be const.
@@ -575,7 +575,7 @@ class Module:
           t.validated_to_torch_tf_feed_dict.update(t.validated_to_torch_tf_sizes_feed_dict)
         else:
           assert len(t.output_from_calls) >= 1 and call_
-          queue_ += call_.inputs_flat
+          queue_ += call_.inputs_tensor_deps
           continue
 
         assert t.validated_to_torch
@@ -637,6 +637,9 @@ class Module:
       torch_input_np = torch_input.detach().cpu().numpy()
       Module._check_call_returnn_input_to_prev_torch(
         call=call, tensor=tensor_entry, torch_values=torch_input_np)
+      feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
+      sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
+    for tensor_entry in call.inputs_tensor_deps:  # there might be additional deps
       feed_dict.update(tensor_entry.validated_to_torch_tf_feed_dict)
       sizes_feed_dict.update(tensor_entry.validated_to_torch_tf_sizes_feed_dict)
     session = tf.compat.v1.get_default_session()
@@ -746,20 +749,20 @@ class Module:
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
     naming = Naming.get_instance()
+    call = naming.module_call_stack[-1]
+    assert call.module.module is self
     torch_shape, returnn_axis_from_torch_axis = self._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
     for i in range(len(torch_shape)):
       assert layer.output.batch_shape[returnn_axis_from_torch_axis[i]] in {None, torch_shape[i]}
     is_const = False
     numpy_array = None
-    inputs_entries = [
-      naming.tensors[x] if isinstance(x, Tensor) else None for x in inputs_flat]  # type: List[Optional[TensorEntry]]
-    if all([x.is_const if x else True for x in inputs_entries]):
+    if all([x.is_const for x in call.inputs_tensor_deps]):
       # Only have const input.
       # Evaluate layer, because this const might be used in certain operation (e.g. predefined filter for conv).
       session = tf.compat.v1.get_default_session()
       feed_dict = {}
-      for x in inputs_entries:
+      for x in call.inputs_tensor_deps:
         if not x:
           continue
         value = x.tensor().numpy()
@@ -826,15 +829,23 @@ class Module:
 
       # Find mapping to layer_output_shape_meta.
       mapping_out_to_in = {}
+      x_dim_tags = list(x.returnn_data.dim_tags)
+      # First try exact matches via dim tags.
       for out_axis in range(layer.output.batch_ndim):
+        out_dim = layer.output.dim_tags[out_axis]
+        if out_dim in x_dim_tags:
+          in_axis = x_dim_tags.index(out_dim)
+          x_dim_tags[in_axis] = None  # mark as used
+          mapping_out_to_in[out_axis] = in_axis
+      for out_axis in range(layer.output.batch_ndim):
+        if out_axis in mapping_out_to_in:
+          continue
         if out_axis == layer.output.batch_dim_axis:
-          if x.returnn_data.have_batch_axis():
-            mapping_out_to_in[out_axis] = x.returnn_data.batch_dim_axis
-          else:
-            mapping_out_to_in[out_axis] = None  # new axis
+          mapping_out_to_in[out_axis] = None  # new axis
           continue
         if out_axis == layer.output.feature_dim_axis:
-          if x.returnn_data.have_feature_axis():
+          if x.returnn_data.have_feature_axis() and x_dim_tags[x.returnn_data.feature_dim_axis]:
+            x_dim_tags[x.returnn_data.feature_dim_axis] = None  # mark as used
             mapping_out_to_in[out_axis] = x.returnn_data.feature_dim_axis
           else:
             mapping_out_to_in[out_axis] = None  # new axis
@@ -843,13 +854,19 @@ class Module:
           dim_tag_ext = _get_spatial_dim_tag_and_single_index(layer.output, out_axis)
           if dim_tag_ext in dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim:
             in_spatial_idx, _ = dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim[dim_tag_ext]
-            mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
-            continue
+            in_axis = x.returnn_data.get_spatial_batch_axes()[in_spatial_idx]
+            if x_dim_tags[in_axis]:
+              x_dim_tags[in_axis] = None  # mark as used
+              mapping_out_to_in[out_axis] = in_axis
+              continue
         assert out_axis in layer.output.get_spatial_batch_axes()
         out_spatial_idx = layer.output.get_spatial_batch_axes().index(out_axis)
         if len(x.returnn_data.get_spatial_batch_axes()) == len(layer.output.get_spatial_batch_axes()):
-          mapping_out_to_in[out_axis] = x.returnn_data.get_spatial_batch_axes()[out_spatial_idx]
-          continue
+          in_axis = x.returnn_data.get_spatial_batch_axes()[out_spatial_idx]
+          if x_dim_tags[in_axis]:
+            x_dim_tags[in_axis] = None  # mark as used
+            mapping_out_to_in[out_axis] = in_axis
+            continue
         # Just skip other cases now.
 
       in_values = [j for (i, j) in sorted(mapping_out_to_in.items()) if j is not None]

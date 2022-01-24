@@ -13,6 +13,7 @@ from typing import Tuple, List, Union, Collection, Dict, Any, Optional
 from functools import reduce
 import operator
 from returnn.tf.layers.basic import LayerBase, MergeDimsLayer, FlattenBatchLayer
+from returnn.tf.util.data import Dim, SpatialDim
 from .module import Module
 from ...tensor import Tensor, Size
 from ..._C import SizeValue
@@ -205,20 +206,27 @@ class Unflatten(Module):
   """
   Originally in flatten.py.
   """
+
   def __init__(self,
-               dim: Union[int, str],
-               unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]) -> None:
+               dim: int,
+               unflattened_size: Union[Size, _NamedShape, Tuple[int, ...], List[int]]):
     super(Unflatten, self).__init__()
     self.dim = dim
     self.unflattened_size = unflattened_size
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
-    dims = list(self.unflattened_size)
-    # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
-    non_one_dims = [d for d in dims if d != 1]
-    if len(non_one_dims) == 1:
-      dims[dims.index(non_one_dims[0])] = -1
+    dims = [_convert_dim_returnn(d) for d in self.unflattened_size]
+    if len([d for d in dims if isinstance(d, Dim)]) == 1:
+      dims = [-1 if isinstance(d, Dim) else d for d in dims]
+    elif any(isinstance(d, Dim) for d in dims):
+      # all must be dim tags
+      dims = [d if isinstance(d, Dim) else SpatialDim("static-dim-%i" % i, d) for i, d in enumerate(dims)]
+    else:
+      # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
+      non_one_dims = [d for d in dims if d != 1]
+      if len(non_one_dims) == 1:
+        dims[dims.index(non_one_dims[0])] = -1
     return {
       "class": "split_dims", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, self.dim),
@@ -233,15 +241,15 @@ class Unflatten(Module):
     :return: (torch_shape, returnn_axis_from_torch_axis).
     """
     naming = Naming.get_instance()
-    assert len(inputs_flat) == 1
-    x = inputs_flat[0]
+    x, = inputs_flat
+    unflattened_size = self.unflattened_size
     x_entry = naming.register_tensor(x)
     dim = self.dim
     assert -len(x.shape) <= dim < len(x.shape)
     if dim < 0:
       dim += len(x.shape)
     assert 0 <= dim < len(x.shape)
-    unflatten_size = list(self.unflattened_size)
+    unflatten_size = [_convert_dim_torch(d) for d in unflattened_size]
     if any(d == -1 for d in unflatten_size):
       rem_dim = x.shape[dim]
       for d in unflatten_size:
@@ -380,6 +388,29 @@ class UnflattenBatch(Module):
       returnn_axis_from_torch_axis[0] = 1
       returnn_axis_from_torch_axis[1] = 0
     return torch_shape, returnn_axis_from_torch_axis
+
+
+def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
+  naming = Naming.get_instance()
+  if isinstance(x, SizeValue) and x.dim_tag and x.dim_tag.dimension is None:
+    naming.module_call_stack[-1].inputs_tensor_deps.extend([naming.tensors[t] for t in x.get_originating_tensors()])
+    x = x.as_tensor()
+  if isinstance(x, int):
+    return int(x)
+  if isinstance(x, Tensor):
+    tensor_entry = naming.tensors[x]
+    assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
+    return tensor_entry.is_dim
+  raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
+
+
+def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
+  if isinstance(x, int):
+    return int(x)
+  if isinstance(x, Tensor):
+    assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
+    return int(x.numpy())
+  raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
 __all__ = [

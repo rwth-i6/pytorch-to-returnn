@@ -25,6 +25,7 @@ class CallEntry:
   inputs_args: Optional[Tuple[Union[_tensor.TensorEntry, Any], ...]] = None
   inputs_kwargs: Optional[Dict[str, Union[_tensor.TensorEntry, Any]]] = None
   inputs_flat: Optional[List[Union[_tensor.TensorEntry, int, float, Any]]] = None
+  inputs_tensor_deps: Optional[List[_tensor.TensorEntry]] = None
   outputs: Optional[Union[_tensor.TensorEntry, Any]] = None
   outputs_flat: Optional[List[Union[_tensor.TensorEntry, Any]]] = None
   parent_call: Optional[CallEntry] = None  # parent in the call stack
@@ -183,8 +184,7 @@ class CallEntry:
     return res
 
   def __enter__(self):
-    # Assume via push_func_call
-    assert _naming.Naming.get_instance().module_call_stack[-1] is self
+    _naming.Naming.get_instance().push_module_call(self)
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):

@@ -4,9 +4,12 @@ Dummies...
 """
 
 from __future__ import annotations
-from typing import Union, Any, Tuple, List, Optional
+import numpy
+from typing import TYPE_CHECKING, Union, Any, Tuple, List, Optional
 from returnn.tf.util.data import Dim
 from ..naming import Naming
+if TYPE_CHECKING:
+  from .tensor import Tensor
 
 
 def device(name):
@@ -148,10 +151,28 @@ class SizeValue(int):
     returnn_axis = tensor_entry.returnn_data.get_axis_from_description(self.dim_tag)
     return tensor_entry.torch_axis_from_returnn_axis[returnn_axis]
 
+  def get_originating_tensors(self) -> List[Tensor]:
+    if self.originating_tensor is not None:
+      return [self.originating_tensor]
+    if self.merged_dims:
+      return [
+        d.originating_tensor
+        for d in self.merged_dims
+        if isinstance(d, SizeValue) and d.originating_tensor is not None]
+    return []
+
   def as_tensor(self):
-    assert self.originating_tensor is not None
-    from .nn.modules import Length
-    tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
+    if self.originating_tensor is None and self.merged_dims:
+      tensor = numpy.prod([
+        d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+        for d in self.merged_dims])
+    else:
+      assert self.originating_tensor is not None
+      from .nn.modules import Length
+      tensor = Length(axis=self.originating_tensor_axis).as_returnn_torch_functional()(self.originating_tensor)
+      if len(tensor.shape) > 0:
+        from . import max
+        tensor = max(tensor)
     tensor.fill_(int(self))
     tensor.is_defined = True
     naming = Naming.get_instance()

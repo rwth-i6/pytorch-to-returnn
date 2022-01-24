@@ -17,7 +17,7 @@ class WrappedModuleBase(torch.nn.Module):
           if log.Verbosity >= 4:
             log.unique_print(
               "*** torch module create %s.%s(...)" % (self.__class__.__module__, self.__class__.__qualname__))
-          with Naming.get_instance().push_module_creation(self):
+          with Naming.get_instance().module_creation_scope(self):
             cls.__init__(self, *args, **kwargs)
       WrappedClass.__name__ = cls.__name__
       WrappedClass.__qualname__ = cls.__qualname__
@@ -32,7 +32,7 @@ class WrappedModuleBase(torch.nn.Module):
     if log.Verbosity >= 3:
       log.unique_print(
         "*** torch module call %s.%s(...)(...)" % (self.__class__.__module__, self.__class__.__qualname__))
-    with Naming.get_instance().push_module_call(module=self, inputs_args=args, inputs_kwargs=kwargs) as call_entry:
+    with Naming.get_instance().make_module_call(module=self, inputs_args=args, inputs_kwargs=kwargs) as call_entry:
       res = super(WrappedModuleBase, self).__call__(*args, **kwargs)
       call_entry.set_outputs(res)
     return res

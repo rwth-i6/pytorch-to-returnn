@@ -8,7 +8,7 @@ import types
 import tempfile
 from pytorch_to_returnn.pprint import pprint
 from typing import Callable, Optional, Dict, Any, Tuple, List
-from returnn.tf.util.data import Data
+from returnn.tf.util.data import Data, Dim, batch_dim
 from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
 from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
@@ -82,18 +82,7 @@ class Converter:
     """
     self._model_func = model_func
     self._inputs_np = inputs
-    inputs_data_kwargs = {} if inputs_data_kwargs is None else inputs_data_kwargs.copy()
-    if "feature_dim_axis" not in inputs_data_kwargs and not inputs_data_kwargs.get("sparse", False):
-      assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
-      if inputs_data_kwargs.get("batch_dim_axis", 0) == 0:
-        inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
-    if "shape" not in inputs_data_kwargs:
-      # Assume feature is static, all other dynamic.
-      # Assume batch-major.
-      inputs_data_kwargs["shape"] = [
-        inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
-        for i in range(1, len(inputs.shape))]
-    self._returnn_in_data_dict = inputs_data_kwargs
+    self._returnn_in_data_dict = self._transform_inputs_data_kwargs(inputs, inputs_data_kwargs)
     self._returnn_dummy_input_shape = returnn_dummy_input_shape
     self._returnn_input_seq_lens = returnn_input_seq_lens
     self.use_non_wrapped_reference = use_non_wrapped_reference
@@ -108,6 +97,37 @@ class Converter:
     self._torch_namespace = None  # type: Optional[Naming]
     self._out_returnn_np = None  # type: Optional[numpy.ndarray]
     self._returnn_net_dict = None  # type: Optional[Dict[str, Dict[str, Any]]]
+
+  def _transform_inputs_data_kwargs(self,
+                                    inputs: numpy.ndarray,
+                                    inputs_data_kwargs: Optional[Dict[str, Any]] = None
+                                    ) -> Dict[str, Any]:
+    inputs_data_kwargs = {} if inputs_data_kwargs is None else inputs_data_kwargs.copy()
+    sparse = inputs_data_kwargs.get("sparse", None) or inputs_data_kwargs.get("sparse_dim", None)
+    if "dim_tags" not in inputs_data_kwargs:
+      if "feature_dim_axis" not in inputs_data_kwargs and not sparse:
+        assert len(inputs.shape) >= 2  # (batch,feature|channel,...)
+        if inputs_data_kwargs.get("batch_dim_axis", 0) == 0:
+          inputs_data_kwargs["feature_dim_axis"] = 1  # Torch uses batch-feature-major by default
+      if "shape" not in inputs_data_kwargs:
+        # Assume feature is static, all other dynamic.
+        # Assume batch-major.
+        inputs_data_kwargs["shape"] = [
+          inputs.shape[i] if i == inputs_data_kwargs["feature_dim_axis"] else None
+          for i in range(1, len(inputs.shape))]
+    # Create dummy Data to get unified kwargs.
+    data = Data(name="data", **inputs_data_kwargs)
+    inputs_data_kwargs = data.get_kwargs()
+    inputs_data_kwargs.pop("name")
+    dim_tags = list(inputs_data_kwargs["dim_tags"])  # type: List[Dim]
+    # Make some dim tags nicer.
+    dim_tags = [
+      d.copy(same_as_self=False, description=d.description.replace(":var-unk:", ":"))
+      if ":var-unk:" in d.description
+      else d
+      for d in dim_tags]
+    inputs_data_kwargs["dim_tags"] = dim_tags
+    return inputs_data_kwargs
 
   def run(self):
     if self.use_non_wrapped_reference:
