@@ -13,7 +13,7 @@ from typing import Tuple, List, Union, Collection, Dict, Any, Optional
 from functools import reduce
 import operator
 from returnn.tf.layers.basic import LayerBase, MergeDimsLayer, FlattenBatchLayer
-from returnn.tf.util.data import Dim
+from returnn.tf.util.data import Dim, SpatialDim
 from .module import Module
 from ...tensor import Tensor, Size
 from ..._C import SizeValue
@@ -216,15 +216,15 @@ class Unflatten(Module):
 
   def create_returnn_layer_dict(self, input: Tensor) -> Dict[str, Any]:
     assert isinstance(self.dim, int)  # not implemented otherwise
-    # TODO: we need that unflattened_size goes potentially through Naming._make_tensor,
-    #  and also be registered via register_input
-    #  Using a separate wrapping module does not solve this.
-    unflattened_size = self.unflattened_size
-    dims = [_convert_dim_returnn(d) for d in unflattened_size]
-    # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
-    non_one_dims = [d for d in dims if d != 1]
-    if len(non_one_dims) == 1:
-      dims[dims.index(non_one_dims[0])] = -1
+    dims = [_convert_dim_returnn(d) for d in self.unflattened_size]
+    if any(isinstance(d, Dim) for d in dims):
+      # all must be dim tags
+      dims = [d if isinstance(d, Dim) else SpatialDim("static-dim-%i" % i, d) for i, d in enumerate(dims)]
+    else:
+      # Introduce -1 again to dims, such that we can handle dynamic axes in RETURNN.
+      non_one_dims = [d for d in dims if d != 1]
+      if len(non_one_dims) == 1:
+        dims[dims.index(non_one_dims[0])] = -1
     return {
       "class": "split_dims", "from": self._get_input_layer_name(input),
       "axis": self._get_input_axis_to_returnn(input, self.dim),
