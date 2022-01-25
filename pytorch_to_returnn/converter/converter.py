@@ -144,7 +144,7 @@ class Converter:
     assert self._returnn_net_dict, "Call run() first."
     return self._returnn_net_dict
 
-  def _make_tf_feed_dict(self, input: Data, out_entry=None):
+  def _make_tf_feed_dict(self, input: Data, out_entry: Optional[TensorEntry] = None):
     assert input.batch_ndim == len(self._inputs_np.shape)
     assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
     n_batch = 1 if input.batch_dim_axis is None else self._inputs_np.shape[input.batch_dim_axis]
@@ -157,11 +157,8 @@ class Converter:
       for i, size in input.size_placeholder.items():
         d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
     if out_entry:
-      def _output_from_non_deterministic(tensor_entry_: TensorEntry):
-        return not all(call_.module.module.is_deterministic for call_ in tensor_entry_.output_from_calls)
-
       for entry in [out_entry.output_from_calls[0].inputs_args[0]]:  # TODO: this is just the case I'm looking for right now, needs to be generalized
-        if _output_from_non_deterministic(entry):
+        if not all(call_.module.module.is_deterministic for call_ in entry.output_from_calls):
           assert entry.validated_to_torch_tf_feed_dict is not None
           d.update(entry.validated_to_torch_tf_feed_dict)
     return d

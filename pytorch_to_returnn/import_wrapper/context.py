@@ -1,5 +1,5 @@
 
-from typing import Set, Iterable, Dict, Optional, Callable, TypeVar, Type
+from typing import Set, Iterable, Dict, Optional, Callable, TypeVar, Type, Any
 from .mod_map import ModMap
 
 
@@ -10,7 +10,7 @@ class WrapCtx:
                wrap_mods_alternatives: Dict[str, str] = None,
                keep_as_is_types: Iterable[type] = (),
                explicit_wrapped_types: Dict[type, "ExplicitWrappedType"] = None,
-               explicit_wrapped_objects: Dict[Callable, Callable] = None):
+               explicit_wrapped_objects: Dict[Any, Callable[[Any], Any]] = None):
     """
     :param wrapped_mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
     :param wrap_mods_direct: e.g. {"torch.nn.modules"}
