@@ -157,7 +157,20 @@ class Converter:
       for i, size in input.size_placeholder.items():
         d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
     if out_entry:
-      for entry in [out_entry.output_from_calls[0].inputs_args[0]]:  # TODO: this is just the case I'm looking for right now, needs to be generalized
+      def _get_non_deterministic_tensor_entries(entry_: TensorEntry):
+        """
+        Go recursively through all tensor entries to find non deterministic ones
+        """
+        if not all(call_.module.module.is_deterministic for call_ in entry_.output_from_calls):
+          return [entry_]
+        non_det_mods = []
+        for call_ in entry_.output_from_calls:
+          for prev_entry_ in [pe for pe in call_.inputs_args if isinstance(pe, TensorEntry)]:
+            if prev_entry_ != entry_:
+              non_det_mods += _get_non_deterministic_tensor_entries(prev_entry_)
+        return non_det_mods
+
+      for entry in _get_non_deterministic_tensor_entries(out_entry):
         if not all(call_.module.module.is_deterministic for call_ in entry.output_from_calls):
           assert entry.validated_to_torch_tf_feed_dict is not None
           d.update(entry.validated_to_torch_tf_feed_dict)
