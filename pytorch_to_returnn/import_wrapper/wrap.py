@@ -15,7 +15,7 @@ def wrap(obj, *, name: str, ctx: WrapCtx):
   if isinstance(obj, ctx.keep_as_is_types):
     return obj
   if obj in ctx.explicit_wrapped_objects:
-    obj = ctx.explicit_wrapped_objects[obj](obj)
+    obj = make_wrapped_object(ctx.explicit_wrapped_objects[obj], name=name, ctx=ctx)
   obj = _nested_transform(obj, lambda _x: wrap(_x, name="%s..." % name, ctx=ctx))
 
   if isinstance(obj, types.ModuleType):
