@@ -93,6 +93,20 @@ def arange(*args, out: Optional[Tensor]=None, dtype: Optional[_dtype]=None, devi
   return mod(end, start, step, dtype, False)
 
 
+def randint(*args, dtype: Optional[_dtype]=None, **kwargs) -> Tensor:
+  low = kwargs.get("low", None)
+  high = kwargs.get("high", None)
+  size = kwargs.get("size", None)
+  if len(args) == 3:
+    low, high, size = args
+  elif len(args) == 2:
+    high, size = args
+    low = 0
+  assert None not in (low, high, size)
+  mod = modules.RandInt()
+  return mod(low, high, size, dtype)
+
+
 def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
   from .._C import from_numpy
   x = from_numpy(data)
