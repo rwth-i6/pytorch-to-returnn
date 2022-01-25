@@ -97,6 +97,7 @@ class Converter:
     self._torch_namespace = None  # type: Optional[Naming]
     self._out_returnn_np = None  # type: Optional[numpy.ndarray]
     self._returnn_net_dict = None  # type: Optional[Dict[str, Dict[str, Any]]]
+    self._non_deterministic_layer_outputs = None  # type: Optional[Dict[str, numpy.ndarray]]
 
   def _transform_inputs_data_kwargs(self,
                                     inputs: numpy.ndarray,
@@ -262,6 +263,7 @@ class Converter:
         torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
         print(">>>> Modules with params:")
         pprint(dict(torch_mods_with_params))
+        self._non_deterministic_layer_outputs = naming.non_deterministic_layer_outputs
 
       feed_dict = self._make_tf_feed_dict(x, out_returnn_)
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
@@ -320,10 +322,9 @@ class Converter:
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
       feed_dict = self._make_tf_feed_dict(x)
-      naming = Naming.get_instance()
       feed_dict.update({
         network.layers[layer_name].output.placeholder: value for layer_name, value in
-        naming.non_deterministic_layer_outputs.items()})
+        self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
@@ -365,10 +366,9 @@ class Converter:
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
       feed_dict = self._make_tf_feed_dict(x)
-      naming = Naming.get_instance()
       feed_dict.update({
         network.layers[layer_name].output.placeholder: value for layer_name, value in
-        naming.non_deterministic_layer_outputs.items()})
+        self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
