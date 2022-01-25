@@ -121,7 +121,7 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     torch.nn.Module: ExplicitWrappedType(torch.nn.Module, WrappedModuleBase, wrap=_raise_not_implemented),
   }
 
-  class Functional(torch.nn.Module):
+  class Functional(WrappedModuleBase):
     def __init__(self, func, func_name):
       super(Functional, self).__init__()
       self.func = func
@@ -130,7 +130,11 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     def forward(self, *args, **kwargs):
       return self.func(*args, **kwargs)
 
-  obj_map = {torch.randint: (Functional, (torch.randint, "randint"))}
+    @classmethod
+    def has_torch_forward(cls) -> bool:
+      return False
+
+  obj_map = {torch.randint: (Functional, (torch.randint, "RandInt"))}
 
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
