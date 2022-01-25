@@ -462,10 +462,18 @@ class Naming:
       for i, part_name in enumerate(name_parts):
         if part_name[:1] == "(" and part_name[-1:] == ")":
           part_name = part_name[1:-1]
-          possible_namespaces = [name_ for name_ in potential_namespaces if part_name in name_.childs_by_name]
-          assert possible_namespaces, (
+          potential_namespaces_ = []
+          for name_ in potential_namespaces:
+            if part_name in name_.childs_by_name:
+              potential_namespaces_.append(name_.childs_by_name[part_name])
+            else:  # look for explicitly wrapped objects using :class:`Functional`
+              for child_ in name_.childs_by_name.values():
+                for mod_ in child_.modules:
+                  if part_name in getattr(mod_.module, "func_name", ""):
+                    potential_namespaces_.append(child_)
+          assert potential_namespaces_, (
             f"{potential_namespaces} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}")
-          potential_namespaces = [name_.childs_by_name[part_name] for name_ in potential_namespaces]
+          potential_namespaces = potential_namespaces_
           potential_modules = []
           for name_ in potential_namespaces:
             for m in name_.modules:
