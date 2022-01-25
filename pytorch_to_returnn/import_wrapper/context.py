@@ -25,7 +25,7 @@ class WrapCtx:
       These will not be wrapped using :class:`WrappedModule` but can map to some other namespace.
     :param keep_as_is_types: e.g. {torch.device, torch.dtype, torch.Size}
     :param explicit_wrapped_types: e.g. {torch.Tensor: ExplicitWrappedType(WrappedTorchTensor...)}
-    :param explicit_wrapped_objects: e.g. {torch.randint: lambda func: Functional(func, "randint")}
+    :param explicit_wrapped_objects: e.g. {torch.randint: _make_wrapped_func}
     """
     assert wrapped_mod_prefix.endswith(".")
     self.wrapped_mod_prefix = wrapped_mod_prefix
@@ -98,7 +98,7 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
   which keep track of the tensors, and create names using the :class:`Naming` logic.
   """
   import torch
-  from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase
+  from .torch_wrappers import WrappedTorchTensor, WrappedTorchParameter, WrappedModuleBase, Functional
 
   _KeepAsIsTypes = (
     torch.device,
@@ -121,20 +121,13 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     torch.nn.Module: ExplicitWrappedType(torch.nn.Module, WrappedModuleBase, wrap=_raise_not_implemented),
   }
 
-  class Functional(WrappedModuleBase):
-    def __init__(self, func, func_name):
-      super(Functional, self).__init__()
-      self.func = func
-      self.func_name = func_name
+  from .base_wrappers import make_wrapped_function, make_wrapped_class
+  def _make_wrapped_func(obj, ctx: WrapCtx, name: str):
+    wrapped_func = make_wrapped_function(obj, name=name, ctx=ctx)
+    wrapped_class = make_wrapped_class(Functional, name="_.Functional", ctx=ctx)
+    return wrapped_class(func=wrapped_func, func_name=name)
 
-    def forward(self, *args, **kwargs):
-      return self.func(*args, **kwargs)
-
-    @classmethod
-    def has_torch_forward(cls) -> bool:
-      return False
-
-  obj_map = {torch.randint: (Functional, (torch.randint, "RandInt"))}
+  _ObjMap = {torch.randint: _make_wrapped_func}
 
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
@@ -142,7 +135,7 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     wrap_mods_indirect=_TorchExplicitIndirectModList,
     keep_as_is_types=_KeepAsIsTypes,
     explicit_wrapped_types=_TypeMap,
-    explicit_wrapped_objects=obj_map)
+    explicit_wrapped_objects=_ObjMap)
 
 
 _TorchExplicitIndirectModList = {
