@@ -1,5 +1,5 @@
 
-from collections import OrderedDict, Counter
+from collections import OrderedDict, Counter, Hashable
 import types
 from typing import Tuple
 import importlib
@@ -14,8 +14,11 @@ def wrap(obj, *, name: str, ctx: WrapCtx):
     return obj
   if isinstance(obj, ctx.keep_as_is_types):
     return obj
-  if obj in ctx.explicit_wrapped_objects:
-    obj = make_wrapped_object(ctx.explicit_wrapped_objects[obj], name=name, ctx=ctx)
+  if isinstance(obj, Hashable) and obj in ctx.explicit_wrapped_objects:
+    func, args = ctx.explicit_wrapped_objects[obj]
+    args = [make_wrapped_function(arg, name=name, ctx=ctx) if isinstance(arg, _FuncTypes) else arg for arg in args]
+    wrapped_class = make_wrapped_class(func, name=name, ctx=ctx)
+    obj = wrapped_class(*args)
   obj = _nested_transform(obj, lambda _x: wrap(_x, name="%s..." % name, ctx=ctx))
 
   if isinstance(obj, types.ModuleType):

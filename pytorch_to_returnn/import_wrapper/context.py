@@ -130,7 +130,7 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     def forward(self, *args, **kwargs):
       return self.func(*args, **kwargs)
 
-  obj_map = {torch.randint: Functional(torch.randint, "randint")}
+  obj_map = {torch.randint: (Functional, (torch.randint, "randint"))}
 
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
