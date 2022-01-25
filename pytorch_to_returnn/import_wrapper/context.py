@@ -9,7 +9,8 @@ class WrapCtx:
                wrap_mods_direct: Set[str] = None, wrap_mods_indirect: Set[str] = None,
                wrap_mods_alternatives: Dict[str, str] = None,
                keep_as_is_types: Iterable[type] = (),
-               explicit_wrapped_types: Dict[type, "ExplicitWrappedType"] = None):
+               explicit_wrapped_types: Dict[type, "ExplicitWrappedType"] = None,
+               explicit_wrapped_objects: Dict[Callable, Callable] = None):
     """
     :param wrapped_mod_prefix: e.g. "pytorch_to_returnn._wrapped_mods."
     :param wrap_mods_direct: e.g. {"torch.nn.modules"}
@@ -24,6 +25,7 @@ class WrapCtx:
       These will not be wrapped using :class:`WrappedModule` but can map to some other namespace.
     :param keep_as_is_types: e.g. {torch.device, torch.dtype, torch.Size}
     :param explicit_wrapped_types: e.g. {torch.Tensor: ExplicitWrappedType(WrappedTorchTensor...)}
+    :param explicit_wrapped_objects: e.g. {torch.randint: lambda func: Functional(func, "randint")}
     """
     assert wrapped_mod_prefix.endswith(".")
     self.wrapped_mod_prefix = wrapped_mod_prefix
@@ -40,6 +42,7 @@ class WrapCtx:
     if explicit_wrapped_types is None:
       explicit_wrapped_types = {}  # type: Dict[type, "ExplicitWrappedType"]
     self.explicit_wrapped_types = explicit_wrapped_types
+    self.explicit_wrapped_objects = explicit_wrapped_objects
     self.mod_map = self._make_mod_map()
 
   def __repr__(self):
@@ -118,12 +121,18 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     torch.nn.Module: ExplicitWrappedType(torch.nn.Module, WrappedModuleBase, wrap=_raise_not_implemented),
   }
 
+  class Functional(WrappedModuleBase):
+    pass
+
+  obj_map = {torch.randint: lambda func: Functional(func, "randint")}
+
   return WrapCtx(
     wrapped_mod_prefix=wrapped_mod_prefix,
     wrap_mods_direct=_TorchExplicitDirectModList,
     wrap_mods_indirect=_TorchExplicitIndirectModList,
     keep_as_is_types=_KeepAsIsTypes,
-    explicit_wrapped_types=_TypeMap)
+    explicit_wrapped_types=_TypeMap,
+    explicit_wrapped_objects=obj_map)
 
 
 _TorchExplicitIndirectModList = {
