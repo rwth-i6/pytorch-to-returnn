@@ -171,9 +171,10 @@ class CallEntry:
           for tensor_returnn, tensor_torch in zip(self.outputs_flat, torch_mod_call.orig_outputs_flat):
             if tensor_returnn:
               tensor_returnn.validated_to_torch = True
+              if not tensor_returnn.validated_to_torch_tf_feed_dict:
+                tensor_returnn.validated_to_torch_tf_feed_dict = {}
               torch_np = tensor_torch.detach().cpu().numpy()
-              tensor_returnn.validated_to_torch_tf_feed_dict[
-              tensor_returnn.returnn_data.placeholder] = torch_np
+              tensor_returnn.validated_to_torch_tf_feed_dict[tensor_returnn.returnn_data.placeholder] = torch_np
         if not layer.get_absolute_name().startswith("."):  # temp layer
           if module.is_original_torch_module and not module.has_torch_forward():
             if list(module.parameters(recurse=False)):
