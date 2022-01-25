@@ -72,6 +72,10 @@ class RandInt(Module):
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
     return torch_shape, returnn_axis_from_torch_axis
 
+  def get_returnn_name(self) -> str:
+    # Used to allow finding this module in the namespace
+    return "randint"
+
 
 class Cat(Module):
   is_original_torch_module = False
