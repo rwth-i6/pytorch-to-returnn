@@ -21,6 +21,7 @@ class Naming:
   modules: OrderedDict[_types.Module, _module.ModuleEntry]
   inputs: List[_tensor.TensorEntry]
   outputs: List[_tensor.TensorEntry]
+  non_deterministic_layer_outputs: Dict[str, numpy.ndarray] = {}
   module_creation_stack: List[_module.ModuleEntry]
   module_apply_stack: List[_module.ModuleEntry]
   module_context_stack: List[_module.ModuleEntry]

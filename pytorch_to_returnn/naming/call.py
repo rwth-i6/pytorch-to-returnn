@@ -175,6 +175,7 @@ class CallEntry:
                 tensor_returnn.validated_to_torch_tf_feed_dict = {}
               torch_np = tensor_torch.detach().cpu().numpy()
               tensor_returnn.validated_to_torch_tf_feed_dict[tensor_returnn.returnn_data.placeholder] = torch_np
+              naming.non_deterministic_layer_outputs[layer.get_absolute_name()] = torch_np
         if not layer.get_absolute_name().startswith("."):  # temp layer
           if module.is_original_torch_module and not module.has_torch_forward():
             if list(module.parameters(recurse=False)):
