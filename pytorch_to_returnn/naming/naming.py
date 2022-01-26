@@ -458,7 +458,7 @@ class Naming:
     This is the inverse of :func:`get_module_abs_id_name`.
     """
     from ..import_wrapper.torch_wrappers import Functional
-    
+
     potential_namespaces = [self.root_namespace]
     potential_modules = [m for m in self.root_namespace.modules]
     if name:
