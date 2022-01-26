@@ -158,22 +158,21 @@ class Converter:
       for i, size in input.size_placeholder.items():
         d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
     if out_entry:
-      visited_entries = set()
       non_deterministic_tensor_entries =  []
-
-      def _get_non_deterministic_tensor_entries(entry_: TensorEntry):
-        """
-        Go recursively through all tensor entries to find non deterministic ones
-        """
+      entries_to_visit = [out_entry]
+      visited_entries = set()
+      while entries_to_visit:
+        entry_ = entries_to_visit.pop(0)
+        if entry_ in visited_entries:
+          continue
+        visited_entries.add(entry_)
         if not all(call_.module.module.is_deterministic for call_ in entry_.output_from_calls):
           non_deterministic_tensor_entries.append(entry_)
         for call_ in entry_.output_from_calls:
           for prev_entry_ in [pe for pe in call_.inputs_args if isinstance(pe, TensorEntry)]:
-            if prev_entry_ != entry_ and prev_entry_ not in visited_entries:
-              visited_entries.add(prev_entry_)
-              _get_non_deterministic_tensor_entries(prev_entry_)
+            if prev_entry_ not in visited_entries:
+              entries_to_visit.append(prev_entry_)
 
-      _get_non_deterministic_tensor_entries(out_entry)
       for entry in non_deterministic_tensor_entries:
         if not all(call_.module.module.is_deterministic for call_ in entry.output_from_calls):
           assert entry.validated_to_torch_tf_feed_dict is not None
