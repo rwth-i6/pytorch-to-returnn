@@ -103,19 +103,14 @@ class TensorEntry:
     if axis == self.returnn_data.feature_dim_axis:
       return "F"
     dim_tag = self.returnn_data.get_dim_tag(axis)
-    if dim_tag.dyn_size is not None:
-      axes_with_same_dim_tag = [ax for ax in range(ndim) if dim_tag == self.returnn_data.get_dim_tag(ax)]
-      if len(axes_with_same_dim_tag) == 1:
-        return f"stag:{dim_tag.description}"
-      else:
-        return f"stag-single:{axes_with_same_dim_tag.index(axis) - len(axes_with_same_dim_tag)}:{dim_tag.description}"
+    axes_with_same_dim_tag = [ax for ax in range(ndim) if dim_tag == self.returnn_data.get_dim_tag(ax)]
     static_axes = self.returnn_data.get_static_axes()
-    if axis in static_axes:
-      return f"static:{static_axes.index(axis)}"
-    spatial_axes = self.returnn_data.get_spatial_batch_axes()
-    if axis in spatial_axes:
-      return f"spatial:{spatial_axes.index(axis)}"
-    raise Exception(f"Should not get here. Dim tag {dim_tag} for axis {axis} for data {self.returnn_data}")
+    if len(axes_with_same_dim_tag) == 1:
+      return f"stag:{dim_tag.description}"
+    if axis in static_axes and len(static_axes) == 1:
+      return f"dim:{dim_tag.description}"
+    else:
+      return f"stag-single:{axes_with_same_dim_tag.index(axis) - len(axes_with_same_dim_tag)}:{dim_tag.description}"
 
   @property
   def torch_axis_from_returnn_axis(self) -> Dict[int, int]:
