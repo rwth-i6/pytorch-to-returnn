@@ -1,9 +1,9 @@
 from .module import WrappedModuleBase
 
 
-class Functional(WrappedModuleBase):
+class WrappedTorchFunction(WrappedModuleBase):
   def __init__(self, func, func_name):
-    super(Functional, self).__init__()
+    super(WrappedTorchFunction, self).__init__()
     self.func = func
     self.func_name = func_name
 
