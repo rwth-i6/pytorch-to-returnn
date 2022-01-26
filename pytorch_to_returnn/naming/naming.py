@@ -457,6 +457,8 @@ class Naming:
     """
     This is the inverse of :func:`get_module_abs_id_name`.
     """
+    from ..import_wrapper.torch_wrappers import Functional
+    
     potential_namespaces = [self.root_namespace]
     potential_modules = [m for m in self.root_namespace.modules]
     if name:
@@ -471,7 +473,7 @@ class Naming:
             else:  # look for explicitly wrapped objects using :class:`Functional`
               for child_ in name_.childs_by_name.values():
                 for mod_ in child_.modules:
-                  if part_name in getattr(mod_.module, "func_name", ""):
+                  if isinstance(mod_.module, Functional) and part_name in mod_.module.func_name:
                     potential_namespaces_.append(child_)
           assert potential_namespaces_, (
             f"{potential_namespaces} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}")
