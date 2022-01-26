@@ -27,8 +27,11 @@ class ReturnnContext:
       self._dummy_sub_output = self.sub_net_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
+        "behavior_version": 12,
         # "debug_print_layer_output_template": True,
       })
+      from returnn.util import BehaviorVersion
+      BehaviorVersion.set(self.config.int("behavior_version", None))
       self.tf_name_scope = ""
       self.sub_net_layer = None
       self._dummy_sub_output = None

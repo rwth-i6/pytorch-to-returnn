@@ -317,6 +317,7 @@ class Converter:
       config = Config({
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
+        "behavior_version": 12,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(self._returnn_net_dict)
@@ -361,6 +362,7 @@ class Converter:
       config = Config({
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
+        "behavior_version": 12,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(net_dict)
