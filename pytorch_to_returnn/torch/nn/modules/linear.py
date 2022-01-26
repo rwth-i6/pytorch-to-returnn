@@ -61,7 +61,6 @@ class Linear(Module):
       layer.params["b"].load(torch_module.bias.detach().numpy(), session=session)
 
 
-
 class Matmul(Module):
   """
   Maps to RETURNN DotLayer
@@ -121,6 +120,41 @@ class Matmul(Module):
           assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
 
     return {"class": "dot", "red1": red1, "red2": red2, "var1": var1, "var2": var2, "from": sources}
+
+
+class DotProductAlongDim(Module):
+  """
+  Maps to RETURNN DotLayer for a special case
+  """
+  is_original_torch_module = False
+
+  def __init__(self, dim: int):
+    super(DotProductAlongDim, self).__init__()
+    self.dim = dim
+
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    assert len(inputs_flat) == 2
+    input1, input2 = inputs_flat
+    assert all(isinstance(input_, Tensor) for input_ in [input1, input2])
+    assert all(len(input_.shape) >= 2 for input_ in [input1, input2]), "not implemented otherwise"
+
+    shape = input1.shape
+    assert input2.shape == shape, "not implemented otherwise"  # could e.g. consider broadcasting axes
+    del shape[self.dim]
+    shape = tuple(shape)
+    returnn_axis_from_torch_axis = {i: i for i in range(len(shape))}
+    return shape, returnn_axis_from_torch_axis
+
+  def create_returnn_layer_dict(self, *inputs: Tensor, **kwargs) -> Dict[str, Any]:
+    sources = [self._get_input_layer_name(source) for source in inputs]
+    assert len(sources) == 2
+
+    assert inputs[0].shape == inputs[1].shape
+    dim0 = self._get_input_axis_to_returnn(inputs[0], self.dim)
+    dim1 = self._get_input_axis_to_returnn(inputs[1], self.dim)
+    assert dim0 == dim1
+    return {"class": "dot", "red1": dim0, "red2": dim1, "from": sources}
 
 
 __all__ = [
