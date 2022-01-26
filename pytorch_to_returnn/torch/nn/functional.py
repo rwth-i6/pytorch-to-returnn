@@ -178,6 +178,9 @@ def as_tensor(data: Union[Tensor, _number],
 def is_tensor(obj) -> bool:
   return isinstance(obj, Tensor)
 
+def minimum(input: Tensor, other: Tensor, *, out=None) -> Tensor:
+  return modules.Minimum()(input, other)
+
 
 def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
   return modules.Reduce(mode="sum", axes=dim)(input)
@@ -807,9 +810,9 @@ def multi_head_attention_forward(
     return attn_output, None
 
 
-def cosine_similarity(x1: Tensor, x2: Tensor, dim: Optional[int] = 1, eps: float=1e-8) -> Tensor:
+def cosine_similarity(x1: Tensor, x2: Tensor, dim: int=1, eps: float=1e-8) -> Tensor:
   numerator = modules.Dot()(x1, x2, reduce_dim_a=dim, reduce_dim_b=dim)
-  inv_denominator = min(cat([rsqrt(pow(x1, 2).sum() * pow(x2, 2).sum()), tensor(eps ** -1)]))
+  inv_denominator = minimum(rsqrt(pow(x1, 2).sum() * pow(x2, 2).sum()), tensor(eps ** -1))
   return numerator * inv_denominator
 
 
