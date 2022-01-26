@@ -139,8 +139,8 @@ class DotProductAlongDim(Module):
     assert all(isinstance(input_, Tensor) for input_ in [input1, input2])
     assert all(len(input_.shape) >= 2 for input_ in [input1, input2]), "not implemented otherwise"
 
-    shape = input1.shape
-    assert input2.shape == shape, "not implemented otherwise"  # could e.g. consider broadcasting axes
+    assert input1.shape == input2.shape, "not implemented otherwise"  # could e.g. consider broadcasting axes
+    shape = list(input1.shape)
     del shape[self.dim]
     shape = tuple(shape)
     returnn_axis_from_torch_axis = {i: i for i in range(len(shape))}
