@@ -96,7 +96,7 @@ class _BatchNorm(_NormBase):
     return {
       "class": "batch_norm", "from": self._get_input_layer_name(input),
       "update_sample_only_in_training": True, "delay_sample_update": True,
-      "param_version": 1, "masked_time": False,
+      "param_version": 2, "masked_time": False,
       "momentum": self.momentum, "epsilon": self.eps}
 
 
