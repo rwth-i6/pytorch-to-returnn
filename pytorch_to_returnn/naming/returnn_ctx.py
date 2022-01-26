@@ -20,7 +20,8 @@ class ReturnnContext:
       self.sub_net_layer = parent.network.construct_layer(
         name=name,
         # This is just a placeholder, will be replaced in define_output.
-        net_dict={name: {"class": "subnetwork", "from": "data", "subnetwork": {"output": {"class": "copy"}}}})
+        net_dict={name: {"class": "subnetwork", "from": "data", "subnetwork": {
+          "output": {"class": "copy", "from": "data"}}}})
       assert isinstance(self.sub_net_layer, SubnetworkLayer)
       if name.startswith("."):  # temp sub net
         # We do not want that the parent net finds it.
