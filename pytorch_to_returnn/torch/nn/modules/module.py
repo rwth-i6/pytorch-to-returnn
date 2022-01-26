@@ -54,6 +54,7 @@ class Module:
   # All derived classes here, which exist in PyTorch as well (e.g. torch.nn.Conv1d etc),
   # should have this set to True.
   is_original_torch_module: bool = True
+  is_deterministic: bool = True  # for non-deterministic modules, save output and add it to feed dict to stay comparable
   _forward_feed_dict_deps: bool = False  # for internal usage
 
   _wrapped_class_cache = {}  # cls -> WrappedClass

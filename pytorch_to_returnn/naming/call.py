@@ -160,6 +160,22 @@ class CallEntry:
         f"[{','.join(layer.output.get_batch_axes_short_description())}]")
 
       if naming.import_params_from_torch_namespace and layer:
+        if not module.is_deterministic:
+          mod_abs_name = naming.get_module_abs_id_name(module)
+          torch_mod = naming.import_params_from_torch_namespace.get_module_by_abs_id_name(mod_abs_name)
+          torch_mod_calls = naming.import_params_from_torch_namespace.get_module_calls(torch_mod)
+          call_idx = naming.get_module_call_idx(module=module, call=self)
+          assert call_idx < len(torch_mod_calls)
+          torch_mod_call = torch_mod_calls[call_idx]
+          assert len(torch_mod_call.orig_outputs_flat) == len(self.outputs_flat)
+          for tensor_returnn, tensor_torch in zip(self.outputs_flat, torch_mod_call.orig_outputs_flat):
+            if tensor_returnn:
+              tensor_returnn.validated_to_torch = True
+              if not tensor_returnn.validated_to_torch_tf_feed_dict:
+                tensor_returnn.validated_to_torch_tf_feed_dict = {}
+              torch_np = tensor_torch.detach().cpu().numpy()
+              tensor_returnn.validated_to_torch_tf_feed_dict[tensor_returnn.returnn_data.placeholder] = torch_np
+              naming.non_deterministic_layer_outputs[layer.get_absolute_name()] = torch_np
         if not layer.get_absolute_name().startswith("."):  # temp layer
           if module.is_original_torch_module and not module.has_torch_forward():
             if list(module.parameters(recurse=False)):

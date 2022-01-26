@@ -46,6 +46,37 @@ class Range(Module):
     return torch_shape, returnn_axis_from_torch_axis
 
 
+class RandInt(Module):
+  is_original_torch_module = False
+  is_deterministic = False
+
+  def create_returnn_layer_dict(self, low, high, size, dtype=None) -> Dict[str, Any]:
+    dtype = dtype or "int64"
+    assert isinstance(low, int)
+    assert isinstance(high, int)
+    assert all(isinstance(sz, int) for sz in size)
+    return {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
+
+  def _get_output_shape_from_returnn(self,
+                                     inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    _, _, *size, _ = inputs_flat
+
+    def _to_int(x: Union[Tensor, int]):
+      if isinstance(x, Tensor):
+        assert x.is_defined
+        x = x.numpy()
+      return x
+
+    torch_shape = tuple(_to_int(sz) for sz in size)
+    returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
+    return torch_shape, returnn_axis_from_torch_axis
+
+  def get_returnn_name(self) -> str:
+    # Used to allow finding this module in the namespace
+    return "randint"
+
+
 class Cat(Module):
   is_original_torch_module = False
 

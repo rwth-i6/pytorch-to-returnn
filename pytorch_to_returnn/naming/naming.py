@@ -21,6 +21,7 @@ class Naming:
   modules: OrderedDict[_types.Module, _module.ModuleEntry]
   inputs: List[_tensor.TensorEntry]
   outputs: List[_tensor.TensorEntry]
+  non_deterministic_layer_outputs: Dict[str, numpy.ndarray]
   module_creation_stack: List[_module.ModuleEntry]
   module_apply_stack: List[_module.ModuleEntry]
   module_context_stack: List[_module.ModuleEntry]
@@ -75,6 +76,7 @@ class Naming:
     self.modules = OrderedDict()
     self.inputs = []
     self.outputs = []
+    self.non_deterministic_layer_outputs = {}
     self.module_context_stack = []
     self.module_creation_stack = []
     self.module_apply_stack = []
@@ -455,6 +457,8 @@ class Naming:
     """
     This is the inverse of :func:`get_module_abs_id_name`.
     """
+    from ..import_wrapper.torch_wrappers import WrappedTorchFunction
+
     potential_namespaces = [self.root_namespace]
     potential_modules = [m for m in self.root_namespace.modules]
     if name:
@@ -462,10 +466,18 @@ class Naming:
       for i, part_name in enumerate(name_parts):
         if part_name[:1] == "(" and part_name[-1:] == ")":
           part_name = part_name[1:-1]
-          possible_namespaces = [name_ for name_ in potential_namespaces if part_name in name_.childs_by_name]
-          assert possible_namespaces, (
+          potential_namespaces_ = []
+          for name_ in potential_namespaces:
+            if part_name in name_.childs_by_name:
+              potential_namespaces_.append(name_.childs_by_name[part_name])
+            else:  # look for explicitly wrapped objects using :class:`WrappedTorchFunction`
+              for child_ in name_.childs_by_name.values():
+                for mod_ in child_.modules:
+                  if isinstance(mod_.module, WrappedTorchFunction) and part_name in mod_.module.func_name:
+                    potential_namespaces_.append(child_)
+          assert potential_namespaces_, (
             f"{potential_namespaces} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}")
-          potential_namespaces = [name_.childs_by_name[part_name] for name_ in potential_namespaces]
+          potential_namespaces = potential_namespaces_
           potential_modules = []
           for name_ in potential_namespaces:
             for m in name_.modules:

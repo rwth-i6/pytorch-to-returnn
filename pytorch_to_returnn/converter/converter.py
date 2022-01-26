@@ -12,7 +12,7 @@ from returnn.tf.util.data import Data, Dim, batch_dim
 from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
 from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
-from pytorch_to_returnn.naming import Naming
+from pytorch_to_returnn.naming import Naming, TensorEntry
 
 
 ModelFuncType = Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor]
@@ -97,6 +97,7 @@ class Converter:
     self._torch_namespace = None  # type: Optional[Naming]
     self._out_returnn_np = None  # type: Optional[numpy.ndarray]
     self._returnn_net_dict = None  # type: Optional[Dict[str, Dict[str, Any]]]
+    self._non_deterministic_layer_outputs = None  # type: Optional[Dict[str, numpy.ndarray]]
 
   def _transform_inputs_data_kwargs(self,
                                     inputs: numpy.ndarray,
@@ -144,7 +145,7 @@ class Converter:
     assert self._returnn_net_dict, "Call run() first."
     return self._returnn_net_dict
 
-  def _make_tf_feed_dict(self, input: Data):
+  def _make_tf_feed_dict(self, input: Data, out_entry: Optional[TensorEntry] = None):
     assert input.batch_ndim == len(self._inputs_np.shape)
     assert all(input.batch_shape[i] in {None, self._inputs_np.shape[i]} for i in range(input.batch_ndim))
     n_batch = 1 if input.batch_dim_axis is None else self._inputs_np.shape[input.batch_dim_axis]
@@ -156,6 +157,27 @@ class Converter:
     else:
       for i, size in input.size_placeholder.items():
         d[size] = [self._inputs_np.shape[input.get_batch_axis(i)]] * n_batch  # not so relevant
+    if out_entry:
+      non_deterministic_tensor_entries =  []
+      entries_to_visit = [out_entry]
+      visited_entries = set()
+      while entries_to_visit:
+        entry_ = entries_to_visit.pop(0)
+        if entry_ in visited_entries:
+          continue
+        visited_entries.add(entry_)
+        if not all(call_.module.module.is_deterministic for call_ in entry_.output_from_calls):
+          non_deterministic_tensor_entries.append(entry_)
+          continue
+        for call_ in entry_.output_from_calls:
+          for prev_entry_ in call_.inputs_tensor_deps:
+            if prev_entry_ not in visited_entries:
+              entries_to_visit.append(prev_entry_)
+
+      for entry in non_deterministic_tensor_entries:
+        if not all(call_.module.module.is_deterministic for call_ in entry.output_from_calls):
+          assert entry.validated_to_torch_tf_feed_dict is not None
+          d.update(entry.validated_to_torch_tf_feed_dict)
     return d
 
   def _run_reference(self):
@@ -244,8 +266,9 @@ class Converter:
         torch_mods_with_params = naming.get_modules_with_params_by_abs_name()
         print(">>>> Modules with params:")
         pprint(dict(torch_mods_with_params))
+        self._non_deterministic_layer_outputs = naming.non_deterministic_layer_outputs
 
-      feed_dict = self._make_tf_feed_dict(x)
+      feed_dict = self._make_tf_feed_dict(x, out_returnn_)
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       self._out_returnn_np = y_
@@ -302,6 +325,9 @@ class Converter:
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
       feed_dict = self._make_tf_feed_dict(x)
+      feed_dict.update({
+        network.layers[layer_name].output.placeholder: value for layer_name, value in
+        self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
@@ -343,6 +369,9 @@ class Converter:
       x = network.extern_data.get_default_input_data()
       y = network.get_default_output_layer().output
       feed_dict = self._make_tf_feed_dict(x)
+      feed_dict.update({
+        network.layers[layer_name].output.placeholder: value for layer_name, value in
+        self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
