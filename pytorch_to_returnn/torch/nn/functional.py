@@ -800,8 +800,7 @@ def multi_head_attention_forward(
 
 
 def cosine_similarity(x1: Tensor, x2: Tensor, dim: Optional[int] = 1, eps: Optional[float] = 1e-8) -> Tensor:
-  mod = modules.DotProductAlongDim(dim=dim)
-  numerator = mod(x1, x2)
+  numerator = modules.Dot()(x1, x2, dim, dim)
   denominator = sqrt(pow(x1, 2).sum() * pow(x2, 2).sum())
   return numerator / denominator
 
