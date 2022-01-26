@@ -178,6 +178,9 @@ def as_tensor(data: Union[Tensor, _number],
 def is_tensor(obj) -> bool:
   return isinstance(obj, Tensor)
 
+def minimum(input: Tensor, other: Tensor, *, out=None) -> Tensor:
+  return modules.Minimum()(input, other)
+
 
 def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
   return modules.Reduce(mode="sum", axes=dim)(input)
@@ -185,6 +188,10 @@ def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
 
 def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
   return modules.Reduce(mode="max", axes=dim)(input)
+
+
+def min(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  return modules.Reduce(mode="min", axes=dim)(input)
 
 
 def add(x: Tensor, y: Tensor) -> Tensor:
@@ -473,6 +480,10 @@ def leaky_relu(input: Tensor, negative_slope: float = 0.01, inplace: bool = Fals
 
 def sqrt(input: Tensor) -> Tensor:
   return modules.Sqrt().as_returnn_torch_functional()(input)
+
+
+def rsqrt(input: Tensor) -> Tensor:
+  return modules.Rsqrt().as_returnn_torch_functional()(input)
 
 
 def tanh(input: Tensor) -> Tensor:
@@ -797,6 +808,12 @@ def multi_head_attention_forward(
     return attn_output, attn_output_weights.sum(dim=1) / num_heads
   else:
     return attn_output, None
+
+
+def cosine_similarity(x1: Tensor, x2: Tensor, dim: int=1, eps: float=1e-8) -> Tensor:
+  numerator = modules.Dot()(x1, x2, reduce_dim_a=dim, reduce_dim_b=dim)
+  inv_denominator = minimum(rsqrt(pow(x1, 2).sum(dim=dim) * pow(x2, 2).sum(dim=dim)), tensor(eps ** -1))
+  return numerator * inv_denominator
 
 
 def mse_loss():

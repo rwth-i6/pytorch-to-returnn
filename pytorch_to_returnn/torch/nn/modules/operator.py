@@ -172,6 +172,16 @@ class ComparisonOperator(BinaryOperator):
       "from": [self._get_input_layer_name(input) for input in inputs]}
 
 
+class Minimum(Module):
+  is_original_torch_module = False
+
+  def create_returnn_layer_dict(self, *inputs: Tensor):
+    inputs, out_shape = _unify_tensor_axes_returnn_meta(*inputs)
+    return {
+      "class": "eval", "eval": "tf.minimum(source(0), source(1))",
+      "from": [self._get_input_layer_name(input) for input in inputs]}
+
+
 class Reciprocal(Module):
   """
   1/x or 1/max(eps,x)

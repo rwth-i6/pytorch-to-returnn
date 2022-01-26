@@ -1005,6 +1005,26 @@ def test_multi_head_attention_forward():
     "time_dim_axis": 0, "batch_dim_axis": 1, "feature_dim_axis": 2, "shape": (None, n_feature)})
 
 
+def test_cosine_similarity():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    x = inputs
+    y = inputs + 1
+    ref = torch.cosine_similarity(x, y, dim=2)
+    return ref
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_unsqueeze():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7

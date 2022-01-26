@@ -36,6 +36,10 @@ class Sqrt(_ActivationReturnn):
   func_name = "sqrt"
 
 
+class Rsqrt(_ActivationReturnn):
+  func_name = "rsqrt"
+
+
 class Tanh(_ActivationReturnn):
   func_name = "tanh"
 

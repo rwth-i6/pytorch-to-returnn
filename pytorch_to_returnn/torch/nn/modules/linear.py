@@ -61,7 +61,6 @@ class Linear(Module):
       layer.params["b"].load(torch_module.bias.detach().numpy(), session=session)
 
 
-
 class Matmul(Module):
   """
   Maps to RETURNN DotLayer
@@ -121,6 +120,20 @@ class Matmul(Module):
           assert shape1[ax] == shape2[ax], f"dimensions are not broadcastable: {inputs[0].shape} vs. {inputs[1].shape}"
 
     return {"class": "dot", "red1": red1, "red2": red2, "var1": var1, "var2": var2, "from": sources}
+
+
+class Dot(Module):
+  """
+  Maps to RETURNN DotLayer for a special case
+  """
+  is_original_torch_module = False
+
+  def create_returnn_layer_dict(self, a: Tensor, b: Tensor, *, reduce_dim_a: int, reduce_dim_b: int) -> Dict[str, Any]:
+    assert a.shape == b.shape
+    dim0 = self._get_input_axis_to_returnn(a, reduce_dim_a)
+    dim1 = self._get_input_axis_to_returnn(a, reduce_dim_b)
+    sources = [self._get_input_layer_name(source) for source in [a, b]]
+    return {"class": "dot", "red1": dim0, "red2": dim1, "from": sources}
 
 
 __all__ = [
