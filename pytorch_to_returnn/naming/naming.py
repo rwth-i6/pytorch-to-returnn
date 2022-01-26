@@ -21,7 +21,7 @@ class Naming:
   modules: OrderedDict[_types.Module, _module.ModuleEntry]
   inputs: List[_tensor.TensorEntry]
   outputs: List[_tensor.TensorEntry]
-  non_deterministic_layer_outputs: Dict[str, numpy.ndarray] = {}
+  non_deterministic_layer_outputs: Dict[str, numpy.ndarray]
   module_creation_stack: List[_module.ModuleEntry]
   module_apply_stack: List[_module.ModuleEntry]
   module_context_stack: List[_module.ModuleEntry]
@@ -76,6 +76,7 @@ class Naming:
     self.modules = OrderedDict()
     self.inputs = []
     self.outputs = []
+    self.non_deterministic_layer_outputs = {}
     self.module_context_stack = []
     self.module_creation_stack = []
     self.module_apply_stack = []
