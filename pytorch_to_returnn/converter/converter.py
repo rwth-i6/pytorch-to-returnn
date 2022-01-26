@@ -170,8 +170,9 @@ class Converter:
           non_deterministic_tensor_entries.append(entry_)
           continue
         for call_ in entry_.output_from_calls:
-          for prev_entry_ in [pe for pe in call_.inputs_tensor_deps if pe not in visited_entries]:
-            entries_to_visit.append(prev_entry_)
+          for prev_entry_ in call_.inputs_tensor_deps:
+            if prev_entry_ not in visited_entries:
+              entries_to_visit.append(prev_entry_)
 
       for entry in non_deterministic_tensor_entries:
         if not all(call_.module.module.is_deterministic for call_ in entry.output_from_calls):
