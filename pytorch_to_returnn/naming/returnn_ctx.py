@@ -6,6 +6,8 @@ from returnn.tf.network import TFNetwork, ExternData
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from . import tensor as _tensor
 
+returnn_behavior_version = 12
+
 
 class ReturnnContext:
   def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None, returnn_train_flag: bool):
@@ -18,7 +20,8 @@ class ReturnnContext:
       self.sub_net_layer = parent.network.construct_layer(
         name=name,
         # This is just a placeholder, will be replaced in define_output.
-        net_dict={name: {"class": "subnetwork", "from": "data", "subnetwork": {"output": {"class": "copy"}}}})
+        net_dict={name: {"class": "subnetwork", "from": "data", "subnetwork": {
+          "output": {"class": "copy", "from": "data"}}}})
       assert isinstance(self.sub_net_layer, SubnetworkLayer)
       if name.startswith("."):  # temp sub net
         # We do not want that the parent net finds it.
@@ -27,8 +30,11 @@ class ReturnnContext:
       self._dummy_sub_output = self.sub_net_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
+        "behavior_version": returnn_behavior_version,
         # "debug_print_layer_output_template": True,
       })
+      from returnn.util import BehaviorVersion
+      BehaviorVersion.set(self.config.int("behavior_version", None))
       self.tf_name_scope = ""
       self.sub_net_layer = None
       self._dummy_sub_output = None

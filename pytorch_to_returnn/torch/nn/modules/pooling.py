@@ -32,7 +32,9 @@ class _MaxPoolNd(Module):
       "pool_size": self.kernel_size,
       "dilation_rate": self.dilation,
       "strides": self.stride,
-      "padding": "valid"}
+      "padding": "valid",
+      "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
+    }
 
 
 class MaxPool1d(_MaxPoolNd):

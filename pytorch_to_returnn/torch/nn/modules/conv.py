@@ -84,7 +84,9 @@ class _ConvNd(Module):
       "with_bias": self.bias is not None,
       "n_out": self.out_channels,
       "filter_size": self.kernel_size,
-      "padding": "valid"}
+      "padding": "valid",
+      "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
+    }
     if any(s != 1 for s in self.stride):
       d["strides"] = self.stride
     if any(d != 1 for d in self.dilation):
@@ -202,7 +204,9 @@ class _ConvTransposeNd(_ConvNd):
       "filter_size": self.kernel_size,
       "strides": self.stride,
       "padding": "valid",
-      "output_padding": self.output_padding}
+      "output_padding": self.output_padding,
+      "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
+    }
     if self.padding:
       d["remove_padding"] = self.padding
     return d
@@ -326,7 +330,9 @@ class _FunctionalConvNd(Module):
         "padding": "valid",
         "output_padding": self.output_padding,
         "remove_padding": self.padding,
-        "strides": self.stride}
+        "strides": self.stride,
+        "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
+      }
     else:
       assert all(p == 0 for p in self.padding)  # not implemented otherwise
       assert all(p == 0 for p in self.output_padding)  # not implemented otherwise
@@ -341,7 +347,9 @@ class _FunctionalConvNd(Module):
         "filter_perm": returnn_weight_transpose_perm,
         "padding": "valid",
         "strides": self.stride,
-        "dilation_rate": self.dilation}
+        "dilation_rate": self.dilation,
+        "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
+      }
 
 
 class FunctionalConv1d(_FunctionalConvNd):

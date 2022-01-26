@@ -805,7 +805,7 @@ def test_batch_norm_running_stats():
         assert len(module_entry.calls) == 1
         call = module_entry.calls[0]
         assert call.returnn_layer
-        mean_returnn = tf.squeeze(call.returnn_layer.params["batch_norm/mean"]).eval()
+        mean_returnn = tf.squeeze(call.returnn_layer.params["batch_norm/v2_mean"]).eval()
     model.reset_running_stats()  # for the test, such that we start with initial running mean/var
     return out
 

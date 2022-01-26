@@ -96,7 +96,7 @@ class _BatchNorm(_NormBase):
     return {
       "class": "batch_norm", "from": self._get_input_layer_name(input),
       "update_sample_only_in_training": True, "delay_sample_update": True,
-      "param_version": 1,
+      "param_version": 2, "masked_time": False,
       "momentum": self.momentum, "epsilon": self.eps}
 
 
@@ -111,16 +111,9 @@ class BatchNorm1d(_BatchNorm):
       assert len(ps) == 1, f"param name {name} not unique or found in layer {layer} with params {layer.params}"
       return ps[0]
 
-    def _expand_dims(x: numpy.ndarray) -> numpy.ndarray:
-      assert x.shape == (layer.output.dim,)
-      out_shape = [
-        layer.output.dim if i == layer.output.feature_dim_axis else 1
-        for i in range(layer.output.batch_ndim)]
-      return numpy.reshape(x, out_shape)
-
     def _convert(x: Tensor, name: str):
       tf_param = _get_param_by_name_postfix(name)
-      values = _expand_dims(x.detach().cpu().numpy())
+      values = x.detach().cpu().numpy()
       tf_param.load(values, session=session)
 
     _convert(torch_module.running_mean, "mean")
