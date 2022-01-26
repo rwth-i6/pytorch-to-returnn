@@ -187,6 +187,10 @@ def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
   return modules.Reduce(mode="max", axes=dim)(input)
 
 
+def min(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  return modules.Reduce(mode="min", axes=dim)(input)
+
+
 def add(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.BinaryOperator(kind="add")(cast(x, dtype), cast(y, dtype))
@@ -803,10 +807,10 @@ def multi_head_attention_forward(
     return attn_output, None
 
 
-def cosine_similarity(x1: Tensor, x2: Tensor, dim: Optional[int] = 1, eps: Optional[float] = 1e-8) -> Tensor:
+def cosine_similarity(x1: Tensor, x2: Tensor, dim: Optional[int] = 1, eps: float=1e-8) -> Tensor:
   numerator = modules.Dot()(x1, x2, reduce_dim_a=dim, reduce_dim_b=dim)
-  denominator = rsqrt(pow(x1, 2).sum() * pow(x2, 2).sum())
-  return numerator * denominator
+  inv_denominator = min(cat([rsqrt(pow(x1, 2).sum() * pow(x2, 2).sum()), tensor(eps ** -1)]))
+  return numerator * inv_denominator
 
 
 def mse_loss():
