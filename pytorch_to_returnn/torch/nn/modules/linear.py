@@ -128,7 +128,7 @@ class Dot(Module):
   """
   is_original_torch_module = False
 
-  def create_returnn_layer_dict(self, a: Tensor, b: Tensor, reduce_dim_a: int, reduce_dim_b: int) -> Dict[str, Any]:
+  def create_returnn_layer_dict(self, a: Tensor, b: Tensor, *, reduce_dim_a: int, reduce_dim_b: int) -> Dict[str, Any]:
     assert a.shape == b.shape
     dim0 = self._get_input_axis_to_returnn(a, reduce_dim_a)
     dim1 = self._get_input_axis_to_returnn(a, reduce_dim_b)
