@@ -6,6 +6,8 @@ from returnn.tf.network import TFNetwork, ExternData
 from returnn.tf.layers.basic import LayerBase, SubnetworkLayer
 from . import tensor as _tensor
 
+returnn_behavior_version = 12
+
 
 class ReturnnContext:
   def __init__(self, *, parent: Optional[ReturnnContext] = None, name: Optional[str] = None, returnn_train_flag: bool):
@@ -27,7 +29,7 @@ class ReturnnContext:
       self._dummy_sub_output = self.sub_net_layer.subnetwork.layers["output"]
     else:
       self.config = Config({
-        "behavior_version": 12,
+        "behavior_version": returnn_behavior_version,
         # "debug_print_layer_output_template": True,
       })
       from returnn.util import BehaviorVersion

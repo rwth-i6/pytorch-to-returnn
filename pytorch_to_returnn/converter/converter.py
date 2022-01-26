@@ -13,6 +13,7 @@ from pytorch_to_returnn import torch as torch_returnn
 from pytorch_to_returnn.import_wrapper import wrapped_import_torch_traced, wrapped_import_torch_returnn
 from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
 from pytorch_to_returnn.naming import Naming, TensorEntry
+from pytorch_to_returnn.naming.returnn_ctx import returnn_behavior_version
 
 
 ModelFuncType = Callable[[Optional[Callable[[str], types.ModuleType]], torch.Tensor], torch.Tensor]
@@ -317,7 +318,7 @@ class Converter:
       config = Config({
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
-        "behavior_version": 12,
+        "behavior_version": returnn_behavior_version,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(self._returnn_net_dict)
@@ -362,7 +363,7 @@ class Converter:
       config = Config({
         "extern_data": {"data": self._returnn_in_data_dict},
         "debug_print_layer_output_template": True,
-        "behavior_version": 12,
+        "behavior_version": returnn_behavior_version,
       })
       network = TFNetwork(config=config, name="root", train_flag=self.train)
       network.construct_from_dict(net_dict)
