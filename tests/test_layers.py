@@ -1049,6 +1049,27 @@ def test_unsqueeze2():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_unsqueeze3():
+  from pytorch_to_returnn.naming import Naming
+  n_batch, n_time = 3, 7
+  n_in, n_out = 1, 4
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    out = inputs.unsqueeze(1)
+    model = torch.nn.Conv1d(in_channels=n_in, out_channels=n_out, kernel_size=2)
+    out = model(out)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+      "shape": (None,), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": None})
+
+
 def test_transpose_unsqueeze():
   n_batch, n_time, n_feat = 3, 5, 7
 
