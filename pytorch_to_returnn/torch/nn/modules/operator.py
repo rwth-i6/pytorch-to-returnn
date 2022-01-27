@@ -52,9 +52,13 @@ class RandInt(Module):
 
   def create_returnn_layer_dict(self, low, high, size, dtype=None) -> Dict[str, Any]:
     dtype = dtype or "int64"
-    low = self._to_int(low)
-    high = self._to_int(high)
-    size = tuple(self._to_int(sz) for sz in size)
+    if isinstance(low, Tensor):
+      low = low.type(dtype)
+      low = self._get_input_layer_name(low)
+    if isinstance(high, Tensor):
+      high = high.type(dtype)
+      high = self._get_input_layer_name(high)
+    size = tuple(self._get_input_layer_name(sz) if isinstance(sz, Tensor) else sz for sz in size)
     return {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
 
   def _get_output_shape_from_returnn(self,
