@@ -1192,6 +1192,29 @@ def test_flatten_batch():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_merge_batch_with_modified_time():
+  n_in, n_out = 5, 7
+  n_batch, n_time = 3, 11
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    conv = torch.nn.Conv1d(in_channels=n_in, out_channels=n_out, kernel_size=3, stride=2)
+    y = inputs  # (B,F,T)
+    y = conv(y)  # (B,F',T')
+    y = y.transpose(1, 2).contiguous()  # (B,T',F')
+    _, _, fsz = y.shape
+    y = y.view(-1, fsz)  # (B*T',F')
+    return y
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_reduce_sum():
   n_batch, n_time, n_feature = 3, 5, 7
 
