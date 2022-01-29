@@ -473,8 +473,9 @@ class Naming:
             else:  # look for explicitly wrapped objects using :class:`WrappedTorchFunction`
               for child_ in name_.childs_by_name.values():
                 for mod_ in child_.modules:
-                  if isinstance(mod_.module, WrappedTorchFunction) and part_name in mod_.module.func_name:
-                    potential_namespaces_.append(child_)
+                  if isinstance(mod_.module, WrappedTorchFunction):
+                    if mod_.module.func_name.split(".")[-1] in part_name:
+                      potential_namespaces_.append(child_)
           assert potential_namespaces_, (
             f"{potential_namespaces} have not {part_name!r}, after {'.'.join(name_parts[:i + 1])!r}")
           potential_namespaces = potential_namespaces_
