@@ -70,7 +70,7 @@ class RandInt(Module):
         assert tensor_entry.is_size_value is not None
         for originating_tensor in tensor_entry.is_size_value.get_originating_tensors():
           if naming.tensors[originating_tensor] not in call.inputs_tensor_deps:
-            source.append(self._get_input_layer_name(tensor_entry.is_size_value.originating_tensor))
+            source.append(self._get_input_layer_name(originating_tensor))
             # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
             call.inputs_tensor_deps.append(naming.tensors[originating_tensor])
     size = tuple(naming.tensors[sz].is_size_value.dim_tag if isinstance(sz, Tensor) else sz for sz in size)
