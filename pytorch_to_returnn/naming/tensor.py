@@ -12,7 +12,6 @@ from . import call as _call
 
 
 class TensorEntry:
-  # from ..torch._C import SizeValue
   tensor: ref[_types.Tensor]
   returnn_data: Optional[Data] = None
   returnn_axis_from_torch_axis: Optional[Dict[int, int]] = None

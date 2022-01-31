@@ -35,7 +35,9 @@ class Range(Module):
     limit_dim = None
     if isinstance(limit, Tensor):
       assert limit.is_defined
-      limit_dim = limit.returnn_naming_entry.is_size_value.dim_tag
+      limit_dim = None
+      if limit.returnn_naming_entry.is_size_value is not None:
+        limit_dim = limit.returnn_naming_entry.is_size_value.dim_tag
       limit = limit.numpy()
     from .shape import SizeValue
     size = SizeValue((int(limit) - int(start)) // int(delta))
@@ -61,14 +63,15 @@ class RandInt(Module):
     naming = Naming.get_instance()
     call = naming.module_call_stack[-1]
     assert call.module.module is self
-    source = set()
+    source = []
     for sz in size:
       if isinstance(sz, Tensor):
-        assert naming.tensors[sz].is_size_value is not None
-        originating_tensor = naming.tensors[sz].is_size_value.originating_tensor
+        tensor_entry = naming.tensors[sz]
+        assert tensor_entry.is_size_value is not None
+        originating_tensor = tensor_entry.is_size_value.originating_tensor
         if originating_tensor is not None:
-          source.add(self._get_input_layer_name(naming.tensors[sz].is_size_value.originating_tensor))
           if originating_tensor not in call.inputs_tensor_deps:
+            source.append(self._get_input_layer_name(tensor_entry.is_size_value.originating_tensor))
             # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
             call.inputs_tensor_deps.append(naming.tensors[originating_tensor])
     size = tuple(naming.tensors[sz].is_size_value.dim_tag if isinstance(sz, Tensor) else sz for sz in size)
