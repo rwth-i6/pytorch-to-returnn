@@ -61,13 +61,16 @@ class RandInt(Module):
     naming = Naming.get_instance()
     call = naming.module_call_stack[-1]
     assert call.module.module is self
-    # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
-    call.inputs_tensor_deps.append(naming.inputs[0])
     source = set()
     for sz in size:
       if isinstance(sz, Tensor):
-        if naming.tensors[sz].is_size_value.originating_tensor is not None:
+        assert naming.tensors[sz].is_size_value is not None
+        originating_tensor = naming.tensors[sz].is_size_value.originating_tensor
+        if originating_tensor is not None:
           source.add(self._get_input_layer_name(naming.tensors[sz].is_size_value.originating_tensor))
+          if originating_tensor not in call.inputs_tensor_deps:
+            # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
+            call.inputs_tensor_deps.append(naming.tensors[originating_tensor])
     size = tuple(naming.tensors[sz].is_size_value.dim_tag if isinstance(sz, Tensor) else sz for sz in size)
     assert not None in size
     d = {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
