@@ -68,9 +68,8 @@ class RandInt(Module):
       if isinstance(sz, Tensor):
         tensor_entry = naming.tensors[sz]
         assert tensor_entry.is_size_value is not None
-        originating_tensor = tensor_entry.is_size_value.originating_tensor
-        if originating_tensor is not None:
-          if originating_tensor not in call.inputs_tensor_deps:
+        for originating_tensor in tensor_entry.is_size_value.get_originating_tensors():
+          if naming.tensors[originating_tensor] not in call.inputs_tensor_deps:
             source.append(self._get_input_layer_name(tensor_entry.is_size_value.originating_tensor))
             # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
             call.inputs_tensor_deps.append(naming.tensors[originating_tensor])
