@@ -58,8 +58,23 @@ class RandInt(Module):
     if isinstance(high, Tensor):
       high = high.type(dtype)
       high = self._get_input_layer_name(high)
-    size = tuple(self._get_input_layer_name(sz) if isinstance(sz, Tensor) else sz for sz in size)
-    return {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
+    naming = Naming.get_instance()
+    call = naming.module_call_stack[-1]
+    assert call.module.module is self
+    source = set()
+    for sz in size:
+      if isinstance(sz, Tensor):
+        for dep_tensor in naming.tensors[sz].creation_stack_call.inputs_flat:
+          if isinstance(dep_tensor, TensorEntry):
+            source.add(self._get_input_layer_name(dep_tensor.tensor()))
+            if dep_tensor not in call.inputs_tensor_deps:
+              call.inputs_tensor_deps.append(naming.inputs[0])
+    size = tuple(naming.tensors[sz].is_dim if isinstance(sz, Tensor) else sz for sz in size)
+    assert not None in size
+    d = {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
+    if source:
+      d["from"] = list(source)
+    return d
 
   def _get_output_shape_from_returnn(self,
                                      inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
