@@ -178,7 +178,7 @@ class SizeValue(int):
     naming = Naming.get_instance()
     tensor_entry = naming.tensors[tensor]
     tensor_entry.is_const = True
-    tensor_entry.is_dim = self.dim_tag
+    tensor_entry.is_size_value = self
     return tensor
 
   def __repr__(self):

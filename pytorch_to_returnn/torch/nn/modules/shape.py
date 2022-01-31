@@ -399,8 +399,8 @@ def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
     return int(x)
   if isinstance(x, Tensor):
     tensor_entry = naming.tensors[x]
-    assert x.is_defined and tensor_entry.is_const and tensor_entry.is_dim
-    return tensor_entry.is_dim
+    assert x.is_defined and tensor_entry.is_const and tensor_entry.is_size_value.dim_tag
+    return tensor_entry.is_size_value.dim_tag
   raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
 
 

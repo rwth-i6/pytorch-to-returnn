@@ -12,6 +12,7 @@ from . import call as _call
 
 
 class TensorEntry:
+  # from ..torch._C import SizeValue
   tensor: ref[_types.Tensor]
   returnn_data: Optional[Data] = None
   returnn_axis_from_torch_axis: Optional[Dict[int, int]] = None
@@ -21,7 +22,7 @@ class TensorEntry:
   is_param: bool = False
   is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
   is_input: bool = False  # in TF1 terminology, would be a placeholder
-  is_dim: Optional[DimensionTag] = None
+  is_size_value: Optional[SizeValue] = None
   output_from_modules: List[_module.ModuleEntry]
   output_from_calls: List[_call.CallEntry]
   parent_owning_modules: List[Tuple[_module.ModuleEntry, str]]  # e.g. param or buffer
