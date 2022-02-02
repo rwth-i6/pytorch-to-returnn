@@ -35,7 +35,9 @@ class Range(Module):
     limit_dim = None
     if isinstance(limit, Tensor):
       assert limit.is_defined
-      limit_dim = limit.returnn_naming_entry.is_dim
+      limit_dim = None
+      if limit.returnn_naming_entry.is_size_value is not None:
+        limit_dim = limit.returnn_naming_entry.is_size_value.dim_tag
       limit = limit.numpy()
     from .shape import SizeValue
     size = SizeValue((int(limit) - int(start)) // int(delta))
@@ -52,29 +54,52 @@ class RandInt(Module):
 
   def create_returnn_layer_dict(self, low, high, size, dtype=None) -> Dict[str, Any]:
     dtype = dtype or "int64"
-    assert isinstance(low, int)
-    assert isinstance(high, int)
-    assert all(isinstance(sz, int) for sz in size)
-    return {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
+    if isinstance(low, Tensor):
+      low = low.type(dtype)
+      low = self._get_input_layer_name(low)
+    if isinstance(high, Tensor):
+      high = high.type(dtype)
+      high = self._get_input_layer_name(high)
+    naming = Naming.get_instance()
+    call = naming.module_call_stack[-1]
+    assert call.module.module is self
+    source = []
+    for sz in size:
+      if isinstance(sz, Tensor):
+        tensor_entry = naming.tensors[sz]
+        assert tensor_entry.is_size_value is not None
+        for originating_tensor in tensor_entry.is_size_value.get_originating_tensors():
+          if naming.tensors[originating_tensor] not in call.inputs_tensor_deps:
+            source.append(self._get_input_layer_name(originating_tensor))
+            # add dependency to get complete in feed_dict in Module.make_output_tensor_from_returnn
+            call.inputs_tensor_deps.append(naming.tensors[originating_tensor])
+    size = tuple(naming.tensors[sz].is_size_value.dim_tag if isinstance(sz, Tensor) else sz for sz in size)
+    assert not None in size
+    d = {"class": "rand_int", "shape": size, "maxval": high, "minval": low, "dtype": dtype}
+    if source:
+      d["from"] = list(source)
+    return d
 
   def _get_output_shape_from_returnn(self,
                                      inputs_flat: List[Optional[Union[Tensor, int, bool]]], layer: LayerBase
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     _, _, *size, _ = inputs_flat
 
-    def _to_int(x: Union[Tensor, int]):
-      if isinstance(x, Tensor):
-        assert x.is_defined
-        x = x.numpy()
-      return x
-
-    torch_shape = tuple(_to_int(sz) for sz in size)
+    torch_shape = tuple(self._to_int(sz) for sz in size)
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
     return torch_shape, returnn_axis_from_torch_axis
 
   def get_returnn_name(self) -> str:
     # Used to allow finding this module in the namespace
     return "randint"
+
+  @staticmethod
+  def _to_int(x: Union[Tensor, int]) -> int:
+    if isinstance(x, Tensor):
+      assert x.is_defined
+      x = int(x.numpy())
+    assert isinstance(x, int)
+    return x
 
 
 class Cat(Module):
