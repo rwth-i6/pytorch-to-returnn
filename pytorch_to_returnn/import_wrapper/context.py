@@ -121,11 +121,14 @@ def make_torch_traced_ctx(wrapped_mod_prefix: str) -> WrapCtx:
     torch.nn.Module: ExplicitWrappedType(torch.nn.Module, WrappedModuleBase, wrap=_raise_not_implemented),
   }
 
-  from .base_wrappers import make_wrapped_function, make_wrapped_class
   def _make_wrapped_func(obj, ctx: WrapCtx, name: str):
-    wrapped_func = make_wrapped_function(obj, name=name, ctx=ctx)
-    wrapped_class = make_wrapped_class(WrappedTorchFunction, name="_.WrappedTorchFunction", ctx=ctx)
-    return wrapped_class(func=wrapped_func, func_name=name)
+    def _wrapped_func(*args, **kwargs):
+      from .base_wrappers import make_wrapped_function, make_wrapped_class
+      wrapped_func = make_wrapped_function(obj, name=name, ctx=ctx)
+      wrapped_class = make_wrapped_class(WrappedTorchFunction, name="_.WrappedTorchFunction", ctx=ctx)
+      wrapped_obj = wrapped_class(func=wrapped_func, func_name=name)
+      return wrapped_obj(*args, **kwargs)
+    return _wrapped_func
 
   _ObjMap = {torch.randint: _make_wrapped_func}
 
