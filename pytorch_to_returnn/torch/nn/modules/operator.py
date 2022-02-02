@@ -37,7 +37,7 @@ class Range(Module):
       assert limit.is_defined
       size = SizeValue((int(limit.numpy()) - int(start)) // int(delta))
       if limit.returnn_naming_entry.is_size_value is not None:
-        size.dim_tag = limit.returnn_naming_entry.is_size_value.dim_tag
+        size.dim_tag = (limit.returnn_naming_entry.is_size_value.dim_tag - int(start)) // int(delta)
         size.originating_tensor = limit.returnn_naming_entry.is_size_value.originating_tensor
     else:
       size = SizeValue((int(limit) - int(start)) // int(delta))
