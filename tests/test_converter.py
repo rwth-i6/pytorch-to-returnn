@@ -227,7 +227,7 @@ def test_naming_inner_func_functional_with_buffer():
 
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
-    for k, v in sorted(globals().items()):
+    for k, v in list(globals().items()):
       if k.startswith("test_"):
         print("-" * 40)
         print("Executing: %s" % k)
