@@ -10,3 +10,4 @@ from . import onnx
 from . import jit
 
 __version__ = "1.8.1"
+__returnn__ = True
