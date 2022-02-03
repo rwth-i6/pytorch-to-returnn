@@ -104,13 +104,15 @@ class CallEntry:
       res = module.forward(*inputs_args, **inputs_kwargs)
       res_flat = nest.flatten(res)
       assert len(res_flat) >= 1
-      if self.namespace.returnn_ctx.sub_net_layer:
-        res_entry = naming.tensors[res_flat[0]]
-        assert isinstance(res_entry, _tensor.TensorEntry)
+      res_entry = naming.tensors[res_flat[0]]
+      assert isinstance(res_entry, _tensor.TensorEntry)
+      layer = self.namespace.returnn_ctx.sub_net_layer
+      if layer:
         self.namespace.register_returnn_subnet_output(res_entry)
         # No need to have separate register logic for the other outputs, if there are multiple.
         # The logic in `name_for_tensor` should find the entry from the subnet.
-      layer = self.namespace.returnn_ctx.sub_net_layer
+        if not res_entry.returnn_data:
+          res_entry.returnn_data = layer.output
       layer_dict = None  # will be constructed later lazily when needed
       new_update_ops = []  # ignore
 
@@ -156,8 +158,7 @@ class CallEntry:
     if layer:  # might not exist in the root namespace
       layer_abs_repr_name = f"{layer.network.name}/{layer.name!r}"
       print(
-        f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: "
-        f"[{','.join(layer.output.get_batch_axes_short_description())}]")
+        f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: f{res_entry!r}")
 
       if naming.import_params_from_torch_namespace and layer:
         if not module.is_deterministic:
