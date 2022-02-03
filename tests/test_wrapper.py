@@ -14,6 +14,24 @@ def assert_equal(msg, a, b):
   assert a == b
 
 
+def test_torch_traced_wrapped_tensor():
+  from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
+  torch_traced = wrapped_import_torch_traced("torch")
+  assert torch.Tensor is not torch_traced.Tensor
+  assert torch_traced.Tensor is WrappedTorchTensor
+  x_ = torch_traced.Tensor()
+  assert isinstance(x_, torch_traced.Tensor)
+  assert isinstance(x_, WrappedTorchTensor)
+
+
+def test_torch_traced_from_numpy():
+  from pytorch_to_returnn.import_wrapper.torch_wrappers.tensor import WrappedTorchTensor
+  torch_traced = wrapped_import_torch_traced("torch")
+  x = torch_traced.from_numpy(numpy.array([1, 2, 3]))
+  assert isinstance(x, torch_traced.Tensor)
+  assert isinstance(x, WrappedTorchTensor)
+
+
 def test_torch_traced_wrapped_tensor_new():
   torch_traced = wrapped_import_torch_traced("torch")
   x = torch.Tensor()
