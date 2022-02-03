@@ -432,6 +432,8 @@ def test_packed_sequence_2():
     else:
       torch = wrapped_import("torch")
 
+    if not getattr(torch, "__returnn__", False):
+      inputs = list(inputs)
     h = torch.nn.utils.rnn.pack_sequence(inputs)
     output, _ = torch.nn.utils.rnn.pad_packed_sequence(h, batch_first=True)
     return output + 1
