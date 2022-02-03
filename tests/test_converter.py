@@ -8,6 +8,25 @@ from pytorch_to_returnn import torch
 from pytorch_to_returnn.converter import verify_torch_and_convert_to_returnn
 
 
+# Put some trivial test first here.
+def test_trivial():
+  def model_func(wrapped_import, inputs):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    net = torch.nn.Linear(5, 5)
+    y = net(inputs)
+    return y
+
+  rnd = numpy.random.RandomState(42)
+  N, F = 5, 5
+  x = rnd.normal(0., 1., (N, F)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, inputs_data_kwargs={"shape": (F,)})
+
+
 def test_mnist():
   def model_func(wrapped_import, inputs):
     if wrapped_import:
