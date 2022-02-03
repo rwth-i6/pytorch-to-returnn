@@ -25,7 +25,7 @@ def test_torch_traced_wrapped_tensor_new():
 
 if __name__ == "__main__":
   if len(sys.argv) <= 1:
-    for k, v in sorted(globals().items()):
+    for k, v in list(globals().items()):
       if k.startswith("test_"):
         print("-" * 40)
         print("Executing: %s" % k)
