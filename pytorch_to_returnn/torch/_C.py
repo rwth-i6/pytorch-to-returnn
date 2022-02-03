@@ -156,12 +156,16 @@ class SizeValue(int):
   def get_originating_tensors(self) -> List[Tensor]:
     if self.originating_tensor is not None:
       return [self.originating_tensor]
-    if self.derived_from_op:
-      return [
-        d.originating_tensor
-        for d in self.derived_from_op.inputs
-        if isinstance(d, SizeValue) and d.originating_tensor is not None]
-    return []
+    originating_tensors = []
+    size_values_to_visit = [self]
+    while size_values_to_visit:
+      size_value_ = size_values_to_visit.pop(0)
+      if isinstance(size_value_, SizeValue):
+        if size_value_.originating_tensor:
+          originating_tensors.append(size_value_.originating_tensor)
+        elif size_value_.derived_from_op is not None:
+          size_values_to_visit += size_value_.derived_from_op.inputs
+    return originating_tensors
 
   def as_tensor(self):
     if self.originating_tensor is None and self.derived_from_op:
