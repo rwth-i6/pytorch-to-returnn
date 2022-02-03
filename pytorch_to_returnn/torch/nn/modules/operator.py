@@ -3,6 +3,7 @@ from typing import Optional, Tuple, Any, List, Dict, Set, Union
 from returnn.tf.layers.basic import LayerBase
 from returnn.tf.util.data import Dim
 from .module import Module
+from .shape import SizeValue
 from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
 
@@ -40,8 +41,11 @@ class Range(Module):
       limit = limit.numpy()
     size = SizeValue((int(limit) - int(start)) // int(delta))
     if limit_size is not None:
-      size.dim_tag = (limit_size.dim_tag - int(start)) // int(delta)
       size.originating_tensor = limit_size.originating_tensor
+      size.dim_tag = limit_size.dim_tag - int(start)
+      size.derived_from_op = SizeValue.Op("add", [limit_size, int(start)])
+      size.dim_tag = size.dim_tag // int(delta)
+      size.derived_from_op = SizeValue.Op("floordiv", [size, int(delta)])
     torch_shape = (size,)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
