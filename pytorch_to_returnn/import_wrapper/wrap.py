@@ -54,7 +54,7 @@ def wrap(obj, *, name: str, ctx: WrapCtx):
         obj = getattr(mod_, obj.__qualname__)
       else:
         obj = make_wrapped_class(cls=obj, name=name, ctx=ctx)
-  elif not isinstance(obj, type) and type(type(obj)) == type:  # object instance
+  elif not isinstance(obj, type) and issubclass(type(type(obj)), type):  # object instance
     if type(obj) in ctx.explicit_wrapped_types:
       obj = make_wrapped_object(obj, name=name, ctx=ctx)
     elif not getattr(type(obj), "__module__", None) or not ctx.should_wrap_mod(type(obj).__module__):
