@@ -207,6 +207,42 @@ class SizeValue(int):
     dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) * self.dim_tag
     return SizeValue(super(SizeValue, self).__rmul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
 
+  def __add__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Adding a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    dim_tag = self.dim_tag + (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__add__(other), dim_tag=dim_tag)
+
+  def __radd__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Adding a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) + self.dim_tag
+    return SizeValue(super(SizeValue, self).__radd__(other), dim_tag=dim_tag)
+
+  def __sub__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Subtracting a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of "
+      "a static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    dim_tag = self.dim_tag - (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__sub__(other), dim_tag=dim_tag)
+
+  def __floordiv__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Floordiv of a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 1:
+      return self
+    dim_tag = self.dim_tag // (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__floordiv__(other), dim_tag=dim_tag)
+
 
 def zeros(*shape):
   from .tensor import Tensor
