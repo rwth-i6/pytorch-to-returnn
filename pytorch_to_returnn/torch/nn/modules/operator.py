@@ -3,6 +3,7 @@ from typing import Optional, Tuple, Any, List, Dict, Set, Union
 from returnn.tf.layers.basic import LayerBase
 from returnn.tf.util.data import Dim
 from .module import Module
+from .shape import SizeValue
 from ...tensor import Tensor, dtype as _dtype
 from ....naming import Naming, TensorEntry
 
@@ -33,15 +34,16 @@ class Range(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     from .shape import SizeValue
     limit, start, delta, *_ = inputs_flat
-    limit_size = None
+    size = None
     if isinstance(limit, Tensor):
       assert limit.is_defined
       limit_size = limit.returnn_naming_entry.is_size_value
-      limit = limit.numpy()
-    size = SizeValue((int(limit) - int(start)) // int(delta))
-    if limit_size is not None:
-      size.dim_tag = (limit_size.dim_tag - int(start)) // int(delta)
-      size.originating_tensor = limit_size.originating_tensor
+      if limit_size is not None:
+        size = (limit_size - int(start)) // int(delta)
+      else:
+        limit = limit.numpy()
+    if size is None:
+      size = SizeValue((int(limit) - int(start)) // int(delta))
     torch_shape = (size,)
     returnn_axis_from_torch_axis = {0: 0}
     return torch_shape, returnn_axis_from_torch_axis
@@ -84,7 +86,7 @@ class RandInt(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     _, _, *size, _ = inputs_flat
 
-    torch_shape = tuple(self._to_int(sz) for sz in size)
+    torch_shape = tuple(self._to_size_value(sz) for sz in size)
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
     return torch_shape, returnn_axis_from_torch_axis
 
@@ -93,12 +95,17 @@ class RandInt(Module):
     return "randint"
 
   @staticmethod
-  def _to_int(x: Union[Tensor, int]) -> int:
+  def _to_size_value(x: Union[int, Tensor]) -> SizeValue:
+    x_size = None
     if isinstance(x, Tensor):
       assert x.is_defined
-      x = int(x.numpy())
-    assert isinstance(x, int)
-    return x
+      x_size = x.returnn_naming_entry.is_size_value
+      x = x.numpy()
+    sv = SizeValue(int(x))
+    if x_size is not None:
+      sv.dim_tag = x_size.dim_tag
+      sv.originating_tensor = x_size.originating_tensor
+    return sv
 
 
 class Cat(Module):
@@ -110,6 +117,7 @@ class Cat(Module):
 
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
     assert len(inputs) > 0
+    inputs, _ = _unify_tensor_axes_returnn_meta(*inputs, concat_axes=[self.dim])
     cat_axis = self.dim
     if cat_axis < 0:
       cat_axis += len(inputs[0].shape)
@@ -523,7 +531,8 @@ class Length(Module):
       "from": self._get_input_layer_name(input)}
 
 
-def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
+def _unify_tensor_axes_returnn_meta(
+    *inputs: Tensor, concat_axes: Optional[List[int]] = None) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
   """
   This is called when the inputs are supposed to be potentially broadcasted against each other.
 
@@ -547,6 +556,7 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
   # Collect broadcast dims and out_shape.
   # We will squeeze them out later.
   max_ndim = max(x.returnn_data.batch_ndim for x in tensors)
+  concat_axes = [ax + max_ndim if ax < 0 else ax for ax in concat_axes or []]
   broadcast_axes = [set() for _ in inputs]  # input idx -> set of (negative) broadcast Torch axes
   out_shape = []
   for torch_axis in range(max_ndim):
@@ -569,17 +579,20 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
 
     broadcast_inputs_for_axis = set()  # input indices
     dim_for_axis = None
-    for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
-      if dim is None:
-        continue
-      assert isinstance(dim, Dim)
-      if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
-        broadcast_inputs_for_axis.add(i)
-        continue
-      assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
-        f"invalid input {x} axis {i} dim {dim}")
-      if not dim_for_axis:
-        dim_for_axis = dim
+    if torch_axis in concat_axes:
+      dim_for_axis = sum(dims_for_axis)
+    else:
+      for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
+        if dim is None:
+          continue
+        assert isinstance(dim, Dim)
+        if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
+          broadcast_inputs_for_axis.add(i)
+          continue
+        assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
+          f"invalid input {x} axis {i} dim {dim}")
+        if not dim_for_axis:
+          dim_for_axis = dim
     assert dim_for_axis
     out_shape.append(dim_for_axis)
     for idx in broadcast_inputs_for_axis:
@@ -601,6 +614,8 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
       dim_tag = x.returnn_data.get_dim_tag(returnn_axis)
       if dim_tag.dimension == 1:
         continue  # broadcast dim, so always ok. do not add
+      if axis + x.returnn_data.batch_ndim in concat_axes:
+        continue  # concat dim, so do not add
       if axis not in dims:
         dims[axis] = (x, dim_tag)
       else:

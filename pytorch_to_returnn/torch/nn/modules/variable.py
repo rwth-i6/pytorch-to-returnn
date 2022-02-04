@@ -128,7 +128,6 @@ class FullStatic(Module):
       "value": self.fill_value, "dtype": self.dtype.name}
 
   def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
-    from .shape import _convert_dim_torch
     naming = Naming.get_instance()
     size = [_convert_dim_torch(x) for x in inputs_flat]
     from ..._C import from_numpy
@@ -138,6 +137,15 @@ class FullStatic(Module):
     entry.returnn_data = layer.output
     entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
     return tensor
+
+
+def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
+  if isinstance(x, int):
+    return int(x)
+  if isinstance(x, Tensor):
+    assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
+    return int(x.numpy())
+  raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
 __all__ = [

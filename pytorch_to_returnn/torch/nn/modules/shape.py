@@ -242,14 +242,13 @@ class Unflatten(Module):
     """
     naming = Naming.get_instance()
     x, = inputs_flat
-    unflattened_size = self.unflattened_size
+    unflatten_size = self.unflattened_size
     x_entry = naming.register_tensor(x)
     dim = self.dim
     assert -len(x.shape) <= dim < len(x.shape)
     if dim < 0:
       dim += len(x.shape)
     assert 0 <= dim < len(x.shape)
-    unflatten_size = [_convert_dim_torch(d) for d in unflattened_size]
     if any(d == -1 for d in unflatten_size):
       rem_dim = x.shape[dim]
       for d in unflatten_size:
@@ -355,8 +354,7 @@ class FlattenBatch(Module):
     if self._seq_lens is not None:
       merged_dim = SizeValue(sum(self._seq_lens))
     else:
-      merged_dim = SizeValue(x.shape[batch_dim_idx[0]] * x.shape[merge_dim_idx[0]])
-    merged_dim.merged_dims = dims_to_merge
+      merged_dim = x.shape[batch_dim_idx[0]] * x.shape[merge_dim_idx[0]]
     torch_shape = (merged_dim,) + tuple(
       dim for i, dim in enumerate(x.shape) if i not in x_entry.returnn_data.get_axes_from_description("BT"))
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
@@ -378,8 +376,8 @@ class UnflattenBatch(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     assert len(inputs_flat) == 1
     x = inputs_flat[0]
-    assert x.shape[0].merged_dims
-    torch_shape = tuple(x.shape[0].merged_dims) + x.shape[1:]
+    assert x.shape[0].derived_from_op and x.shape[0].derived_from_op.kind == "mul"
+    torch_shape = tuple(x.shape[0].derived_from_op.inputs) + x.shape[1:]
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
     if self.batch_first != torch_shape[0].is_batch_dim:
       torch_shape = (torch_shape[1], torch_shape[0]) + torch_shape[2:]
@@ -402,15 +400,6 @@ def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
     assert x.is_defined and tensor_entry.is_const and tensor_entry.is_size_value and tensor_entry.is_size_value.dim_tag
     return tensor_entry.is_size_value.dim_tag
   raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
-
-
-def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
-  if isinstance(x, int):
-    return int(x)
-  if isinstance(x, Tensor):
-    assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
-    return int(x.numpy())
-  raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
 __all__ = [

@@ -129,11 +129,13 @@ class SizeValue(int):
   """
   We extend this, to store extra information, e.g. corresponding RETURNN dim tags.
   """
-  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, merged_dims: Optional[List[SizeValue]] = None,
+  def __new__(cls, x: int, dim_tag: Optional[Dim] = None, derived_from_op: Optional[SizeValue.Op] = None,
               originating_tensor: Tensor = None):
     res = super(SizeValue, cls).__new__(cls, x)
     res.dim_tag = dim_tag or Dim(dimension=x, description="static_dim")
-    res.merged_dims = merged_dims or []
+    res.derived_from_op = derived_from_op
+    if derived_from_op and not derived_from_op.output:
+      derived_from_op.output = res
     res.originating_tensor = originating_tensor
     return res
 
@@ -154,18 +156,43 @@ class SizeValue(int):
   def get_originating_tensors(self) -> List[Tensor]:
     if self.originating_tensor is not None:
       return [self.originating_tensor]
-    if self.merged_dims:
-      return [
-        d.originating_tensor
-        for d in self.merged_dims
-        if isinstance(d, SizeValue) and d.originating_tensor is not None]
-    return []
+    originating_tensors = []
+    size_values_to_visit = [self]
+    while size_values_to_visit:
+      size_value_ = size_values_to_visit.pop(0)
+      if isinstance(size_value_, SizeValue):
+        if size_value_.originating_tensor:
+          originating_tensors.append(size_value_.originating_tensor)
+        elif size_value_.derived_from_op is not None:
+          size_values_to_visit += size_value_.derived_from_op.inputs
+    return originating_tensors
 
   def as_tensor(self):
-    if self.originating_tensor is None and self.merged_dims:
-      tensor = numpy.prod([
-        d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
-        for d in self.merged_dims])
+    if self.originating_tensor is None and self.derived_from_op:
+      if self.derived_from_op.kind == "mul":
+        tensor = numpy.prod([
+          d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+          for d in self.derived_from_op.inputs])
+      elif self.derived_from_op.kind == "add":
+        tensor = numpy.sum([
+          d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+          for d in self.derived_from_op.inputs])
+      elif self.derived_from_op.kind == "sub":
+        assert len(self.derived_from_op.inputs) == 2
+        tensor = [
+          d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+          for d in self.derived_from_op.inputs]
+        tensor = tensor[0] - tensor[1]
+      elif self.derived_from_op.kind == "floordiv":
+        assert len(self.derived_from_op.inputs) == 2
+        tensor = [
+          d.as_tensor() if isinstance(d, SizeValue) and d.dim_tag.dimension is None else int(d)
+          for d in self.derived_from_op.inputs]
+        tensor = tensor[0] // tensor[1]
+      else:
+        raise ValueError(
+          "SizeValue.as_tensor() not implemented for SizeValue without originating tensor and "
+          "derived from op '{}'".format(self.derived_from_op.kind))
     else:
       assert self.originating_tensor is not None
       from .nn.modules import Length
@@ -187,15 +214,31 @@ class SizeValue(int):
       return f"?{res}"
     return f"{self.dim_tag.short_repr()}({res})"
 
+  class Op:
+    """
+    Op on :class:`SizeValue` which results in a derived :class:`SizeValue`.
+    """
+    def __init__(self, kind, inputs):
+      """
+      :param str kind: "add", "sub", "mul", "floordiv"
+      :param list[SizeValue] inputs:
+      """
+      self.kind = kind
+      self.inputs = inputs
+      self.output = None  # type: Optional[SizeValue]
+
+    def __repr__(self):
+      return "<SizeValue.Op %r %s>" % (self.kind, self.inputs)
+
   def __mul__(self, other):
     assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
       "Multiplying a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
       "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:
       return self
-    merged_dims = [self, other]
+    derived_from_op = SizeValue.Op("mul", [self, other])
     dim_tag = self.dim_tag * (other.dim_tag if isinstance(other, SizeValue) else other)
-    return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
+    return SizeValue(super(SizeValue, self).__mul__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
 
   def __rmul__(self, other):
     assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
@@ -203,9 +246,49 @@ class SizeValue(int):
       "static batch dim.".format(type(other)))
     if type(other) == int and other == 1:
       return self
-    merged_dims = [other, self]
+    derived_from_op = SizeValue.Op("mul", [other, self])
     dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) * self.dim_tag
-    return SizeValue(super(SizeValue, self).__rmul__(other), dim_tag=dim_tag, merged_dims=merged_dims)
+    return SizeValue(super(SizeValue, self).__rmul__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
+
+  def __add__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Adding a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    derived_from_op = SizeValue.Op("add", [self, other])
+    dim_tag = self.dim_tag + (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__add__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
+
+  def __radd__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Adding a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    derived_from_op = SizeValue.Op("add", [other, self])
+    dim_tag = (other.dim_tag if isinstance(other, SizeValue) else other) + self.dim_tag
+    return SizeValue(super(SizeValue, self).__radd__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
+
+  def __sub__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Subtracting a SizeValue and an object of type {} is not allowed because it can lead to bugs, e.g. assumtion of "
+      "a static batch dim.".format(type(other)))
+    if type(other) == int and other == 0:
+      return self
+    derived_from_op = SizeValue.Op("sub", [self, other])
+    dim_tag = self.dim_tag - (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__sub__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
+
+  def __floordiv__(self, other):
+    assert isinstance(other, (int, SizeValue)), (  # could be allowed for static dims in the future
+      "Floordiv of a SizeValue with object of type {} is not allowed because it can lead to bugs, e.g. assumtion of a "
+      "static batch dim.".format(type(other)))
+    if type(other) == int and other == 1:
+      return self
+    derived_from_op = SizeValue.Op("floordiv", [self, other])
+    dim_tag = self.dim_tag // (other.dim_tag if isinstance(other, SizeValue) else other)
+    return SizeValue(super(SizeValue, self).__floordiv__(other), dim_tag=dim_tag, derived_from_op=derived_from_op)
 
 
 def zeros(*shape):
