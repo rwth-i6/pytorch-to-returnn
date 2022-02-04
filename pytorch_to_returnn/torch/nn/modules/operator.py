@@ -86,7 +86,7 @@ class RandInt(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     _, _, *size, _ = inputs_flat
 
-    torch_shape = tuple(self._to_int(sz) for sz in size)
+    torch_shape = tuple(self._to_size_value(sz) for sz in size)
     returnn_axis_from_torch_axis = {i: i for i in range(len(torch_shape))}
     return torch_shape, returnn_axis_from_torch_axis
 
@@ -95,12 +95,17 @@ class RandInt(Module):
     return "randint"
 
   @staticmethod
-  def _to_int(x: Union[Tensor, int]) -> int:
+  def _to_size_value(x: Union[int, Tensor]) -> SizeValue:
+    x_size = None
     if isinstance(x, Tensor):
       assert x.is_defined
-      x = int(x.numpy())
-    assert isinstance(x, int)
-    return x
+      x_size = x.returnn_naming_entry.is_size_value
+      x = x.numpy()
+    sv = SizeValue(int(x))
+    if x_size is not None:
+      sv.dim_tag = x_size.dim_tag
+      sv.originating_tensor = x_size.originating_tensor
+    return sv
 
 
 class Cat(Module):
