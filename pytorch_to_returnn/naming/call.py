@@ -158,7 +158,7 @@ class CallEntry:
     if layer:  # might not exist in the root namespace
       layer_abs_repr_name = f"{layer.network.name}/{layer.name!r}"
       print(
-        f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: f{res_entry!r}")
+        f"*** {layer_abs_repr_name} {layer.__class__.__name__} output: {res_entry!r}")
 
       if naming.import_params_from_torch_namespace and layer:
         if not module.is_deterministic:
