@@ -117,6 +117,7 @@ class Cat(Module):
 
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
     assert len(inputs) > 0
+    inputs, _ = _unify_tensor_axes_returnn_meta(*inputs, exclude_axes=[self.dim])
     cat_axis = self.dim
     if cat_axis < 0:
       cat_axis += len(inputs[0].shape)
@@ -530,7 +531,8 @@ class Length(Module):
       "from": self._get_input_layer_name(input)}
 
 
-def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
+def _unify_tensor_axes_returnn_meta(
+    *inputs: Tensor, exclude_axes: Optional[List[int]] = None) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
   """
   This is called when the inputs are supposed to be potentially broadcasted against each other.
 
@@ -542,6 +544,8 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
   but only reliable when the dim is not present.
   """
   assert len(inputs) >= 1
+  if exclude_axes is None:
+    exclude_axes = []
   naming = Naming.get_instance()
   tensors = [naming.tensors[x] for x in inputs if isinstance(x, Tensor)]  # type: List[TensorEntry]
   if len(inputs) == 1:
@@ -557,6 +561,8 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
   broadcast_axes = [set() for _ in inputs]  # input idx -> set of (negative) broadcast Torch axes
   out_shape = []
   for torch_axis in range(max_ndim):
+    if torch_axis in exclude_axes:
+      continue
     neg_torch_axis = torch_axis - max_ndim
     dims_for_axis = []  # type: List[Union[None, Dim]]  # None -> not existing, dim 1 -> maybe broadcast
     for x in inputs:
@@ -591,7 +597,7 @@ def _unify_tensor_axes_returnn_meta(*inputs: Tensor) -> Tuple[Tuple[Tensor, ...]
     out_shape.append(dim_for_axis)
     for idx in broadcast_inputs_for_axis:
       broadcast_axes[idx].add(neg_torch_axis)
-  assert len(set(out_shape)) == len(out_shape) == max_ndim
+  assert len(set(out_shape)) == len(out_shape) == max_ndim - len(exclude_axes)
 
   # Potentially reset dynamic dim tags to reflect same dim.
   dims = {}  # torch axis (negative) -> (TensorEntry, DimensionTag) (static != 1, or dynamic)
