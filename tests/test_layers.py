@@ -200,7 +200,7 @@ def test_cat_non_feature():
     else:
       import torch
 
-    x = inputs.expand(1, n_batch, n_feat, n_time)
+    x = inputs.expand(2, n_batch, n_feat, n_time)
     y = inputs.expand(3, n_batch, n_feat, n_time)
     return torch.cat([x, y], dim=0)
 
