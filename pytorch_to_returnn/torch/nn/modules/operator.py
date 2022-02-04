@@ -117,7 +117,7 @@ class Cat(Module):
 
   def create_returnn_layer_dict(self, *inputs: Tensor) -> Dict[str, Any]:
     assert len(inputs) > 0
-    inputs, _ = _unify_tensor_axes_returnn_meta(*inputs, exclude_axes=[self.dim])
+    inputs, _ = _unify_tensor_axes_returnn_meta(*inputs, concat_axes=[self.dim])
     cat_axis = self.dim
     if cat_axis < 0:
       cat_axis += len(inputs[0].shape)
@@ -532,7 +532,7 @@ class Length(Module):
 
 
 def _unify_tensor_axes_returnn_meta(
-    *inputs: Tensor, exclude_axes: Optional[List[int]] = None) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
+    *inputs: Tensor, concat_axes: Optional[List[int]] = None) -> Tuple[Tuple[Tensor, ...], Set[Dim]]:
   """
   This is called when the inputs are supposed to be potentially broadcasted against each other.
 
@@ -544,8 +544,6 @@ def _unify_tensor_axes_returnn_meta(
   but only reliable when the dim is not present.
   """
   assert len(inputs) >= 1
-  if exclude_axes is None:
-    exclude_axes = []
   naming = Naming.get_instance()
   tensors = [naming.tensors[x] for x in inputs if isinstance(x, Tensor)]  # type: List[TensorEntry]
   if len(inputs) == 1:
@@ -558,11 +556,10 @@ def _unify_tensor_axes_returnn_meta(
   # Collect broadcast dims and out_shape.
   # We will squeeze them out later.
   max_ndim = max(x.returnn_data.batch_ndim for x in tensors)
+  concat_axes = [ax + max_ndim if ax < 0 else ax for ax in concat_axes or []]
   broadcast_axes = [set() for _ in inputs]  # input idx -> set of (negative) broadcast Torch axes
   out_shape = []
   for torch_axis in range(max_ndim):
-    if torch_axis in exclude_axes:
-      continue
     neg_torch_axis = torch_axis - max_ndim
     dims_for_axis = []  # type: List[Union[None, Dim]]  # None -> not existing, dim 1 -> maybe broadcast
     for x in inputs:
@@ -582,22 +579,25 @@ def _unify_tensor_axes_returnn_meta(
 
     broadcast_inputs_for_axis = set()  # input indices
     dim_for_axis = None
-    for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
-      if dim is None:
-        continue
-      assert isinstance(dim, Dim)
-      if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
-        broadcast_inputs_for_axis.add(i)
-        continue
-      assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
-        f"invalid input {x} axis {i} dim {dim}")
-      if not dim_for_axis:
-        dim_for_axis = dim
+    if torch_axis in concat_axes:
+      dim_for_axis = sum(dims_for_axis)
+    else:
+      for i, (x, dim) in enumerate(zip(inputs, dims_for_axis)):
+        if dim is None:
+          continue
+        assert isinstance(dim, Dim)
+        if dim.dimension == 1 and any(d for d in dims_for_axis if d is not None and d.dimension != 1):
+          broadcast_inputs_for_axis.add(i)
+          continue
+        assert all(dim.dimension == d.dimension for d in dims_for_axis if d is not None and d.dimension != 1), (
+          f"invalid input {x} axis {i} dim {dim}")
+        if not dim_for_axis:
+          dim_for_axis = dim
     assert dim_for_axis
     out_shape.append(dim_for_axis)
     for idx in broadcast_inputs_for_axis:
       broadcast_axes[idx].add(neg_torch_axis)
-  assert len(set(out_shape)) == len(out_shape) == max_ndim - len(exclude_axes)
+  assert len(set(out_shape)) == len(out_shape) == max_ndim
 
   # Potentially reset dynamic dim tags to reflect same dim.
   dims = {}  # torch axis (negative) -> (TensorEntry, DimensionTag) (static != 1, or dynamic)
@@ -614,6 +614,8 @@ def _unify_tensor_axes_returnn_meta(
       dim_tag = x.returnn_data.get_dim_tag(returnn_axis)
       if dim_tag.dimension == 1:
         continue  # broadcast dim, so always ok. do not add
+      if axis + x.returnn_data.batch_ndim in concat_axes:
+        continue  # concat dim, so do not add
       if axis not in dims:
         dims[axis] = (x, dim_tag)
       else:
