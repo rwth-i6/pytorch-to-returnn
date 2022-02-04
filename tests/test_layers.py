@@ -69,7 +69,7 @@ def test_negative_sampling():
     negs = negs.view(bsz, tsz, n_negatives, fsz).permute(2, 0, 1, 3)  # to (N,B,T,F)
     inputs = inputs.unsqueeze(0)  # (1,B,T,F)
     targets = torch.cat([inputs, negs], dim=0)  #(N+1,B,T,F)
-    return negs
+    return targets
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
