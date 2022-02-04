@@ -34,11 +34,15 @@ class Range(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     from .shape import SizeValue
     limit, start, delta, *_ = inputs_flat
+    size = None
     if isinstance(limit, Tensor):
       assert limit.is_defined
       limit_size = limit.returnn_naming_entry.is_size_value
-      size = (limit_size - int(start)) // int(delta)
-    else:
+      if limit_size is not None:
+        size = (limit_size - int(start)) // int(delta)
+      else:
+        limit = limit.numpy()
+    if size is None:
       size = SizeValue((int(limit) - int(start)) // int(delta))
     torch_shape = (size,)
     returnn_axis_from_torch_axis = {0: 0}
