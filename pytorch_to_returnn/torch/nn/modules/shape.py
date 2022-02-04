@@ -242,14 +242,13 @@ class Unflatten(Module):
     """
     naming = Naming.get_instance()
     x, = inputs_flat
-    unflattened_size = self.unflattened_size
+    unflatten_size = self.unflattened_size
     x_entry = naming.register_tensor(x)
     dim = self.dim
     assert -len(x.shape) <= dim < len(x.shape)
     if dim < 0:
       dim += len(x.shape)
     assert 0 <= dim < len(x.shape)
-    unflatten_size = [_convert_dim_torch(d) for d in unflattened_size]
     if any(d == -1 for d in unflatten_size):
       rem_dim = x.shape[dim]
       for d in unflatten_size:
@@ -401,15 +400,6 @@ def _convert_dim_returnn(x: Union[SizeValue, int, Tensor]) -> Union[int, Dim]:
     assert x.is_defined and tensor_entry.is_const and tensor_entry.is_size_value and tensor_entry.is_size_value.dim_tag
     return tensor_entry.is_size_value.dim_tag
   raise TypeError(f"Convert dim to RETURNN: cannot handle dim {x!r} of type {type(x)}")
-
-
-def _convert_dim_torch(x: Union[SizeValue, int, Tensor]) -> Union[int, SizeValue]:
-  if isinstance(x, int):
-    return int(x)
-  if isinstance(x, Tensor):
-    assert x.is_defined and x.shape == () and x.dtype.name.startswith("int")
-    return int(x.numpy())
-  raise TypeError(f"Convert dim to Torch: invalid dim {x!r} type {type(x)}")
 
 
 __all__ = [
