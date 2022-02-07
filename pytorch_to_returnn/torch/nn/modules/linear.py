@@ -129,11 +129,53 @@ class Dot(Module):
   is_original_torch_module = False
 
   def create_returnn_layer_dict(self, a: Tensor, b: Tensor, *, reduce_dim_a: int, reduce_dim_b: int) -> Dict[str, Any]:
-    assert a.shape == b.shape
+    from .operator import _unify_tensor_axes_returnn_meta
+    (a, b), _ = _unify_tensor_axes_returnn_meta(a, b)
     dim0 = self._get_input_axis_to_returnn(a, reduce_dim_a)
     dim1 = self._get_input_axis_to_returnn(a, reduce_dim_b)
     sources = [self._get_input_layer_name(source) for source in [a, b]]
     return {"class": "dot", "red1": dim0, "red2": dim1, "from": sources}
+
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    assert len(inputs_flat) == 4
+    a, b, red_dim_a, red_dim_b = inputs_flat
+    assert all(isinstance(input_, Tensor) for input_ in [a, b])
+    assert all(len(input_.shape) >= 2 for input_ in [a, b]), "not implemented otherwise"
+    assert a.shape[red_dim_a] == b.shape[red_dim_b]
+
+    max_len = max(a.ndim, b.ndim)
+    shape1 = [None] * (max_len - a.ndim) + list(a.shape)
+    shape2 = [None] * (max_len - b.ndim) + list(b.shape)
+    if red_dim_a < 0:
+      red_dim_a += max_len
+    if red_dim_b < 0:
+      red_dim_b += max_len
+    assert red_dim_a == red_dim_b, "not implemented otherwise"
+    shape = []
+    for ax in range(max_len):
+      if ax == red_dim_a:
+        continue
+      elif shape1[ax] == shape2[ax]:
+        shape.append(shape1[ax])
+      elif shape1[ax] is not None:
+        assert shape2[ax] in [1, None], f"dimensions are not broadcastable: {a.shape} vs. {b.shape}"
+        shape.append(shape1[ax])
+      elif shape2[ax] is not None:
+        assert shape1[ax] in [1, None], f"dimensions are not broadcastable: {a.shape} vs. {b.shape}"
+        shape.append(shape2[ax])
+
+    torch_shape = tuple(shape)
+    num_unmatched_axes = max_len - min(a.ndim, b.ndim)
+    out_len = len(torch_shape)
+    returnn_axis_from_torch_axis = {}
+    # DotLayer moves unmatched axes to the end
+    for ax in range(out_len):
+      if ax < num_unmatched_axes:
+        returnn_axis_from_torch_axis[ax] = out_len - num_unmatched_axes + ax
+      else:
+        returnn_axis_from_torch_axis[ax] = ax - num_unmatched_axes
+    return torch_shape, returnn_axis_from_torch_axis
 
 
 __all__ = [
