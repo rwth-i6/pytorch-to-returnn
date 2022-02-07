@@ -305,6 +305,10 @@ class Tensor:
     from .nn.functional import truediv
     return truediv(self, other)
 
+  def __floordiv__(self, other):
+    from .nn.functional import floordiv
+    return floordiv(self, other)
+
   def __radd__(self, other):
     from .nn.functional import add
     return add(other, self)

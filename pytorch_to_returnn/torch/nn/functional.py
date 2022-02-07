@@ -227,6 +227,11 @@ def truediv(x: Tensor, y: Tensor) -> Tensor:
   return modules.BinaryOperator(kind="truediv")(cast(x, dtype), cast(y, dtype))
 
 
+def floordiv(x: Tensor, y: Tensor) -> Tensor:
+  dtype = result_type(x, y)
+  return modules.BinaryOperator(kind="floordiv")(cast(x, dtype), cast(y, dtype))
+
+
 def greater(x: Tensor, y: Tensor) -> Tensor:
   dtype = result_type(x, y)
   return modules.ComparisonOperator(kind="greater")(cast(x, dtype), cast(y, dtype))

@@ -173,7 +173,7 @@ class BinaryOperator(Module):
 
   def __init__(self, kind: str):
     """
-    :param kind: "add", "sub", "mul", "truediv"
+    :param kind: "add", "sub", "mul", "truediv", "floordiv"
     """
     super(BinaryOperator, self).__init__()
     self.kind = kind
