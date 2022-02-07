@@ -48,7 +48,7 @@ def test_randint_dynamic():
 
 
 def test_negative_sampling():
-  n_batch, n_time, n_feat = 3, 5, 7  # B, T', F
+  n_batch, n_time, n_feat = 3, 14, 7  # B, T', F
   n_negatives = 10  # N
 
   def model_func(wrapped_import, inputs: torch.Tensor):
@@ -56,7 +56,7 @@ def test_negative_sampling():
       import torch
     else:
       torch = wrapped_import("torch")
-    model = torch.nn.Conv1d(in_channels=n_feat, out_channels=n_feat, kernel_size=2)
+    model = torch.nn.Conv1d(in_channels=n_feat, out_channels=n_feat, kernel_size=2, stride=3)
     inputs = model(inputs.transpose(1, 2)).transpose(1, 2).contiguous()
 
     bsz, tsz, fsz = inputs.shape  # (B,T,F)
