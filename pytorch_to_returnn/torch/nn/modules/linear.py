@@ -129,8 +129,6 @@ class Dot(Module):
   is_original_torch_module = False
 
   def create_returnn_layer_dict(self, a: Tensor, b: Tensor, *, reduce_dim_a: int, reduce_dim_b: int) -> Dict[str, Any]:
-    from .operator import _unify_tensor_axes_returnn_meta
-    (a, b), _ = _unify_tensor_axes_returnn_meta(a, b)
     dim0 = self._get_input_axis_to_returnn(a, reduce_dim_a)
     dim1 = self._get_input_axis_to_returnn(a, reduce_dim_b)
     sources = [self._get_input_layer_name(source) for source in [a, b]]
