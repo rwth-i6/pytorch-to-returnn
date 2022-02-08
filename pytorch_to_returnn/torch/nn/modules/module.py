@@ -812,11 +812,9 @@ class Module:
     naming = Naming.get_instance()
     # dim_tag_ext -> in spatial idx, Torch dim where dim_tag_ext is from _get_spatial_dim_tag_and_single_index
     dyn_size_dim_tag_ext_to_spatial_idx_and_torch_dim = OrderedDict()
-    for input in inputs_flat:
-      if not isinstance(input, Tensor):
-        continue
-      if not input.shape:
-        continue  # skip scalars
+    inputs_flat_ = [input for input in inputs_flat if isinstance(input, Tensor)]  # skip non-tensors and scalars
+    inputs_flat_ = sorted(inputs_flat_, key=lambda x: x.ndim, reverse=True)  # start with maximum ndims
+    for input in inputs_flat_:
       x = naming.tensors[input]
       assert isinstance(x, TensorEntry)
       assert x.returnn_data and x.returnn_axis_from_torch_axis is not None

@@ -67,9 +67,10 @@ def test_negative_sampling():
     y = inputs.view(-1, fsz)  # (B,T,F) => (B*T,F)
     negs = y[neg_idxs.view(-1)]  # (B*T*N,F)
     negs = negs.view(bsz, tsz, n_negatives, fsz).permute(2, 0, 1, 3)  # to (N,B,T,F)
-    inputs = inputs.unsqueeze(0)  # (1,B,T,F)
-    targets = torch.cat([inputs, negs], dim=0)  #(N+1,B,T,F)
-    return targets
+    inputs_unsqueeze = inputs.unsqueeze(0)  # (1,B,T,F)
+    targets = torch.cat([inputs_unsqueeze, negs], dim=0)  # (N+1,B,T,F)
+    logits = torch.cosine_similarity(inputs.float(), targets.float(), dim=-1).type_as(inputs)
+    return logits
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
@@ -344,6 +345,24 @@ def test_functional_linear():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_in, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
+def test_multiplication_broadcasting():
+  n_batch, n_time, n_feature = 3, 7, 11
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    bsz, fsz, tsz = inputs.shape
+    out = inputs * inputs.expand(3, bsz, fsz, tsz)
+    assert out.shape == (3, bsz, fsz, tsz)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
