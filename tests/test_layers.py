@@ -67,9 +67,10 @@ def test_negative_sampling():
     y = inputs.view(-1, fsz)  # (B,T,F) => (B*T,F)
     negs = y[neg_idxs.view(-1)]  # (B*T*N,F)
     negs = negs.view(bsz, tsz, n_negatives, fsz).permute(2, 0, 1, 3)  # to (N,B,T,F)
-    inputs = inputs.unsqueeze(0)  # (1,B,T,F)
-    targets = torch.cat([inputs, negs], dim=0)  #(N+1,B,T,F)
-    return targets
+    inputs_unsqueeze = inputs.unsqueeze(0)  # (1,B,T,F)
+    targets = torch.cat([inputs_unsqueeze, negs], dim=0)  # (N+1,B,T,F)
+    logits = torch.cosine_similarity(inputs.float(), targets.float(), dim=-1).type_as(inputs)
+    return logits
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
