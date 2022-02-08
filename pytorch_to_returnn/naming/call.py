@@ -72,8 +72,9 @@ class CallEntry:
       self.orig_outputs = outputs
       self.orig_outputs_flat = outputs_flat
     if naming.wrap_to_returnn_enabled:  # not all tensors are traced currently otherwise. also not needed
+      from pytorch_to_returnn.torch import Tensor
       # we might get None, e.g. from flattened PackedSequence
-      entry_outputs = [naming.tensors[x] if x is not None else None for x in outputs_flat]
+      entry_outputs = [naming.tensors[x] if isinstance(x, Tensor) else None for x in outputs_flat]
       self.outputs_flat = entry_outputs
       self.outputs = nest.pack_sequence_as(structure=outputs, flat_sequence=entry_outputs)
       for x in entry_outputs:
@@ -81,6 +82,7 @@ class CallEntry:
           if self not in x.output_from_calls:
             x.output_from_calls.append(self)
             x.output_from_modules.append(self.module)
+      entry_outputs = [x for x in entry_outputs if x is not None]
       if entry_outputs:
         if self.namespace not in entry_outputs[0].names:
           entry_outputs[0].names.append(self.namespace)
@@ -102,7 +104,7 @@ class CallEntry:
         if isinstance(x, Tensor):
           self.namespace.register_input(tensor=naming.tensors[x])
       res = module.forward(*inputs_args, **inputs_kwargs)
-      res_flat = nest.flatten(res)
+      res_flat = [res for res in nest.flatten(res) if isinstance(res, Tensor)]
       assert len(res_flat) >= 1
       res_entry = naming.tensors[res_flat[0]]
       assert isinstance(res_entry, _tensor.TensorEntry)

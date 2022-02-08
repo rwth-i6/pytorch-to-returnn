@@ -1623,6 +1623,28 @@ def test_multiple_outputs():
     inputs_data_kwargs={"shape": (None, n_in), "batch_dim_axis": 1})
 
 
+def test_output_type():
+  n_batch, n_time, n_feat = 3, 5, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+
+    class DummyModule(torch.nn.Module):
+      def forward(self, y):
+        return {"a": 1, "b": y + 1}
+
+    mod = DummyModule()
+    return mod(inputs)["b"]
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_forward_with_kwargs():
   n_batch, n_time, n_feature = 3, 7, 5
 
