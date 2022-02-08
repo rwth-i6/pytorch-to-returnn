@@ -356,8 +356,9 @@ def test_multiplication_broadcasting():
       import torch
     else:
       torch = wrapped_import("torch")
-    out = inputs * inputs.expand(3, n_batch, n_feature, n_time)
-    assert out.shape == (3, n_batch, n_feature, n_time)
+    bsz, fsz, tsz = inputs.shape
+    out = inputs * inputs.expand(3, bsz, fsz, tsz)
+    assert out.shape == (3, bsz, fsz, tsz)
     return out
 
   rnd = numpy.random.RandomState(42)
