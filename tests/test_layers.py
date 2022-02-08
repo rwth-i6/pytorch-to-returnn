@@ -348,6 +348,23 @@ def test_functional_linear():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_multiplication_broadcasting():
+  n_batch, n_time, n_feature = 3, 7, 11
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+    out = inputs * inputs.expand(3, n_batch, n_feature, n_time)
+    assert out.shape == (3, n_batch, n_feature, n_time)
+    return out
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feature, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_matmul_broadcasting():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
