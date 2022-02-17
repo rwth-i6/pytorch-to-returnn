@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Tuple, Any, Sequence
 from returnn.tf.util.data import Dim, batch_dim, single_step_dim
+from ..torch._C import Size
 
 
 class ReturnnDimTagsProxy:
@@ -54,7 +55,7 @@ class ReturnnDimTagsProxy:
         assert len(dim.derived_from_op.inputs) == 2
         a, b = dim.derived_from_op.inputs
         return f"{self.dim_ref_repr(a)}.div_left({self.dim_ref_repr(b)})"
-      op_str = {"add": "+", "mul": "*", "truediv_right": "//"}[dim.derived_from_op.kind]
+      op_str = {"add": "+", "mul": "*", "truediv_right": "//", "floordiv_right": "//"}[dim.derived_from_op.kind]
       return f" {op_str} ".join(self.dim_ref_repr(in_) for in_ in dim.derived_from_op.inputs)
     ref = self.dim_refs_by_tag[dim]
     return ref.py_id_name()
@@ -180,6 +181,8 @@ class ReturnnDimTagsProxy:
         return [_map(path + (i,), value_) for i, value_ in enumerate(value)]
       if isinstance(value, tuple) and type(value) is tuple:
         return tuple(_map(path + (i,), value_) for i, value_ in enumerate(value))
+      if isinstance(value, tuple) and type(value) is Size:
+        return Size(_map(path + (i,), value_) for i, value_ in enumerate(value))
       if isinstance(value, tuple) and type(value) is not tuple:
         # noinspection PyProtectedMember,PyUnresolvedReferences,PyArgumentList
         return type(value)(*(_map(path + (key,), getattr(value, key)) for key in value._fields))
