@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Tuple, Any, Sequence
 from returnn.tf.util.data import Dim, batch_dim, single_step_dim
-from ..torch._C import Size
+from ..torch._C import Size, SizeValue
 
 
 class ReturnnDimTagsProxy:
@@ -151,6 +151,8 @@ class ReturnnDimTagsProxy:
 
     # Cannot use nest because nest does not support sets. Also nest requires them to be sorted.
     def _map(path, value):
+      if isinstance(value, SizeValue):
+        return int(value)
       if isinstance(value, Dim):
         if value in {batch_dim, single_step_dim}:
           # No need to register this.
