@@ -6,7 +6,7 @@ import contextlib
 import numpy
 import types
 import tempfile
-from pytorch_to_returnn.pprint import pprint
+from pytorch_to_returnn.pprint import pprint, pformat
 from typing import Callable, Optional, Dict, Any, Tuple, List
 from returnn.tf.util.data import Data, Dim, batch_dim
 from pytorch_to_returnn import torch as torch_returnn
@@ -145,6 +145,28 @@ class Converter:
   def returnn_net_dict(self) -> Dict[str, Dict[str, Any]]:
     assert self._returnn_net_dict, "Call run() first."
     return self._returnn_net_dict
+
+  def get_returnn_config_serialized(self) -> str:
+    assert self._returnn_net_dict, "Call run() first."
+
+    config = {
+      "extern_data": {"data": self._returnn_in_data_dict},
+      "network": self._returnn_net_dict,
+    }
+
+    from .utils import ReturnnDimTagsProxy
+    dim_tags_proxy = ReturnnDimTagsProxy()
+    config = dim_tags_proxy.collect_dim_tags_and_transform_config(config)
+
+    code_lines = [
+      "from returnn.tf.util.data import Dim, batch_dim, single_step_dim, SpatialDim, FeatureDim\n\n",
+      "use_tensorflow = True\n",
+      f"behavior_version = {returnn_behavior_version}\n\n",
+      f"{dim_tags_proxy.py_code_str()}\n",
+      f"extern_data = {pformat(config.pop('extern_data'))}\n",
+      f"network = {pformat(config.pop('network'))}\n",
+    ]
+    return "".join(code_lines)
 
   def _make_tf_feed_dict(self, input: Data, out_entry: Optional[TensorEntry] = None):
     assert input.batch_ndim == len(self._inputs_np.shape)
