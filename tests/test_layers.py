@@ -1787,7 +1787,9 @@ def test_returnn_config_serialization():
 
   cfg = converter.get_returnn_config_serialized()
   print(f"Serialized config:\n\n{cfg}")
-  exec(cfg)
+  from returnn_helpers import config_net_dict_via_serialized, dummy_run_net
+  config, net_dict = config_net_dict_via_serialized(cfg)
+  dummy_run_net(config)
 
 
 if __name__ == "__main__":
