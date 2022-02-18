@@ -159,6 +159,7 @@ class Converter:
     config = dim_tags_proxy.collect_dim_tags_and_transform_config(config)
 
     code_lines = [
+      "import numpy\n",
       "from returnn.tf.util.data import Dim, batch_dim, single_step_dim, SpatialDim, FeatureDim\n\n",
       "use_tensorflow = True\n",
       f"behavior_version = {returnn_behavior_version}\n\n",
