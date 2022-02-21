@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Tuple, Any, Sequence
 from returnn.tf.util.data import Dim, batch_dim, single_step_dim
-from ..torch._C import Size
+from ..torch._C import Size, SizeValue
 
 
 class ReturnnDimTagsProxy:
@@ -97,16 +97,19 @@ class ReturnnDimTagsProxy:
       assert dim.can_be_used_as_dim()
       assert not dim.derived_from_op
       assert not dim.match_priority
+      dimension = dim.dimension
+      if isinstance(dimension, SizeValue):
+        dimension = int(dimension)
       # We assume FeatureDim, SpatialDim and Dim are imported.
       if dim.kind == Dim.Types.Feature:
-        return f"FeatureDim({dim.description!r}, {dim.dimension})"
+        return f"FeatureDim({dim.description!r}, {dimension})"
       if dim.kind == Dim.Types.Spatial:
-        if dim.dimension is not None:
-          return f"SpatialDim({dim.description!r}, {dim.dimension})"
+        if dimension is not None:
+          return f"SpatialDim({dim.description!r}, {dimension})"
         else:
           return f"SpatialDim({dim.description!r})"
       # generic fallback
-      return f"Dim(kind={dim.kind}, description={dim.description!r}, dimension={dim.dimension})"
+      return f"Dim(kind={dim.kind}, description={dim.description!r}, dimension={dimension})"
 
   class SetProxy:
     """
@@ -151,6 +154,8 @@ class ReturnnDimTagsProxy:
 
     # Cannot use nest because nest does not support sets. Also nest requires them to be sorted.
     def _map(path, value):
+      if isinstance(value, SizeValue):
+        return int(value)
       if isinstance(value, Dim):
         if value in {batch_dim, single_step_dim}:
           # No need to register this.
