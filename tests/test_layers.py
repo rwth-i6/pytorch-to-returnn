@@ -1787,7 +1787,6 @@ def test_returnn_config_serialization():
     "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
   cfg = converter.get_returnn_config_serialized()
-  print(f"Serialized config:\n\n{cfg}")
   from returnn_helpers import config_net_dict_via_serialized, dummy_run_net
   config, net_dict = config_net_dict_via_serialized(cfg)
   dummy_run_net(config)
