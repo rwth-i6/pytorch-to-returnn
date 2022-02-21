@@ -1771,19 +1771,20 @@ def test_dummy_input_shape():
 
 
 def test_returnn_config_serialization():
-  n_batch, n_feat = 1, 5
+  n_batch, n_time, n_feat = 1, 5, 7
 
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
       import torch
     else:
       torch = wrapped_import("torch")
-    arange = torch.arange(inputs.shape[1])
-    return inputs + torch.reshape(arange, (1, -1))
+    arange = torch.arange(inputs.shape[2])
+    return inputs + torch.reshape(arange, (1, 1, -1))
 
   rnd = numpy.random.RandomState(42)
-  x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
-  converter = verify_torch_and_convert_to_returnn(model_func, inputs=x)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
+  converter = verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
   cfg = converter.get_returnn_config_serialized()
   print(f"Serialized config:\n\n{cfg}")
