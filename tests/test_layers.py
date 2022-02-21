@@ -74,8 +74,13 @@ def test_negative_sampling():
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
-  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+  converter = verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
     "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+  cfg = converter.get_returnn_config_serialized()
+  from returnn_helpers import config_net_dict_via_serialized, dummy_run_net
+  config, net_dict = config_net_dict_via_serialized(cfg)
+  dummy_run_net(config)
 
 
 def test_embedding():
