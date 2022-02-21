@@ -56,7 +56,7 @@ class ReturnnDimTagsProxy:
         a, b = dim.derived_from_op.inputs
         return f"{self.dim_ref_repr(a)}.div_left({self.dim_ref_repr(b)})"
       op_str = {"add": "+", "mul": "*", "truediv_right": "//", "floordiv_right": "//"}[dim.derived_from_op.kind]
-      return f" {op_str} ".join(self.dim_ref_repr(in_) for in_ in dim.derived_from_op.inputs)
+      return "(" + f" {op_str} ".join(self.dim_ref_repr(in_) for in_ in dim.derived_from_op.inputs) + ")"
     ref = self.dim_refs_by_tag[dim]
     return ref.py_id_name()
 
