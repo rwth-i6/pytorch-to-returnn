@@ -183,9 +183,10 @@ class BinaryOperator(Module):
 
   def create_returnn_layer_dict(self, *inputs: Tensor):
     inputs, out_shape = _unify_tensor_axes_returnn_meta(*inputs)
-    return {
-      "class": "combine", "kind": self.kind, "out_shape": out_shape,
-      "from": [self._get_input_layer_name(input) for input in inputs]}
+    d = {"class": "combine", "kind": self.kind, "from": [self._get_input_layer_name(input) for input in inputs]}
+    if all(input_.ndim < len(out_shape) for input_ in inputs if isinstance(input_, Tensor)):
+      d["allow_broadcast_all_sources"] = True
+    return d
 
 
 class ComparisonOperator(BinaryOperator):
@@ -199,9 +200,10 @@ class ComparisonOperator(BinaryOperator):
 
   def create_returnn_layer_dict(self, *inputs: Tensor):
     inputs, out_shape = _unify_tensor_axes_returnn_meta(*inputs)
-    return {
-      "class": "compare", "kind": self.kind, "out_shape": out_shape,
-      "from": [self._get_input_layer_name(input) for input in inputs]}
+    d = {"class": "compare", "kind": self.kind, "from": [self._get_input_layer_name(input) for input in inputs]}
+    if all(input_.ndim < len(out_shape) for input_ in inputs if isinstance(input_, Tensor)):
+      d["allow_broadcast_all_sources"] = True
+    return d
 
 
 class Minimum(Module):
