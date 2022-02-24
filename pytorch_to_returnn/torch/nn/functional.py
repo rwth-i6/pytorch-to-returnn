@@ -523,6 +523,10 @@ def logsigmoid(input: Tensor):
   return modules.LogSigmoid().as_returnn_torch_functional()(input)
 
 
+def exp(input: Tensor):
+  return modules.Exp().as_returnn_torch_functional()(input)
+
+
 def pow(input: Tensor, exponent: float):
   return modules.Power(exponent=exponent).as_returnn_torch_functional()(input)
 
@@ -830,10 +834,6 @@ def ceil():
 
 
 def clamp():
-  raise NotImplementedError
-
-
-def exp():
   raise NotImplementedError
 
 

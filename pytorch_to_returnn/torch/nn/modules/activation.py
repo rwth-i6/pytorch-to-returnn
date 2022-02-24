@@ -56,6 +56,10 @@ class LogSigmoid(_ActivationReturnn):
   func_name = "log_sigmoid"
 
 
+class Exp(_ActivationReturnn):
+  func_name = "exp"
+
+
 class Power(Module):
   is_original_torch_module = False
 
