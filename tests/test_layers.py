@@ -47,7 +47,7 @@ def test_randint_dynamic():
     "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
-def test_negative_sampling():
+def test_contrastive_loss():
   n_batch, n_time, n_feat = 3, 14, 7  # B, T', F
   n_negatives = 10  # N
 
@@ -70,7 +70,11 @@ def test_negative_sampling():
     inputs_unsqueeze = inputs.unsqueeze(0)  # (1,B,T,F)
     targets = torch.cat([inputs_unsqueeze, negs], dim=0)  # (N+1,B,T,F)
     logits = torch.cosine_similarity(inputs.float(), targets.float(), dim=-1).type_as(inputs)
-    return logits
+    labels = logits.new_zeros(logits.size(1) * logits.size(2), dtype=torch.long)
+    logits = logits.transpose(0, 2)
+    logits = logits.reshape(-1, logits.size(-1))
+    output = torch.nn.functional.cross_entropy(logits, labels, reduction="sum")
+    return output
 
   rnd = numpy.random.RandomState(42)
   x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
