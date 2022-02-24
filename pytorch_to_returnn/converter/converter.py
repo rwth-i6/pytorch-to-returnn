@@ -294,6 +294,8 @@ class Converter:
 
       feed_dict = self._make_tf_feed_dict(x, out_returnn_)
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
+      if isinstance(y_, (numpy.float32, numpy.float64, numpy.int32, numpy.int64)):
+        y_ = numpy.array(y_)
       assert isinstance(y_, numpy.ndarray)
       self._out_returnn_np = y_
       print("Output shape:", y_.shape)
@@ -354,6 +356,8 @@ class Converter:
         network.layers[layer_name].output.placeholder: value for layer_name, value in
         self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
+      if isinstance(y_, (numpy.float32, numpy.float64, numpy.int32, numpy.int64)):
+        y_ = numpy.array(y_)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
       numpy.testing.assert_allclose(self._out_returnn_np, y_)
@@ -399,6 +403,8 @@ class Converter:
         network.layers[layer_name].output.placeholder: value for layer_name, value in
         self._non_deterministic_layer_outputs.items()})
       y_, y_size = session.run((y.placeholder, y.size_placeholder.as_dict()), feed_dict=feed_dict)
+      if isinstance(y_, (numpy.float32, numpy.float64, numpy.int32, numpy.int64)):
+        y_ = numpy.array(y_)
       assert isinstance(y_, numpy.ndarray)
       print("Output shape:", y_.shape)
       numpy.testing.assert_allclose(self._out_returnn_np, y_)
