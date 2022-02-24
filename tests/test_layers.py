@@ -1100,6 +1100,25 @@ def test_cosine_similarity():
     "shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_cross_entropy():
+  n_batch, n_feat = 3, 7
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if wrapped_import:
+      torch = wrapped_import("torch")
+    else:
+      import torch
+
+    target = torch.randint(low=0, high=inputs.shape[0], size=(inputs.shape[0],))
+    ref = torch.nn.functional.cross_entropy(inputs, target, reduction="sum")
+    return ref
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_feat)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x, inputs_data_kwargs={
+    "shape": (n_feat,), "batch_dim_axis": 0, "feature_dim_axis": 1, "time_dim_axis": None})
+
+
 def test_unsqueeze():
   n_in, n_out = 11, 13
   n_batch, n_time = 3, 7
