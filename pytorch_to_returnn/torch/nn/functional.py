@@ -825,6 +825,30 @@ def cosine_similarity(x1: Tensor, x2: Tensor, dim: int=1, eps: float=1e-8) -> Te
   return numerator * inv_denominator
 
 
+def cross_entropy(
+  input: Tensor, target: Tensor, weight: Optional[Tensor] = None, size_average: Optional[bool] = None,
+  ignore_index: int = -100, reduce: Optional[bool] = None, reduction: str = "mean", label_smoothing: float = 0.0,
+) -> Tensor:
+  assert weight is None, "not implemented otherwise"
+  assert size_average is None, "not implemented otherwise"
+  assert ignore_index == -100, "not implemented otherwise"
+  assert reduce is None, "not implemented otherwise"
+  assert reduction == "sum", "not implemented otherwise"
+  assert label_smoothing == 0.0, "not implemented otherwise"
+
+  assert target.ndim == 1, "not implemented otherwise"
+  assert input.shape[0] == target.shape[0]
+
+  idcs = target + torch.arange(target.shape[0]) * target.shape[0]
+  input = input.t().exp()
+  num = input.flatten()[idcs]
+  denom = input.sum(dim=0)
+  ce = torch.log(num / denom) * -1
+  if reduction == "sum":
+    ce = ce.sum()
+  return ce
+
+
 def mse_loss():
   raise NotImplementedError
 
