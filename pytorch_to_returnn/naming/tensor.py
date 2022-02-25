@@ -19,7 +19,7 @@ class TensorEntry:
   validated_to_torch_tf_feed_dict: Optional[Dict[tf.Tensor, numpy.ndarray]] = None
   validated_to_torch_tf_sizes_feed_dict: Optional[Dict[tf.Tensor, numpy.ndarray]] = None
   is_param: bool = False
-  is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc
+  is_const: bool = False  # e.g. via from_numpy, empty, zeros, etc (without dependency on dynamic axes)
   is_input: bool = False  # in TF1 terminology, would be a placeholder
   is_size_value: Optional[SizeValue] = None
   output_from_modules: List[_module.ModuleEntry]
