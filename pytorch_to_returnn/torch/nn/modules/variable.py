@@ -5,6 +5,7 @@ import tensorflow as tf
 from returnn.tf.layers.basic import LayerBase, VariableLayer
 from typing import Tuple, List, Optional
 from ...tensor import Tensor, dtype as _DType
+from ..._C import SizeValue
 from ..parameter import Parameter
 from .module import Module
 from ....naming import Naming
@@ -133,9 +134,13 @@ class FullStatic(Module):
     from ..._C import from_numpy
     tensor = from_numpy(numpy.full(size, self.fill_value, dtype=self.dtype.name))
     entry = naming.register_tensor(tensor)
-    entry.is_const = True
+    entry.is_const = not any(isinstance(x, Tensor) for x in inputs_flat)
     entry.returnn_data = layer.output
     entry.returnn_axis_from_torch_axis = {i: i for i in range(tensor.ndim)}
+    for dim in range(tensor.ndim):
+      tensor.shape[dim].dim_tag = entry.returnn_data.dim_tags[dim]
+    if isinstance(self.fill_value, SizeValue):
+      entry.is_size_value = self.fill_value
     return tensor
 
 
