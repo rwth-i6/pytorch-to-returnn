@@ -516,6 +516,17 @@ class Reduce(Module):
     axes = [self._get_input_axis_to_returnn(input, axis) for axis in axes]
     return {"class": "reduce", "mode": self.mode, "axes": axes, "from": self._get_input_layer_name(input)}
 
+  def make_output_tensor_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase) -> Tensor:
+    tensor = super(Reduce, self).make_output_tensor_from_returnn(inputs_flat, layer)
+    if self.mode == "max":
+      naming = Naming.get_instance()
+      assert len(inputs_flat) == 1
+      input_entry = naming.tensors[inputs_flat[0]]
+      if input_entry.is_size_value:
+        tensor_entry = naming.tensors[tensor]
+        tensor_entry.is_size_value = input_entry.is_size_value
+    return tensor
+
 
 class Length(Module):
   """
