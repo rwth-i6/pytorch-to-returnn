@@ -36,11 +36,11 @@ class Range(Module):
     limit, start, delta, *_ = inputs_flat
     size = None
     if isinstance(limit, Tensor):
-      assert limit.is_defined
       limit_size = limit.returnn_naming_entry.is_size_value
       if limit_size is not None:
         size = (limit_size - int(start)) // int(delta)
       else:
+        assert limit.is_defined
         limit = limit.numpy()
     if size is None:
       size = SizeValue((int(limit) - int(start)) // int(delta))
