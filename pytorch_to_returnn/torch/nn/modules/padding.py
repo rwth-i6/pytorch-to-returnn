@@ -27,24 +27,17 @@ class GenericPadNd(Module):
     assert self.mode != "replicate"  # not implemented
     assert len(self.padding) % 2 == 0, 'Padding needs to be a multiple of 2'
 
-    naming = Naming.get_instance()
-    input_naming = naming.tensors[input]
-
     padding_returnn = [(self.padding[2 * i], self.padding[2 * i + 1]) for i in range(len(self.padding) // 2)]
-    axes_returnn = [
-      input_naming.returnn_axis_from_torch_axis[i + input.ndim] for i in range(-1, -(len(self.padding) // 2) - 1, -1)]
-
     # remove axes with padding (0, 0) to simplify RETURNN network
-    non_zero_padding_axes = [ax for ax in range(len(padding_returnn)) if padding_returnn[ax] != (0, 0)]
-    axes_returnn = [axes_returnn[ax] for ax in non_zero_padding_axes]
-    padding_returnn = [padding_returnn[ax] for ax in non_zero_padding_axes]
+    axes = [ax for ax in range(-1, -(len(self.padding) // 2) - 1, -1) if padding_returnn[-ax - 1] != (0, 0)]
+    padding_returnn = [pad for pad in padding_returnn if pad != (0, 0)]
 
-    if len(non_zero_padding_axes) == 0:
+    if len(padding_returnn) == 0:
       return {"class": "copy", "from": self._get_input_layer_name(input)}
 
     d = {
       "class": "pad", "mode": self.mode,
-      "axes": [self._get_input_axis_to_returnn(input, a) for a in axes_returnn],
+      "axes": [self._get_input_axis_to_returnn(input, a) for a in axes],
       "padding": padding_returnn,
       "from": self._get_input_layer_name(input)}
     if self.mode == "constant":
