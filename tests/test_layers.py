@@ -721,6 +721,28 @@ def test_pad_time_btf():
     "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2, "shape": (None, n_feat)})
 
 
+def test_pad_conv():
+  n_batch, n_time, n_feat = 3, 7, 5
+  conv_pos = 2
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    mod_pad = torch.nn.ConstantPad1d(conv_pos // 2, 0)
+    inputs = mod_pad(inputs)
+    mod_conv = torch.nn.Conv1d(n_feat, n_feat, kernel_size=conv_pos)
+    inputs = mod_conv(inputs)
+    inputs = inputs[:, :, :-1]
+    return inputs
+
+  x = numpy.ones((n_batch, n_feat, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+  verify_torch_and_convert_to_returnn(model_func, inputs=x)
+
+
 def test_constant_pad_1d():
   def model_func(wrapped_import, inputs: torch.Tensor):
     if typing.TYPE_CHECKING or not wrapped_import:
