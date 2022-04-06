@@ -70,6 +70,7 @@ class Converter:
                use_non_wrapped_reference: bool = True,
                verify_with_torch: bool = True,
                verify_individual_model_io: bool = True,
+               validate_allclose_kwargs: Optional[Dict[str, Any]] = None,
                import_torch_params: bool = True,
                export_tf_checkpoint_save_path: Optional[str] = None,
                verify_returnn_standalone_model: bool = True,
@@ -89,6 +90,7 @@ class Converter:
     self.use_non_wrapped_reference = use_non_wrapped_reference
     self.verify_with_torch = verify_with_torch
     self.verify_individual_model_io = verify_individual_model_io
+    self.validate_allclose_kwargs = validate_allclose_kwargs
     self.import_torch_params = import_torch_params
     self.export_tf_checkpoint_save_path = export_tf_checkpoint_save_path
     self.train = train
@@ -238,7 +240,8 @@ class Converter:
     with torch.no_grad():
       with Naming.make_instance(
             wrap_to_returnn_enabled=False,
-            keep_orig_module_io_tensors=self.verify_individual_model_io) as naming:
+            keep_orig_module_io_tensors=self.verify_individual_model_io,
+            validate_allclose_kwargs=self.validate_allclose_kwargs) as naming:
         wrapped_torch = wrapped_import_torch_traced("torch")
         out_wrapped = self._model_func(wrapped_import_torch_traced, wrapped_torch.from_numpy(self._inputs_np.copy()))
         assert isinstance(out_wrapped, WrappedTorchTensor)
@@ -268,7 +271,8 @@ class Converter:
             wrap_to_returnn_enabled=True,
             returnn_train_flag=self.train,
             keep_orig_module_io_tensors=True,  # it's only symbolic anyway in TF
-            import_params_from_torch_namespace=self._torch_namespace) as naming:
+            import_params_from_torch_namespace=self._torch_namespace,
+            validate_allclose_kwargs=self.validate_allclose_kwargs) as naming:
         assert isinstance(naming, Naming)
         in_returnn = torch_returnn.from_numpy(self._inputs_np.copy())
         assert isinstance(in_returnn, torch_returnn.Tensor)
