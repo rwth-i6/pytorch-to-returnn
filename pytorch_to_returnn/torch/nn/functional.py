@@ -186,6 +186,10 @@ def sum(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dt
   return modules.Reduce(mode="sum", axes=dim)(input)
 
 
+def mean(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
+  return modules.Reduce(mode="mean", axes=dim)(input)
+
+
 def max(input: Tensor, dim: Optional[int] = None, dtype: Optional[Union[str, _dtype]] = None) -> Tensor:
   return modules.Reduce(mode="max", axes=dim)(input)
 
