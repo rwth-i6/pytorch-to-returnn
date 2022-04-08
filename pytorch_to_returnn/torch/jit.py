@@ -11,6 +11,7 @@ def unused(fn):
 def is_scripting() -> bool:
   return False  # stub
 
+
 def is_tracing() -> bool:
   return False  # stub
 
