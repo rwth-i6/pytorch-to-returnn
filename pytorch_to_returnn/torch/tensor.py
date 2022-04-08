@@ -258,6 +258,10 @@ class Tensor:
     from .nn.functional import sum
     return sum(self, dim=dim)
 
+  def mean(self, dim: Optional[int] = None) -> Tensor:
+    from .nn.functional import mean
+    return mean(self, dim=dim)
+
   def __getitem__(self, item):
     assert self._shape  # cannot subscript a scalar
     if isinstance(item, int):
