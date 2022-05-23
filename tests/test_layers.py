@@ -1181,6 +1181,40 @@ def test_transpose_unsqueeze():
   verify_torch_and_convert_to_returnn(model_func, inputs=x)
 
 
+def test_unsqueeze_residual():
+  n_batch, n_time = 3, 1000
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    x = inputs
+    x = x.unsqueeze(1)
+    x = torch.nn.Conv1d(1, 768, 10, stride=5, groups=1)(x)
+    x = x.transpose(1,2)
+    residual = x
+    x = x.transpose(1, 2)
+    x = torch.nn.ConstantPad1d(15, 0)(x)
+    x = torch.nn.Conv1d(768, 768, 31, stride=1, groups=768)(x)
+    x = x.transpose(1, 2)
+    x = x + residual
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time)).astype("float32")
+  verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, returnn_dummy_input_shape=x.shape, 
+    inputs_data_kwargs={
+            "batch_dim_axis": 0, 
+            "time_dim_axis": 1, 
+            "feature_dim_axis": None, 
+            "shape": (None)
+        },
+    )
+
+
 def test_broadcast_with_different_axes_types():
   n_batch, n_time, n_feature = 3, 7, 5
 
