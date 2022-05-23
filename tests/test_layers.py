@@ -1210,7 +1210,7 @@ def test_unsqueeze_residual():
             "batch_dim_axis": 0, 
             "time_dim_axis": 1, 
             "feature_dim_axis": None, 
-            "shape": (None)
+            "shape": (None,)
         },
     )
 
