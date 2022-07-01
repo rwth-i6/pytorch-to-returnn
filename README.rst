@@ -273,3 +273,5 @@ Related work
   has a proof-of-concept implementation of PyTorch based on TensorFlow
   `here <https://github.com/shawwn/ml-notes/blob/working/tftorch.py>`__,
   initial announcement `here <https://twitter.com/theshawwn/status/1311925180126511104>`__.
+* `TF2JAX <https://github.com/deepmind/tf2jax>`__
+  is an experimental library for converting TensorFlow functions/graphs to JAX functions.
