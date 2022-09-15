@@ -20,6 +20,14 @@ class GELU(_ActivationReturnn):
   func_name = "gelu3"
 
 
+class SiLU(_ActivationReturnn):
+  func_name = "swish"
+
+  def __init__(self, inplace=False):
+    super(SiLU, self).__init__()  # ignore inplace
+
+
+
 class PReLU(_ActivationReturnn):
   pass
 
