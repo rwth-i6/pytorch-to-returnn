@@ -69,6 +69,10 @@ class GroupNorm(_Norm):
     super(GroupNorm, self).__init__(axes=axes, normalized_shape=num_channels, eps=eps, affine=affine)
 
 
+class InstanceNorm1d:
+  pass
+
+
 __all__ = [
   key for (key, value) in sorted(globals().items())
   if not key.startswith("_")
