@@ -12,6 +12,7 @@ from . import jit
 __version__ = "1.8.1"
 __returnn__ = True
 
+bool = dtype("bool")
 int = dtype("int32")
 int32 = dtype("int32")
 long = dtype("int64")
