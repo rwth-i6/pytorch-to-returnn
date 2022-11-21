@@ -314,7 +314,8 @@ class _FunctionalConvNd(Module):
     returnn_weight_transpose_perm = {i: j for (i, j) in zip(returnn_weight_axes, returnn_weight_axes_)}
     if bias is not None:
       assert bias.shape == (out_channels,)
-    assert self.groups == 1  # not implemented otherwise
+    if self.transposed:
+      assert self.groups == 1  # not implemented otherwise
     assert self.padding_mode == "zeros"  # not implemented otherwise
     if self.transposed:  # transposed conv
       assert all(d == 1 for d in self.dilation)
@@ -348,6 +349,7 @@ class _FunctionalConvNd(Module):
         "padding": "valid",
         "strides": self.stride,
         "dilation_rate": self.dilation,
+        "groups": self.groups,
         "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
       }
 
