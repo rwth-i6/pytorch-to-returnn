@@ -99,7 +99,53 @@ class CallEntry:
     inputs_args, inputs_kwargs = nest.pack_sequence_as(
       structure=(self.inputs_args, self.inputs_kwargs), flat_sequence=inputs_flat)
 
-    if module.has_torch_forward():
+    if module.direct_returnn_layer_call():
+      assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
+      assert self.namespace and self.namespace.parent
+      parent_namespace = self.namespace.parent
+      parent_namespace.maybe_create_returnn_ctx()
+      layer_dict = module.create_returnn_layer_dict(*inputs_args, **inputs_kwargs)
+      layer_name = self.namespace.name
+      returnn_net = parent_namespace.returnn_ctx.network
+      if module.has_torch_forward():
+        # a subnetwork is already created for this module, but we want to directly map it to a RETURNN layer call if
+        # module.create_returnn_layer_dict is explicitly given.
+        assert layer_name in returnn_net.layers
+        returnn_net.layers.pop(layer_name)
+        self.namespace.is_subnet = False
+        self.returnn_layer_dict = layer_dict
+      else:
+        assert layer_name not in returnn_net.layers
+      if len(self.module.calls) >= 2:
+        if list(self.module.module.parameters()) or list(self.module.module.buffers()):
+          call0 = self.module.calls[0]
+          prev_call_name, _ = parent_namespace.name_in_ctx([call0.namespace])
+          layer_dict["reuse_params"] = prev_call_name
+      print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
+
+      # Now the main construction of the layer itself.
+      # Collect also potential new TF update ops (e.g. running statistics).
+      prev_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+      with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
+        layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
+      if module.has_torch_forward():
+        self.returnn_layer = layer
+      new_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+      assert len(prev_update_ops) <= len(new_update_ops)
+      assert all(a is b for (a, b) in zip(prev_update_ops, new_update_ops))
+      new_update_ops = new_update_ops[len(prev_update_ops):]
+
+      module.check_returnn_layer(layer)
+      res = module.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
+      res_entry = naming.tensors[res]
+      assert isinstance(res_entry, _tensor.TensorEntry)
+      res_entry.returnn_data = layer.output
+      self.namespace.assign_tensor(res_entry)
+      res_entry.output_from_calls.append(self)  # do now, in case it gets lost after make_structured_returnn_output
+
+      res = module.make_structured_returnn_output(res, *inputs_args, **inputs_kwargs)
+    else:
+      assert module.has_torch_forward()
       for x in inputs_flat:
         if isinstance(x, Tensor):
           self.namespace.register_input(tensor=naming.tensors[x])
@@ -117,42 +163,6 @@ class CallEntry:
           res_entry.returnn_data = layer.output
       layer_dict = None  # will be constructed later lazily when needed
       new_update_ops = []  # ignore
-
-    else:  # no module.forward, direct RETURNN layer call
-      assert module.create_returnn_layer_dict is not Module.create_returnn_layer_dict
-      assert self.namespace and self.namespace.parent
-      parent_namespace = self.namespace.parent
-      parent_namespace.maybe_create_returnn_ctx()
-      layer_dict = module.create_returnn_layer_dict(*inputs_args, **inputs_kwargs)
-      layer_name = self.namespace.name
-      returnn_net = parent_namespace.returnn_ctx.network
-      assert layer_name not in returnn_net.layers
-      if len(self.module.calls) >= 2:
-        if list(self.module.module.parameters()) or list(self.module.module.buffers()):
-          call0 = self.module.calls[0]
-          prev_call_name, _ = parent_namespace.name_in_ctx([call0.namespace])
-          layer_dict["reuse_params"] = prev_call_name
-      print(f"*** {returnn_net.name}/{layer_name!r} layer dict: {layer_dict}")
-
-      # Now the main construction of the layer itself.
-      # Collect also potential new TF update ops (e.g. running statistics).
-      prev_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
-      with reuse_name_scope(parent_namespace.returnn_ctx.tf_name_scope, absolute=True):
-        layer = returnn_net.construct_layer(net_dict={layer_name: layer_dict}, name=layer_name)
-      new_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
-      assert len(prev_update_ops) <= len(new_update_ops)
-      assert all(a is b for (a, b) in zip(prev_update_ops, new_update_ops))
-      new_update_ops = new_update_ops[len(prev_update_ops):]
-
-      module.check_returnn_layer(layer)
-      res = module.make_output_tensor_from_returnn(inputs_flat=inputs_flat, layer=layer)
-      res_entry = naming.tensors[res]
-      assert isinstance(res_entry, _tensor.TensorEntry)
-      res_entry.returnn_data = layer.output
-      self.namespace.assign_tensor(res_entry)
-      res_entry.output_from_calls.append(self)  # do now, in case it gets lost after make_structured_returnn_output
-
-      res = module.make_structured_returnn_output(res, *inputs_args, **inputs_kwargs)
 
     self.set_returnn_layer(layer=layer, layer_dict=layer_dict)
     self.set_outputs(res)

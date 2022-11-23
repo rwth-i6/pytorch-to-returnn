@@ -1716,6 +1716,69 @@ def test_blstm():
     inputs_data_kwargs={"shape": (None, n_in), "batch_dim_axis": 1})
 
 
+def test_dct():
+  n_batch, n_time, n_feat = 3, 7, 5  # B, T, F
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+      import torch.fft
+    else:
+      torch = wrapped_import("torch")
+
+    def dct(x, norm=None):
+      """
+      Taken from https://github.com/zh217/torch-dct
+
+      Discrete Cosine Transform, Type II (a.k.a. the DCT)
+      For the meaning of the parameter `norm`, see:
+      https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.fftpack.dct.html
+      :param x: the input signal
+      :param norm: the normalization, None or 'ortho'
+      :return: the DCT-II of the signal over the last dimension
+      """
+      x_shape = x.shape
+      N = x_shape[-1]
+      x = x.contiguous().view(-1, N)
+
+      v = torch.cat([x[:, ::2], x[:, 1::2].flip([1])], dim=1)
+
+      Vc = torch.view_as_real(torch.fft.fft(v, dim=1))
+
+      k = - torch.arange(N, dtype=x.dtype, device=x.device)[None, :] * numpy.pi / (2 * N)
+      W_r = torch.cos(k)
+      W_i = torch.sin(k)
+
+      V = Vc[:, :, 0] * W_r - Vc[:, :, 1] * W_i
+
+      if norm == "ortho":
+        V[:, 0] /= numpy.sqrt(N) * 2
+        V[:, 1:] /= numpy.sqrt(N / 2) * 2
+
+      V = 2 * V.view(*x_shape)
+
+      return V
+
+    class MyDct(torch.nn.Module):
+      is_original_torch_module = False
+
+      def forward(self, z):
+        return dct(z)
+
+      def create_returnn_layer_dict(self, input):
+        return {"class": "dct", "from": self._get_input_layer_name(input)}
+
+    my_dct = MyDct()
+    output = my_dct(inputs)
+    return output
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
+  converter = verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, returnn_dummy_input_shape=x.shape,
+    inputs_data_kwargs={"shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_multiple_outputs():
   n_batch, n_time = 3, 7
   n_in, n_out = 11, 13
