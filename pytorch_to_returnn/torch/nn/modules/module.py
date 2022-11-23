@@ -515,6 +515,19 @@ class Module:
       return True  # always assume that the user module has custom forward code, even if not cls.forward
     return cls.forward is not Module.forward
 
+  @classmethod
+  def direct_returnn_layer_call(cls) -> bool:
+    """
+    Return True for modules which should be directly mapped to a RETURNN layer call. Otherwise, we assume that the
+    module has custom forward code which will then be mapped to RETURNN layer calls on that level.
+    """
+    if not cls.has_torch_forward():
+      return True
+    for base in cls.__bases__:
+      if hasattr(base, "create_returnn_layer_dict") and cls.create_returnn_layer_dict == base.create_returnn_layer_dict:
+        return False
+    return True
+
   def check_returnn_layer(self, layer: LayerBase):
     """
     You can override this function to perform extra checks on the constructed RETURNN layer,
