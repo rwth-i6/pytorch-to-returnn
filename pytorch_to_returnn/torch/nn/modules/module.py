@@ -526,15 +526,16 @@ class Module:
     """
     if not cls.has_torch_forward():
       return True
-    base = cls
-    while base is not object:
+    if cls is object:
+      return True
+    for base in cls.__bases__:
+      if not issubclass(base, Module):
+        continue
       if cls.create_returnn_layer_dict != base.create_returnn_layer_dict:
         return True
       elif cls.forward != base.forward:
         return False
-      assert len(base.__bases__) == 1, "Not implemented otherwise"
-      base = base.__bases__[0]
-    return True
+    return any(base.direct_returnn_layer_call() for base in cls.__bases__ if issubclass(base, Module))
 
   def check_returnn_layer(self, layer: LayerBase):
     """
