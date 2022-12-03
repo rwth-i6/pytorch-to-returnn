@@ -353,6 +353,23 @@ class _FunctionalConvNd(Module):
         "in_spatial_dims": [self._get_input_axis_to_returnn(input, dim) for dim in range(-self.nd, 0)],
       }
 
+  def _get_output_shape_from_returnn(self, inputs_flat: List[Tensor], layer: LayerBase
+                                     ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
+    """
+    The basic returnn_axis_from_torch_axis should be correct, however, if the size of a dynamic axis changes (e.g. due
+    to strides and/or padding), this is not covered in the base method and we fix it here.
+    """
+    torch_shape, returnn_axis_from_torch_axis = super(_FunctionalConvNd, self)._get_output_shape_from_returnn(
+      inputs_flat=inputs_flat, layer=layer)
+    torch_shape = list(inputs_flat[0].shape)
+    out_channels, in_channels, *kernel_size = inputs_flat[1].shape
+    torch_shape[1] = out_channels
+    for idx in range(self.nd):
+      torch_ax = idx + 2
+      torch_shape[torch_ax] = (torch_shape[torch_ax] + 2 * self.padding[idx] - self.dilation[idx] * (
+        kernel_size[idx] - 1) - 1) // self.stride[idx] + 1
+    return tuple(torch_shape), returnn_axis_from_torch_axis
+
 
 class FunctionalConv1d(_FunctionalConvNd):
   nd = 1
