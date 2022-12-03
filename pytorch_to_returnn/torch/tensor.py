@@ -98,6 +98,9 @@ class Tensor:
   def cpu(self):
     return self  # ignore
 
+  def cuda(self):
+    return self  # ignore
+
   @property
   def device(self):
     class DeviceDummy:
