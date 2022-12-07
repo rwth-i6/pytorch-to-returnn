@@ -1779,6 +1779,46 @@ def test_dct():
     inputs_data_kwargs={"shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
 
 
+def test_vgg():
+  n_batch, n_time, n_feat = 3, 20, 5  # B, T, F
+
+  def model_func(wrapped_import, inputs: torch.Tensor):
+    if typing.TYPE_CHECKING or not wrapped_import:
+      import torch
+    else:
+      torch = wrapped_import("torch")
+
+    class VggBlock(torch.nn.Module):
+      def __init__(self, n_in, n_out, kernel_size, pool_size=None, stride: typing.Union[int, typing.Tuple] = 1):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(n_in, n_out, kernel_size, stride=stride)
+        self.activation = torch.nn.SiLU()
+        self.pooling = torch.nn.MaxPool2d(pool_size) if pool_size is not None else None
+
+      def forward(self, x):
+        # ignore padding here
+        x = self.conv(x)
+        x = self.activation(x)
+        if self.pooling is not None:
+          x = self.pooling(x)
+        return x
+
+    x = inputs.unsqueeze(1)  # (B, 1, T, F)
+    # VGG block:
+    vgg_blocks = torch.nn.Sequential(
+      VggBlock(1, 32, (3, 3)),
+    )
+    x = vgg_blocks(x)
+    x = x.transpose(2, 3).flatten(1, 2)  # (B, F, T)
+    return x
+
+  rnd = numpy.random.RandomState(42)
+  x = rnd.normal(0., 1., (n_batch, n_time, n_feat)).astype("float32")
+  converter = verify_torch_and_convert_to_returnn(
+    model_func, inputs=x, returnn_dummy_input_shape=x.shape, validate_allclose_kwargs=dict(rtol=0, atol=5e-3),
+    inputs_data_kwargs={"shape": (None, n_feat), "batch_dim_axis": 0, "time_dim_axis": 1, "feature_dim_axis": 2})
+
+
 def test_multiple_outputs():
   n_batch, n_time = 3, 7
   n_in, n_out = 11, 13
