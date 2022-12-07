@@ -362,12 +362,21 @@ class _FunctionalConvNd(Module):
     torch_shape, returnn_axis_from_torch_axis = super(_FunctionalConvNd, self)._get_output_shape_from_returnn(
       inputs_flat=inputs_flat, layer=layer)
     torch_shape = list(inputs_flat[0].shape)
-    out_channels, in_channels, *kernel_size = inputs_flat[1].shape
+    if self.transposed:
+      in_channels, out_channels, *kernel_size = inputs_flat[1].shape
+      out_channels *= self.groups
+    else:
+      out_channels, in_channels, *kernel_size = inputs_flat[1].shape
+      in_channels *= self.groups
     torch_shape[1] = out_channels
     for idx in range(self.nd):
       torch_ax = idx + 2
-      torch_shape[torch_ax] = (torch_shape[torch_ax] + 2 * self.padding[idx] - self.dilation[idx] * (
-        kernel_size[idx] - 1) - 1) // self.stride[idx] + 1
+      if self.transposed:
+        torch_shape[torch_ax] = (torch_shape[torch_ax] - 1) * self.stride[idx] - 2 * self.padding[idx] + (
+          self.dilation[idx] * (kernel_size[idx] - 1) + self.output_padding[idx] + 1)
+      else:
+        torch_shape[torch_ax] = (torch_shape[torch_ax] + 2 * self.padding[idx] - self.dilation[idx] * (
+          kernel_size[idx] - 1) - 1) // self.stride[idx] + 1
     return tuple(torch_shape), returnn_axis_from_torch_axis
 
 
