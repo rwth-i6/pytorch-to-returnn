@@ -10,11 +10,18 @@ from .base_wrappers import make_wrapped_object, make_wrapped_class, make_wrapped
 
 
 def wrap(obj, *, name: str, ctx: WrapCtx):
+  def _fully_hashable(obj_):
+    if not isinstance(obj_, Hashable):
+      return False
+    if isinstance(obj_, tuple):
+      return all(_fully_hashable(elem) for elem in obj_)
+    return True
+
   if isinstance(obj, (WrappedObject, WrappedModule)):
     return obj
   if isinstance(obj, ctx.keep_as_is_types):
     return obj
-  if isinstance(obj, Hashable) and obj in ctx.explicit_wrapped_objects:
+  if _fully_hashable(obj) and obj in ctx.explicit_wrapped_objects:
     func = ctx.explicit_wrapped_objects[obj]
     obj = func(obj, name=name, ctx=ctx)
   obj = _nested_transform(obj, lambda _x: wrap(_x, name="%s..." % name, ctx=ctx))
