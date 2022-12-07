@@ -98,15 +98,18 @@ class Tensor:
   def cpu(self):
     return self  # ignore
 
+  def cuda(self):
+    return self  # ignore
+
   @property
   def device(self):
     class DeviceDummy:
       type = None
     return DeviceDummy()
 
-  def flatten(self):
+  def flatten(self, start_dim=0, end_dim=-1):
     from .nn.functional import flatten
-    return flatten(self)
+    return flatten(self, start_dim, end_dim)
 
   def view(self, *shape):
     from .nn.functional import reshape
