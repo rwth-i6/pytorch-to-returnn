@@ -526,16 +526,25 @@ class Module:
     """
     if not cls.has_torch_forward():
       return True
-    if cls is object:
-      return True
-    for base in cls.__bases__:
+
+    queue = [cls]
+    visited = set()
+    while len(queue) > 0:
+      base = queue.pop(0)
+      if base in visited:
+        continue
+      visited.add(base)
+
+      if cls is object:
+        return True
       if not issubclass(base, Module):
         continue
       if cls.create_returnn_layer_dict != base.create_returnn_layer_dict:
         return True
       elif cls.forward != base.forward:
         return False
-    return any(base.direct_returnn_layer_call() for base in cls.__bases__ if issubclass(base, Module))
+      queue += [base for base in cls.__bases__ if issubclass(base, Module)]
+    return True
 
   def check_returnn_layer(self, layer: LayerBase):
     """
