@@ -132,8 +132,8 @@ class _ConvNd(Module):
                                      ) -> Tuple[Tuple[int, ...], Dict[int, int]]:
     """
     If the size of a dynamic axis changes (e.g. due to strides and/or padding), this is not covered in the base method
-    and we fix it here. Also, the basic returnn_axis_from_torch_axis fails if the RETURNN input feature dim is used as a
-    spatial dim for convolution. We try to cover this here and use the basic implementation as a fallback.
+    and we fix it here. Also, returnn_axis_from_torch_axis needs to be modified for cases where the RETURNN input
+    feature dim is used as a spatial dim for convolution.
     """
     assert len(inputs_flat) == 1
     torch_shape = list(inputs_flat[0].shape)
@@ -151,33 +151,32 @@ class _ConvNd(Module):
     assert in_data.batch_ndim == out_data.batch_ndim
 
     mapping_out_to_in = {}
-    if in_data.batch_dim_axis is not None and out_data.batch_dim_axis is not None:
-      mapping_out_to_in[out_data.batch_dim_axis] = in_data.batch_dim_axis
-    if in_data.time_dim_axis and out_data.time_dim_axis:
-      mapping_out_to_in[out_data.time_dim_axis] = in_data.time_dim_axis
+    # map unchanged dims
+    for in_dim, in_dim_tag in enumerate(in_data.dim_tags):
+      if in_dim_tag in out_data.dim_tags:
+        mapping_out_to_in[out_data.dim_tags.index(in_dim_tag)] = in_dim
+
+    # map channel dim
     in_channel = input_tensor.returnn_axis_from_torch_axis[1]
     out_channel = [
       dim for dim in layer.output.get_static_axes() if layer.output.dim_tags[dim].dimension == self.out_channels]
-    if len(out_channel) == 1:
-      mapping_out_to_in[out_channel[0]] = in_channel
+    assert len(out_channel) == 1
+    mapping_out_to_in[out_channel[0]] = in_channel
 
-    if len(mapping_out_to_in) == in_data.batch_ndim - 1:
-      # only one axis is missing, just take remaining axis
-      remaining_in = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.values()))
-      remaining_out = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.keys()))
-      assert len(remaining_in) == 1 and len(remaining_out) == 1
-      mapping_out_to_in[remaining_out.pop()] = remaining_in.pop()
+    # map spatial axes, the order is the same as in in_spatial_dims
+    in_spatial_dims = [
+      input_tensor.returnn_axis_from_torch_axis[dim + in_data.batch_ndim]
+      for dim in range(-self.nd, 0)]
+    for in_dim, out_dim in zip(in_spatial_dims, out_data.get_spatial_batch_axes()):
+      mapping_out_to_in[out_dim] = in_dim
 
-    if len(mapping_out_to_in) == in_data.batch_ndim:
-      # found all axes, so we can proceed
-      returnn_axis_from_torch_axis = {}
-      for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
-        torch_axis = input_tensor.torch_axis_from_returnn_axis[returnn_in_axis]  # torch does not change order for conv
-        returnn_axis_from_torch_axis[torch_axis] = returnn_out_axis
-    else:
-      # did not find all axes, so fall back to (possibly faulty) default mapping
-      _, returnn_axis_from_torch_axis = super(_ConvNd, self)._get_output_shape_from_returnn(
-        inputs_flat=inputs_flat, layer=layer)
+    assert len(mapping_out_to_in) == in_data.batch_ndim, (
+        f"Not all axes were mapped successfully. In: {in_data}, out: {out_data}")
+    returnn_axis_from_torch_axis = {}
+    for returnn_out_axis, returnn_in_axis in mapping_out_to_in.items():
+      torch_axis = input_tensor.torch_axis_from_returnn_axis[returnn_in_axis]  # torch does not change order for conv
+      returnn_axis_from_torch_axis[torch_axis] = returnn_out_axis
+
     return tuple(torch_shape), returnn_axis_from_torch_axis
 
 
