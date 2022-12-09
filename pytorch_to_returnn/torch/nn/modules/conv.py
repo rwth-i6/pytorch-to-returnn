@@ -163,8 +163,8 @@ class _ConvNd(Module):
 
     if len(mapping_out_to_in) == in_data.batch_ndim - 1:
       # only one axis is missing, just take remaining axis
-      remaining_in = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.keys()))
-      remaining_out = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.values()))
+      remaining_in = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.values()))
+      remaining_out = set(range(in_data.batch_ndim)).difference(set(mapping_out_to_in.keys()))
       assert len(remaining_in) == 1 and len(remaining_out) == 1
       mapping_out_to_in[remaining_out.pop()] = remaining_in.pop()
 
