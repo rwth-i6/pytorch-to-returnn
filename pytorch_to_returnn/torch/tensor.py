@@ -285,7 +285,7 @@ class Tensor:
       for ax, ax_slice in enumerate(item):
         if isinstance(ax_slice, int):
           out = Gather(dim=ax, pos=ax_slice)(out)
-        if isinstance(ax_slice, Tensor):
+        elif isinstance(ax_slice, Tensor):
           out = GatherTensor(dim=ax)(out, pos=ax_slice)
         elif isinstance(ax_slice, slice):
           if not ax_slice.start and not ax_slice.stop and ax_slice.step in {1, None}:
